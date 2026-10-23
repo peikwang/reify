@@ -1,6 +1,6 @@
 # VibeForge
 
-> 从 Vibe Coding 到 Vibe Working：一句话生成网站、简历、小游戏、旅游攻略、多尺寸适配和编程演示，并把成品直接部署到自己的 Agent Server。
+> 从 Vibe Coding 到 Vibe Working：一句话生成网站、简历、小游戏、旅游攻略、多尺寸适配、图片、视频和编程演示，并把成品直接部署到自己的 Agent Server。
 
 VibeForge 是一个单机优先的个人设计 Agent。它把自然语言拆成计划，逐步写文件，展示代码 Diff 与 Agent 思考流，跑结构/交互/语法自检，最后发布到 `/tasks/{id}/`。
 
@@ -13,6 +13,8 @@ VibeForge 是一个单机优先的个人设计 Agent。它把自然语言拆成�
 | 简历 | 单页双栏、在线可读、A4 可打印 | 结构、打印样式、viewport |
 | 旅游攻略 | 按天切换的路线、预算与贴士 | 结构、每日路线交互、viewport |
 | 适配制作 | 16:9 / 1:1 / 9:16 多画板切换 | 结构、多尺寸标记、viewport |
+| 图片 | 一次生成 4 张本地保存的图片 + 画廊 | 结构、图片资源、viewport |
+| 视频 | 异步渲染视频 + 播放器页 | 结构、视频资源、viewport |
 | 编程 | Python 代码 + 交互式可视化 | 结构、代码演示、`py_compile` |
 
 ## 双模式
@@ -76,6 +78,14 @@ export VIBEFORGE_LLM_MODEL=qwen-plus
 
 也支持 vLLM / SGLang / Ollama 的 OpenAI 兼容接口。
 
+图片默认使用 `qwen-image-3.0-pro`，一次生成 4 张；视频默认使用当前工作区已开放的 `wan3.0-video`。`wan2.7-video` 在当前工作区返回 Model not exist，如果后续开通可设置：
+
+```bash
+VIBEFORGE_VIDEO_MODEL=wan2.7-video
+```
+
+图片/视频素材会下载到 `projects/{id}/assets/v{revision}/`，项目页展示画廊或播放器；二次修改会生成新的 `v{revision}` 目录，旧素材保留。
+
 ### 安全注入模型凭据（不要发到对话里）
 
 把凭据写成本地文件，再用 scp 传到服务器，Agent 不读取文件内容，也不会把它写进仓库：
@@ -115,7 +125,7 @@ server/
   events.py            任务、事件流、持久化
   tools.py             文件快照、Python 自检、部署工具
   llm.py               可选创意导演（失败自动回退）
-  templates/           六类能力的可运行页面模板
+  templates/           八类能力的可运行页面模板（含图片/视频画廊）
 web/                   双模式工作台（原生 HTML/CSS/JS）
 projects/{task_id}/    Agent 产物（index.html、README.md、结构化数据）
 data/tasks/{task_id}/  元信息与 events.jsonl
@@ -124,7 +134,7 @@ data/tasks/{task_id}/  元信息与 events.jsonl
 ## API
 
 - `POST /api/tasks` `{prompt, capability?}` → 创建任务
-- `POST /api/tasks/{id}/refine` `{instruction}` → 基于当前成果对话修改
+- `POST /api/tasks/{id}/refine` `{instruction}` → 基于当前成果对话修改（图片/视频会重新生成素材）
 - `GET /api/tasks/{id}` → 元信息 + 事件历史
 - `GET /api/tasks/{id}/events` → SSE 事件流
 - `POST /api/tasks/{id}/deploy` → 重新部署

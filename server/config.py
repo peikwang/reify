@@ -24,6 +24,19 @@ LLM_MAX_TOKENS = int(os.getenv("VIBEFORGE_LLM_MAX_TOKENS", "1200"))
 LLM_REFINE_MAX_TOKENS = int(os.getenv("VIBEFORGE_LLM_REFINE_MAX_TOKENS", "3000"))
 LLM_ENABLED = os.getenv("VIBEFORGE_LLM_ENABLED", "1") not in {"0", "false", "False", "off"}
 
+MEDIA_API_BASE = os.getenv("VIBEFORGE_MEDIA_API_BASE", "").rstrip("/")
+if not MEDIA_API_BASE:
+    MEDIA_API_BASE = LLM_BASE_URL
+    if MEDIA_API_BASE.endswith("/compatible-mode/v1"):
+        MEDIA_API_BASE = MEDIA_API_BASE[: -len("/compatible-mode/v1")]
+IMAGE_MODEL = os.getenv("VIBEFORGE_IMAGE_MODEL", "qwen-image-3.0-pro")
+VIDEO_MODEL = os.getenv("VIBEFORGE_VIDEO_MODEL", "wan3.0-video")
+IMAGE_COUNT = max(1, min(int(os.getenv("VIBEFORGE_IMAGE_COUNT", "4")), 6))
+VIDEO_DURATION = max(2, min(int(os.getenv("VIBEFORGE_VIDEO_DURATION", "5")), 30))
+VIDEO_RESOLUTION = os.getenv("VIBEFORGE_VIDEO_RESOLUTION", "720P")
+MEDIA_TIMEOUT = float(os.getenv("VIBEFORGE_MEDIA_TIMEOUT", "900"))
+VIDEO_POLL_INTERVAL = float(os.getenv("VIBEFORGE_VIDEO_POLL_INTERVAL", "10"))
+
 STEP_DELAY = float(os.getenv("VIBEFORGE_STEP_DELAY", "0.55"))
 MAX_CONCURRENT_TASKS = int(os.getenv("VIBEFORGE_MAX_CONCURRENT", "4"))
 

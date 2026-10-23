@@ -1,13 +1,22 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 from typing import Any
 
-from .config import STEP_DELAY
+from .config import (
+    IMAGE_COUNT,
+    IMAGE_MODEL,
+    STEP_DELAY,
+    VIDEO_DURATION,
+    VIDEO_MODEL,
+    VIDEO_RESOLUTION,
+)
 from .events import Task, store
 from .llm import design_brief, enabled as llm_enabled, refine_html
+from .media import MediaError, create_video, download_asset, generate_images, wait_video
 from .templates.library import (
     CAPABILITIES,
     PLANS,
@@ -16,16 +25,113 @@ from .templates.library import (
     extra_files,
     html_checks,
     render_html,
+    render_media_html,
     safe_brief,
     scaffold_html,
 )
 from .tools import Workspace
 
 logger = logging.getLogger("vibeforge.agent")
+MEDIA_CAPS = {"image", "video"}
 
 
 async def _pause(multiplier: float = 1.0) -> None:
     await asyncio.sleep(max(0.05, STEP_DELAY * multiplier))
+
+
+def _media_ext(mime: str) -> str:
+    return {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp", "image/gif": ".gif"}.get(
+        (mime or "").lower(), ".png"
+    )
+
+
+async def _generate_media_assets(
+    task: Task, capability: str, prompt: str, version: int
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    workspace = Workspace(task)
+    assets: list[dict[str, Any]] = []
+    if capability == "image":
+        await task.emit(
+            "media_progress",
+            status="GENERATING",
+            message=f"正在生成 {IMAGE_COUNT} 张图片 · {IMAGE_MODEL}",
+        )
+        urls = await generate_images(prompt, IMAGE_COUNT)
+        for index, url in enumerate(urls, start=1):
+            data, mime = await download_asset(url)
+            path = f"assets/v{version}/image-{index:02d}{_media_ext(mime)}"
+            asset = await workspace.save_asset(path, data, mime, f"图片 {index} 已保存")
+            assets.append(asset)
+            await task.emit(
+                "media_progress",
+                status="ASSET_READY",
+                message=f"第 {index}/{len(urls)} 张图片已保存",
+                progress=index,
+                total=len(urls),
+            )
+        meta = {
+            "kind": "image",
+            "model": IMAGE_MODEL,
+            "count": len(assets),
+            "duration": None,
+            "resolution": "1024x1024",
+        }
+        return assets, meta
+
+    await task.emit(
+        "media_progress",
+        status="SUBMITTING",
+        message=f"正在提交视频渲染任务 · {VIDEO_MODEL}",
+    )
+    upstream_task_id = await create_video(prompt, VIDEO_DURATION, VIDEO_RESOLUTION)
+
+    async def on_progress(info: dict[str, Any]) -> None:
+        await task.emit(
+            "media_progress",
+            status=info.get("status", "RUNNING"),
+            message=f"视频渲染中 · {info.get('status', '')} · {info.get('elapsed', 0)}s",
+            elapsed=info.get("elapsed", 0),
+            upstream_task_id=info.get("task_id", upstream_task_id),
+        )
+
+    output = await wait_video(upstream_task_id, on_progress)
+    video_url = str(output["video_url"])
+    data, mime = await download_asset(video_url)
+    asset = await workspace.save_asset(
+        f"assets/v{version}/video.mp4",
+        data,
+        mime or "video/mp4",
+        "视频已下载",
+    )
+    assets.append(asset)
+    meta = {
+        "kind": "video",
+        "model": VIDEO_MODEL,
+        "count": 1,
+        "duration": VIDEO_DURATION,
+        "resolution": VIDEO_RESOLUTION,
+        "upstream_task_id": upstream_task_id,
+    }
+    return assets, meta
+
+
+def _media_manifest(
+    task: Task,
+    prompt: str,
+    revision: int,
+    assets: list[dict[str, Any]],
+    meta: dict[str, Any],
+    brief: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "capability": task.capability,
+        "title": task.title,
+        "prompt": prompt,
+        "revision": revision,
+        "assets": assets,
+        "meta": meta,
+        "brief": brief,
+    }
 
 
 async def run_task(task: Task) -> None:
@@ -56,40 +162,62 @@ async def run_task(task: Task) -> None:
             await task.emit("plan", steps=plan, capability=capability, label=label)
 
             brief = safe_brief(capability, defaults(capability, task.prompt))
+            is_media = capability in MEDIA_CAPS
+            assets: list[dict[str, Any]] = []
+            media_meta: dict[str, Any] = {}
 
             # Step 1 — understand and set the creative direction.
             await task.emit("step_started", index=0, title=plan[0])
             await task.emit("thinking", step=plan[0], summary=thinking[0])
             await _pause(0.8)
-            brief = await design_brief(capability, task.prompt, brief)
-            brief = safe_brief(capability, brief)
-            task.source = "llm" if brief.get("source") == "llm" else "director"
-            task.title = str(brief.get("title", task.title or label))
-            task.save_meta()
-            await task.emit(
-                "thinking",
-                step=plan[0],
-                summary=f"视觉方向：{brief.get('tagline', '')}",
-                detail=brief.get("paragraph", ""),
-                source=task.source,
-            )
+            if is_media:
+                task.source = "media"
+                task.title = str(brief.get("title", task.title or label))
+                task.save_meta()
+                await task.emit(
+                    "thinking",
+                    step=plan[0],
+                    summary=f"画面方向：{brief.get('tagline', '')}",
+                    detail=task.prompt,
+                    source="media",
+                )
+            else:
+                brief = await design_brief(capability, task.prompt, brief)
+                brief = safe_brief(capability, brief)
+                task.source = "llm" if brief.get("source") == "llm" else "director"
+                task.title = str(brief.get("title", task.title or label))
+                task.save_meta()
+                await task.emit(
+                    "thinking",
+                    step=plan[0],
+                    summary=f"视觉方向：{brief.get('tagline', '')}",
+                    detail=brief.get("paragraph", ""),
+                    source=task.source,
+                )
             await _pause(0.6)
             await task.emit("step_done", index=0, summary="方向已确定", source=task.source)
 
-            # Step 2 — scaffold. This is the first real file snapshot.
+            # Step 2 — scaffold. For media this is a loading gallery/player page.
             await task.emit("step_started", index=1, title=plan[1])
             await task.emit("thinking", step=plan[1], summary=thinking[1])
             await _pause(0.9)
             await workspace.write_file(
                 "index.html", scaffold_html(capability, brief), "先搭一个可运行的页面骨架"
             )
-            await task.emit("step_done", index=1, summary="骨架已落盘")
+            if is_media:
+                assets, media_meta = await _generate_media_assets(
+                    task, capability, task.prompt, 1
+                )
+            await task.emit("step_done", index=1, summary="素材已落盘" if is_media else "骨架已落盘")
 
             # Step 3 — build the real artifact (and code file for the Code Lab).
             await task.emit("step_started", index=2, title=plan[2])
             await task.emit("thinking", step=plan[2], summary=thinking[2])
             await _pause(0.9)
-            if capability == "code":
+            if is_media:
+                html = render_media_html(capability, brief, assets, 1, task.prompt, media_meta)
+                await workspace.write_file("index.html", html, "组装媒体画廊页面")
+            elif capability == "code":
                 extras = extra_files(capability, brief, task.prompt, task.id)
                 await workspace.write_file("main.py", extras["main.py"], "生成算法主体")
                 html = render_html(capability, brief)
@@ -104,8 +232,15 @@ async def run_task(task: Task) -> None:
             await task.emit("step_started", index=3, title=plan[3])
             await task.emit("thinking", step=plan[3], summary=thinking[3])
             await _pause(0.9)
+            if is_media:
+                media_manifest = _media_manifest(task, task.prompt, 1, assets, media_meta, brief)
+                await workspace.write_file(
+                    "media.json", json.dumps(media_manifest, ensure_ascii=False, indent=2), "写入媒体元数据"
+                )
             extras = extra_files(capability, brief, task.prompt, task.id)
             for path, content in extras.items():
+                if path == "media.json":
+                    continue
                 await workspace.write_file(path, content, "补齐结构化数据与交付说明")
                 await _pause(0.4)
             await task.emit("step_done", index=3, summary="交付文件已补齐")
@@ -116,6 +251,8 @@ async def run_task(task: Task) -> None:
             await _pause(0.8)
             current = (task.workspace / "index.html").read_text(encoding="utf-8")
             checks = html_checks(current, capability)
+            if is_media:
+                checks.append(("素材已生成", bool(assets) and all(a.get("bytes", 0) > 0 for a in assets), f"{len(assets)} 个文件"))
             for name, ok, detail in checks:
                 await task.emit("verify", name=name, ok=ok, detail=detail)
                 await _pause(0.24)
@@ -155,6 +292,11 @@ async def run_task(task: Task) -> None:
                 "elapsed_ms": elapsed,
                 "checks": [{"name": name, "ok": ok, "detail": detail} for name, ok, detail in checks],
             }
+            if is_media:
+                task.revision = 1
+                task.result["revision"] = 1
+                task.result["assets"] = len(assets)
+                task.result["media"] = media_meta
             task.save_meta()
             await task.emit(
                 "done",
@@ -164,6 +306,7 @@ async def run_task(task: Task) -> None:
                 elapsed_ms=elapsed,
                 source=task.source,
                 capability=capability,
+                revision=task.revision,
             )
         except Exception as exc:  # noqa: BLE001 - task failure must be visible in the stream
             logger.exception("task %s failed", task.id)
@@ -294,3 +437,115 @@ async def run_refine(task: Task, instruction: str) -> None:
                     logger.exception("refine rollback failed for task %s", task.id)
             if not committed:
                 await _refine_failed(task, "修改过程中出现错误，原页面保持不变。")
+
+
+async def run_media_refine(task: Task, instruction: str) -> None:
+    started = time.monotonic()
+    revision = task.revision + 1
+    original_html: str | None = None
+    original_media: str | None = None
+    committed = False
+    async with store.semaphore():
+        try:
+            task.status = "running"
+            task.save_meta()
+            await task.emit(
+                "refine_started",
+                instruction=instruction,
+                capability=task.capability,
+                revision=revision,
+            )
+            await task.emit(
+                "thinking",
+                step="理解媒体修改要求",
+                summary="保留当前项目，只重新生成需要变化的图片或视频。",
+                source="media",
+            )
+            await _pause(0.3)
+            index = task.workspace / "index.html"
+            media_path = task.workspace / "media.json"
+            original_html = index.read_text(encoding="utf-8") if index.exists() else None
+            media_data: dict[str, Any] = {}
+            if media_path.exists():
+                try:
+                    media_data = json.loads(media_path.read_text(encoding="utf-8"))
+                except ValueError:
+                    media_data = {}
+                original_media = json.dumps(media_data, ensure_ascii=False, indent=2)
+            base_prompt = str(media_data.get("prompt") or task.prompt)
+            new_prompt = base_prompt + "\n修改要求：" + instruction
+            brief = safe_brief(
+                task.capability,
+                media_data.get("brief") or defaults(task.capability, task.prompt),
+            )
+            assets, media_meta = await _generate_media_assets(
+                task, task.capability, new_prompt, revision
+            )
+            html = render_media_html(task.capability, brief, assets, revision, new_prompt, media_meta)
+            checks = html_checks(html, task.capability)
+            checks.append(
+                ("素材已生成", bool(assets) and all(a.get("bytes", 0) > 0 for a in assets), f"{len(assets)} 个文件")
+            )
+            if not all(ok for _, ok, _ in checks):
+                await _refine_failed(task, "修改后的媒体项目没有通过资源自检，已保留原页面。")
+                return
+            workspace = Workspace(task)
+            await workspace.write_file("index.html", html, "重新生成媒体画廊")
+            manifest = _media_manifest(task, new_prompt, revision, assets, media_meta, brief)
+            await workspace.write_file(
+                "media.json", json.dumps(manifest, ensure_ascii=False, indent=2), "更新媒体元数据"
+            )
+            await task.emit("preview_ready", url=task.url, title=task.title)
+            for name, ok, detail in checks:
+                await task.emit("verify", name=name, ok=ok, detail=detail)
+                await _pause(0.12)
+            task.status = "deploying"
+            task.save_meta()
+            deployed = await workspace.deploy(task.title)
+            elapsed = round((time.monotonic() - started) * 1000)
+            task.revision = revision
+            task.source = "media-edit"
+            task.error = None
+            task.status = "done"
+            task.result = {
+                "url": deployed["url"],
+                "title": task.title,
+                "capability": task.capability,
+                "source": "media-edit",
+                "elapsed_ms": elapsed,
+                "revision": revision,
+                "assets": len(assets),
+                "media": media_meta,
+                "checks": [{"name": name, "ok": ok, "detail": detail} for name, ok, detail in checks],
+            }
+            task.save_meta()
+            committed = True
+            summary = (
+                f"已重新生成 {len(assets)} 张图片并部署。"
+                if task.capability == "image"
+                else "已重新生成视频并部署。"
+            )
+            await task.emit(
+                "done",
+                url=deployed["url"],
+                title=task.title,
+                summary=summary,
+                elapsed_ms=elapsed,
+                source="media-edit",
+                capability=task.capability,
+                revision=revision,
+            )
+        except Exception as exc:  # noqa: BLE001 - keep the previous deliverable intact
+            logger.exception("media refine failed for task %s", task.id)
+            task.error = str(exc)
+            if not committed:
+                try:
+                    if original_html is not None:
+                        await Workspace(task).restore_file("index.html", original_html)
+                    if original_media is not None:
+                        await Workspace(task).restore_file("media.json", original_media)
+                    if original_html is not None:
+                        await Workspace(task).deploy(task.title)
+                except Exception:  # noqa: BLE001 - best-effort rollback
+                    logger.exception("media refine rollback failed for task %s", task.id)
+                await _refine_failed(task, "媒体修改过程中出现错误，原页面保持不变。")

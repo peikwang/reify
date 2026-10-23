@@ -4,7 +4,7 @@ import json
 import re
 from typing import Any
 
-from . import adapt, code_lab, game, resume, travel, website
+from . import adapt, code_lab, game, image, resume, travel, video, website
 from .base import accent, esc
 
 CAPABILITIES: dict[str, dict[str, str]] = {
@@ -21,6 +21,20 @@ CAPABILITIES: dict[str, dict[str, str]] = {
         "description": "有品牌感、响应式的落地页或个人官网",
         "example": "为独立设计工作室做一个有编辑感的产品官网",
         "prompt": "为一家独立设计工作室做一个有编辑感的官网：第一屏是大字号主张和留白，包含品牌介绍、四项能力、工作流程和联系 CTA；整体安静克制，响应式，带轻微滚动动画。",
+    },
+    "image": {
+        "label": "图片",
+        "short": "IMAGE",
+        "description": "一次生成多张可保存、可下载的视觉图片",
+        "example": "生成 4 张安静的日系静物摄影，陶瓷杯、亚麻布和晨光",
+        "prompt": "生成 4 张风格统一的视觉图片：安静的日系静物摄影，陶瓷咖啡杯、亚麻布、晨光和柔和阴影，构图克制，细节真实，适合作为品牌视觉素材。",
+    },
+    "video": {
+        "label": "视频",
+        "short": "VIDEO",
+        "description": "把一个画面意图生成可播放的短视频",
+        "example": "生成一段 5 秒的咖啡杯晨光慢镜头，轻微推进",
+        "prompt": "生成一段 5 秒的短视频：陶瓷咖啡杯放在亚麻布上，晨光缓慢移动，镜头轻微推进，画面安静、克制、电影感，16:9。",
     },
     "resume": {
         "label": "简历",
@@ -53,6 +67,8 @@ CAPABILITIES: dict[str, dict[str, str]] = {
 }
 
 PLANS = {
+    "image": ["理解画面意图与风格", "生成并下载图片素材", "组装图片画廊", "校验资源与版面", "部署图片项目"],
+    "video": ["理解影片意图与镜头", "提交视频生成任务", "等待渲染完成", "组装视频播放页", "部署视频项目"],
     "game": ["解析玩法与视觉方向", "生成游戏骨架", "实现核心玩法与计分", "补齐说明与移动端适配", "自检并部署可玩版本"],
     "website": ["提炼品牌与信息架构", "搭建页面骨架", "完成视觉与内容区块", "补齐交互与响应式", "自检并部署上线"],
     "resume": ["提取个人信息与求职方向", "设计版式与信息层级", "生成简历内容", "打印与 ATS 自检", "部署在线简历"],
@@ -62,6 +78,20 @@ PLANS = {
 }
 
 THINKING = {
+    "image": [
+        "先提炼画面主体、光线、材质和情绪，保证四张图属于同一组视觉方向。",
+        "调用图像模型生成一组候选画面，并立即下载到本地，避免临时链接过期。",
+        "用画廊页承载图片，保留足够的留白，让每张图都能被完整看到。",
+        "检查图片文件、HTML 结构和移动端布局，确保不是一份只有链接的空页面。",
+        "发布到本地静态路由，并保留项目页和下载入口。",
+    ],
+    "video": [
+        "先提炼镜头、主体、光线和运动方式，控制在一个可生成的时间长度内。",
+        "把提示词提交给视频模型，创建异步渲染任务。",
+        "轮询渲染进度，把状态实时推给工作台；完成后立即下载 MP4。",
+        "用播放器页面承载视频、提示词和下载入口。",
+        "检查视频文件、播放器结构和响应式布局，再发布。",
+    ],
     "game": [
         "先把它做成一个 30 秒就能理解的街机：目标单一、反馈立刻、失败也愿意再来。",
         "用一个 canvas 承载网格、蛇身、能量点和粒子反馈，所有逻辑保持单文件。",
@@ -117,9 +147,26 @@ def classify(prompt: str) -> str:
         return "travel"
     if any(k in text for k in ("适配", "多尺寸", "多端", "方图", "竖版", "横版", "海报", "banner", "封面")):
         return "adapt"
+    if any(k in text for k in ("网站", "网页", "官网", "落地页", "landing", "web")):
+        return "website"
+    if any(k in text for k in ("视频", "短片", "影片", "动画", "镜头", "运镜", "剪辑", "video", "wan")):
+        return "video"
+    if any(k in text for k in ("图片", "图像", "照片", "插画", "海报", "壁纸", "封面", "视觉", "image", "qwen-image")):
+        return "image"
     if any(k in text for k in ("编程", "代码", "算法", "python", "javascript", "排序", "脚本", "接口")):
         return "code"
     return "website"
+
+
+def _media_title(prompt: str) -> str:
+    text = prompt.strip().replace("\n", " ")
+    text = re.sub(
+        r"^(请|帮我|给我)?\s*(生成|做|来|创建|制作)\s*[0-9一二三四五六七八九十]*\s*(张|段|个|份)?\s*",
+        "",
+        text,
+    )
+    title = re.split(r"[：:，,。；;]", text)[0].strip()
+    return (title or "图像研究")[:18]
 
 
 def _extract_name(prompt: str) -> str:
@@ -164,6 +211,28 @@ def defaults(capability: str, prompt: str) -> dict[str, Any]:
             "paragraph": "一个足够小、足够快的浏览器街机，打开就能玩。",
             "highlights": ["键盘 / 触控双操作", "连击加速", "本地最高分", "零依赖单文件"],
             "accent": "#b8ff5a",
+        }
+    if capability == "image":
+        clean = _media_title(prompt)
+        return {
+            "title": clean,
+            "tagline": "把一句话，变成一张可以保存的画面。",
+            "paragraph": "一组同方向的视觉研究，保留光线、材质与安静的情绪。",
+            "highlights": ["多张候选", "本地保存", "可下载", "沉浸画廊"],
+            "accent": "#336b57",
+            "model": "qwen-image-3.0-pro",
+        }
+    if capability == "video":
+        clean = _media_title(prompt)
+        return {
+            "title": clean,
+            "tagline": "让画面动起来。",
+            "paragraph": "一段由画面意图驱动的短片，保留镜头、光线和节奏。",
+            "highlights": ["文生视频", "异步渲染", "MP4 下载", "本地播放"],
+            "accent": "#c05e3c",
+            "model": "wan3.0-video",
+            "duration": 5,
+            "resolution": "720P",
         }
     if capability == "resume":
         name = _extract_name(prompt)
@@ -240,6 +309,22 @@ def render_html(capability: str, brief: dict[str, Any]) -> str:
         "code": code_lab.render,
     }
     return renderers.get(capability, website.render)(brief)
+
+
+def render_media_html(
+    capability: str,
+    brief: dict[str, Any],
+    assets: list[dict[str, Any]],
+    revision: int,
+    prompt: str,
+    meta: dict[str, Any] | None = None,
+) -> str:
+    brief = safe_brief(capability, brief)
+    if capability == "image":
+        return image.render(brief, assets, revision, prompt)
+    if capability == "video":
+        return video.render(brief, assets[0], revision, prompt, meta or {})
+    raise ValueError(f"unsupported media capability: {capability}")
 
 
 def scaffold_html(capability: str, brief: dict[str, Any]) -> str:
@@ -371,6 +456,8 @@ def html_checks(html: str, capability: str) -> list[tuple[str, bool, str]]:
         "travel": ("行程交互", 'class="tab' in html, "每日路线可切换"),
         "adapt": ("多尺寸", 'data-ratio' in html, "三种画板比例"),
         "code": ("代码演示", "quick_sort" in html, "代码与可视化已连接"),
+        "image": ("图像画廊", "<img" in html and "assets/" in html, "图片画廊已组装"),
+        "video": ("视频播放器", "<video" in html and "assets/" in html, "视频播放器已组装"),
         "website": ("品牌区块", 'class="feature"' in html, "内容区块已生成"),
     }
     checks.append(cap_check.get(capability, cap_check["website"]))

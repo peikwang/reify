@@ -481,12 +481,14 @@
   const fallbackCapInfo = {
     game: { key: "game", label: "小游戏", short: "GAME" },
     website: { key: "website", label: "网站", short: "WEB" },
+    image: { key: "image", label: "图片", short: "IMAGE" },
+    video: { key: "video", label: "视频", short: "VIDEO" },
     resume: { key: "resume", label: "简历", short: "CV" },
     travel: { key: "travel", label: "旅游攻略", short: "TRIP" },
     adapt: { key: "adapt", label: "适配制作", short: "ADAPT" },
     code: { key: "code", label: "编程", short: "CODE" },
   };
-  const coverGlyphs = { game: "▶", website: "Aa", resume: "CV", travel: "↗", adapt: "▣", code: "</>" };
+  const coverGlyphs = { game: "▶", website: "Aa", image: "IMG", video: "VID", resume: "CV", travel: "↗", adapt: "▣", code: "</>" };
 
   function capInfo(key) {
     return state.caps.find((item) => item.key === key) || fallbackCapInfo[key] || fallbackCapInfo.website;
@@ -573,7 +575,7 @@
 
   function renderProjectFilters(items) {
     if (!els.projectFilters) return;
-    const order = ["game", "website", "resume", "travel", "adapt", "code"];
+    const order = ["game", "website", "image", "video", "resume", "travel", "adapt", "code"];
     const available = order.filter((key) => items.some((task) => task.capability === key));
     const keys = ["all", ...available];
     els.projectFilters.innerHTML = keys
@@ -835,7 +837,13 @@
           item.appendChild(detail);
         }
         if (event.source) {
-          appendChip(item, event.source === "llm" ? "LLM DIRECTOR" : "LOCAL DIRECTOR", "tl-verify");
+          const sourceLabel =
+            event.source === "llm"
+              ? "LLM DIRECTOR"
+              : event.source === "media" || event.source === "media-edit"
+                ? "MEDIA RENDER"
+                : "LOCAL DIRECTOR";
+          appendChip(item, sourceLabel, "tl-verify");
         }
         break;
       }
@@ -889,6 +897,32 @@
         els.outcomeText.textContent = "代码已经写入，Agent 正在做最后的自检。";
         break;
       }
+      case "asset_created": {
+        addTimeline({
+          type: "file",
+          title: "ASSET / " + (event.path || ""),
+          summary: (event.summary || "媒体素材已保存") + " · " + Math.round((event.bytes || 0) / 1024) + " KB",
+          time,
+          animate,
+        });
+        terminal("✓ asset " + (event.path || "") + " · " + (event.mime || ""), "ok");
+        break;
+      }
+      case "media_progress": {
+        setStatus("running", event.status || "RENDERING");
+        els.flowTitle.textContent = event.message || "正在生成媒体素材";
+        if (event.message) {
+          addTimeline({
+            type: "thought",
+            title: "MEDIA / " + (event.status || "PROGRESS"),
+            summary: event.message,
+            time,
+            animate,
+          });
+        }
+        terminal("◆ " + (event.message || "media progress"), "");
+        break;
+      }
       case "verify": {
         upsertCheck(event.name || "check", Boolean(event.ok), event.detail || "");
         renderChecks();
@@ -920,7 +954,7 @@
         break;
       }
       case "done": {
-        const isRefine = event.source === "llm-edit";
+        const isRefine = event.source === "llm-edit" || event.source === "media-edit";
         const refineFailed = event.source === "refine-failed";
         setRunning(false);
         setStatus("done", refineFailed ? "UNCHANGED" : "DEPLOYED");
