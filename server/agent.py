@@ -17,6 +17,7 @@ from .config import (
 from .events import Task, store
 from .llm import design_brief, enabled as llm_enabled, refine_html
 from .media import MediaError, create_video, download_asset, generate_images, wait_video
+from .sandbox import SandboxError, sandbox_runner
 from .templates.library import (
     CAPABILITIES,
     PLANS,
@@ -29,6 +30,10 @@ from .templates.library import (
     safe_brief,
     scaffold_html,
 )
+from .templates.next_app import build_files as next_build_files
+from .templates.next_app import next_checks_files
+from .templates.react_app import build_files as react_build_files
+from .templates.react_app import react_checks, react_checks_files
 from .tools import Workspace
 
 logger = logging.getLogger("vibeforge.agent")
@@ -163,6 +168,11 @@ async def run_task(task: Task) -> None:
 
             brief = safe_brief(capability, defaults(capability, task.prompt))
             is_media = capability in MEDIA_CAPS
+            is_react = task.stack == "react"
+            is_next = task.stack == "next"
+            react_source: dict[str, str] = {}
+            next_source: dict[str, str] = {}
+            build = None
             assets: list[dict[str, Any]] = []
             media_meta: dict[str, Any] = {}
 
@@ -201,20 +211,65 @@ async def run_task(task: Task) -> None:
             await task.emit("step_started", index=1, title=plan[1])
             await task.emit("thinking", step=plan[1], summary=thinking[1])
             await _pause(0.9)
-            await workspace.write_file(
-                "index.html", scaffold_html(capability, brief), "先搭一个可运行的页面骨架"
-            )
+            if is_next:
+                next_source = next_build_files(brief, task.prompt, task.id)
+                for path, content in next_source.items():
+                    await workspace.write_file(path, content, "生成 Next.js App Router 源码")
+                    await _pause(0.06)
+            elif is_react:
+                react_source = react_build_files(brief, task.prompt)
+                for path, content in react_source.items():
+                    await workspace.write_file(path, content, "生成 React 源码工程")
+                    await _pause(0.08)
+            else:
+                await workspace.write_file(
+                    "index.html", scaffold_html(capability, brief), "先搭一个可运行的页面骨架"
+                )
             if is_media:
                 assets, media_meta = await _generate_media_assets(
                     task, capability, task.prompt, 1
                 )
-            await task.emit("step_done", index=1, summary="素材已落盘" if is_media else "骨架已落盘")
+            await task.emit(
+                "step_done",
+                index=1,
+                summary="Next 源码已落盘" if is_next else ("React 源码已落盘" if is_react else ("素材已落盘" if is_media else "骨架已落盘")),
+            )
 
             # Step 3 — build the real artifact (and code file for the Code Lab).
             await task.emit("step_started", index=2, title=plan[2])
             await task.emit("thinking", step=plan[2], summary=thinking[2])
             await _pause(0.9)
-            if is_media:
+            if is_next:
+                try:
+                    build = await sandbox_runner.build(task, next_source, validate=next_checks_files)
+                    await workspace.install_runtime(build.files)
+                except SandboxError as exc:
+                    task.status = "error"
+                    task.error = str(exc)
+                    task.save_meta()
+                    await task.emit(
+                        "error",
+                        message=f"Next.js 构建失败：{exc}",
+                        recoverable=True,
+                        hint="检查 Sandbox 服务与 npm 出网白名单，或改用静态模板。",
+                    )
+                    return
+            elif is_react:
+                try:
+                    build = await sandbox_runner.build(task, react_source, validate=react_checks_files)
+                    await workspace.install_artifact(build.files)
+                except SandboxError as exc:
+                    task.status = "error"
+                    task.error = str(exc)
+                    task.save_meta()
+                    await task.emit(
+                        "error",
+                        message=f"React 构建失败：{exc}",
+                        recoverable=True,
+                        hint="检查 Sandbox 服务与 npm 出网白名单，或改用静态模板。",
+                    )
+                    return
+            elif is_media:
                 html = render_media_html(capability, brief, assets, 1, task.prompt, media_meta)
                 await workspace.write_file("index.html", html, "组装媒体画廊页面")
             elif capability == "code":
@@ -225,8 +280,20 @@ async def run_task(task: Task) -> None:
             else:
                 html = render_html(capability, brief)
                 await workspace.write_file("index.html", html, "完成页面结构、视觉与交互")
-            await task.emit("preview_ready", url=task.url, title=task.title)
-            await task.emit("step_done", index=2, summary="核心产物已生成")
+            if is_next:
+                await task.emit(
+                    "runtime_built",
+                    files=len(build.files) if build else 0,
+                    bytes=build.total_bytes if build else 0,
+                    message="standalone 构建完成，SSR 运行时可按需启动",
+                )
+            else:
+                await task.emit("preview_ready", url=task.url, title=task.title)
+            await task.emit(
+                "step_done",
+                index=2,
+                summary="standalone 构建产物已生成" if is_next else ("构建产物已生成" if is_react else "核心产物已生成"),
+            )
 
             # Step 4 — supporting files, data, and documentation.
             await task.emit("step_started", index=3, title=plan[3])
@@ -237,20 +304,58 @@ async def run_task(task: Task) -> None:
                 await workspace.write_file(
                     "media.json", json.dumps(media_manifest, ensure_ascii=False, indent=2), "写入媒体元数据"
                 )
-            extras = extra_files(capability, brief, task.prompt, task.id)
-            for path, content in extras.items():
-                if path == "media.json":
-                    continue
-                await workspace.write_file(path, content, "补齐结构化数据与交付说明")
-                await _pause(0.4)
+            if is_react and build:
+                await workspace.write_file(
+                    "build.json",
+                    json.dumps(
+                        {
+                            "stack": "react",
+                            "files": len(build.files),
+                            "bytes": build.total_bytes,
+                            "duration_ms": build.duration_ms,
+                            "sandbox_id": build.sandbox_id,
+                        },
+                        ensure_ascii=False,
+                        indent=2,
+                    ),
+                    "写入构建信息",
+                )
+            if is_next and build:
+                await workspace.write_file(
+                    "build.json",
+                    json.dumps(
+                        {
+                            "stack": "next",
+                            "files": len(build.files),
+                            "bytes": build.total_bytes,
+                            "duration_ms": build.duration_ms,
+                            "sandbox_id": build.sandbox_id,
+                        },
+                        ensure_ascii=False,
+                        indent=2,
+                    ),
+                    "写入构建信息",
+                )
+            if not is_react and not is_next:
+                extras = extra_files(capability, brief, task.prompt, task.id)
+                for path, content in extras.items():
+                    if path == "media.json":
+                        continue
+                    await workspace.write_file(path, content, "补齐结构化数据与交付说明")
+                    await _pause(0.4)
             await task.emit("step_done", index=3, summary="交付文件已补齐")
 
             # Step 5 — verify and deploy.
             await task.emit("step_started", index=4, title=plan[4])
             await task.emit("thinking", step=plan[4], summary=thinking[4])
             await _pause(0.8)
-            current = (task.workspace / "index.html").read_text(encoding="utf-8")
-            checks = html_checks(current, capability)
+            if is_next:
+                checks = next_checks_files(build.files) if build else []
+            elif is_react:
+                checks = react_checks(task.artifact_dir)
+            else:
+                current = (task.workspace / "index.html").read_text(encoding="utf-8")
+                checks = html_checks(current, capability)
             if is_media:
                 checks.append(("素材已生成", bool(assets) and all(a.get("bytes", 0) > 0 for a in assets), f"{len(assets)} 个文件"))
             for name, ok, detail in checks:
@@ -277,6 +382,39 @@ async def run_task(task: Task) -> None:
                     recoverable=True,
                 )
                 return
+            if is_next:
+                elapsed = round((time.monotonic() - started) * 1000)
+                task.status = "done"
+                task.result = {
+                    "url": None,
+                    "title": task.title,
+                    "capability": capability,
+                    "source": task.source,
+                    "elapsed_ms": elapsed,
+                    "stack": "next",
+                    "runtime": {"status": "stopped"},
+                    "checks": [{"name": name, "ok": ok, "detail": detail} for name, ok, detail in checks],
+                }
+                if build:
+                    task.result["build"] = {
+                        "files": len(build.files),
+                        "bytes": build.total_bytes,
+                        "duration_ms": build.duration_ms,
+                        "sandbox_id": build.sandbox_id,
+                    }
+                task.save_meta()
+                await task.emit("step_done", index=4, summary="构建完成，SSR 运行时可启动")
+                await task.emit(
+                    "done",
+                    url=None,
+                    title=task.title,
+                    summary=f"{task.title} 已构建完成；点击启动 SSR 运行时即可访问。",
+                    elapsed_ms=elapsed,
+                    source=task.source,
+                    capability=capability,
+                    revision=task.revision,
+                )
+                return
             task.status = "deploying"
             task.save_meta()
             manifest = await workspace.deploy(task.title)
@@ -297,6 +435,14 @@ async def run_task(task: Task) -> None:
                 task.result["revision"] = 1
                 task.result["assets"] = len(assets)
                 task.result["media"] = media_meta
+            if is_react and build:
+                task.result["stack"] = "react"
+                task.result["build"] = {
+                    "files": len(build.files),
+                    "bytes": build.total_bytes,
+                    "duration_ms": build.duration_ms,
+                    "sandbox_id": build.sandbox_id,
+                }
             task.save_meta()
             await task.emit(
                 "done",
@@ -358,6 +504,18 @@ async def run_refine(task: Task, instruction: str) -> None:
                 source="llm" if llm_enabled() else "director",
             )
             await _pause(0.45)
+            if task.stack == "react":
+                await _refine_failed(
+                    task,
+                    "React 源码工程的二次修改将在下一阶段接入；当前请新建一个 React 项目。",
+                )
+                return
+            if task.stack == "next":
+                await _refine_failed(
+                    task,
+                    "Next.js 源码的二次修改将在后续阶段接入；当前请重新生成项目。",
+                )
+                return
             if not llm_enabled():
                 await _refine_failed(task, "当前没有可用的 LLM，无法进行语义修改。")
                 return

@@ -434,7 +434,7 @@ if __name__ == "__main__":
 - [x] HTML 结构完整
 - [x] 移动端 viewport
 - [x] 交互脚本已注入
-- [x] 已部署到本地静态路由 `/tasks/{task_id}/`
+- [x] 已部署到本地静态路由 `/p/{task_id}/`
 
 ## 设计说明
 

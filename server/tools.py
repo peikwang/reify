@@ -3,9 +3,10 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import shutil
 import subprocess
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from .events import Task
@@ -87,15 +88,16 @@ class Workspace:
         temp = target.with_name(target.name + ".tmp")
         temp.write_bytes(data)
         os.replace(temp, target)
+        url = f"/media/{self.task.id}/{path}?k={self.task.asset_key}"
         await self.task.emit(
             "asset_created",
             path=path,
             mime=mime,
             bytes=len(data),
-            url=f"/media/{self.task.id}/{path}",
+            url=url,
             summary=label or path,
         )
-        return {"path": path, "url": f"/media/{self.task.id}/{path}", "mime": mime, "bytes": len(data)}
+        return {"path": path, "url": url, "mime": mime, "bytes": len(data)}
 
     async def edit_file(self, path: str, old: str, new: str, reason: str = "") -> dict[str, Any]:
         target = self._safe_path(path)
@@ -136,8 +138,73 @@ class Workspace:
         )
         return {"ok": ok, "detail": detail}
 
+    async def install_artifact(self, files: dict[str, bytes]) -> dict[str, Any]:
+        staging = self.root / "dist.next"
+        if staging.exists():
+            shutil.rmtree(staging)
+        staging.mkdir(parents=True)
+        total = 0
+        for relative_path, data in files.items():
+            relative = PurePosixPath(relative_path)
+            if relative.is_absolute() or ".." in relative.parts:
+                raise ValueError(f"path escapes artifact: {relative_path}")
+            target = (staging / relative.as_posix()).resolve()
+            target.relative_to(staging.resolve())
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
+            total += len(data)
+        target = self.root / "dist"
+        backup = self.root / "dist.prev"
+        if backup.exists():
+            shutil.rmtree(backup)
+        try:
+            if target.exists():
+                target.rename(backup)
+            staging.rename(target)
+        except Exception:
+            if not target.exists() and backup.exists():
+                backup.rename(target)
+            raise
+        finally:
+            if target.exists() and backup.exists():
+                shutil.rmtree(backup)
+        return {"files": len(files), "bytes": total}
+
+    async def install_runtime(self, files: dict[str, bytes]) -> dict[str, Any]:
+        staging = self.root / "runtime.next"
+        if staging.exists():
+            shutil.rmtree(staging)
+        staging.mkdir(parents=True)
+        total = 0
+        for relative_path, data in files.items():
+            relative = PurePosixPath(relative_path)
+            if relative.is_absolute() or ".." in relative.parts:
+                raise ValueError(f"path escapes runtime: {relative_path}")
+            target = (staging / relative.as_posix()).resolve()
+            target.relative_to(staging.resolve())
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
+            total += len(data)
+        target = self.root / "runtime"
+        backup = self.root / "runtime.prev"
+        if backup.exists():
+            shutil.rmtree(backup)
+        try:
+            if target.exists():
+                target.rename(backup)
+            staging.rename(target)
+        except Exception:
+            if not target.exists() and backup.exists():
+                backup.rename(target)
+            raise
+        finally:
+            if target.exists() and backup.exists():
+                shutil.rmtree(backup)
+        return {"files": len(files), "bytes": total}
+
     async def deploy(self, title: str) -> dict[str, Any]:
-        index = self._safe_path("index.html")
+        artifact_dir = self.task.artifact_dir
+        index = artifact_dir / "index.html"
         if not index.exists():
             raise ValueError("index.html is missing")
         await self.task.emit(
@@ -148,7 +215,9 @@ class Workspace:
             "title": title,
             "url": self.task.url,
             "entry": "index.html",
+            "artifact": "dist" if artifact_dir != self.root else "root",
             "capability": self.task.capability,
+            "stack": self.task.stack,
             "deployed_at": self.task.updated_at,
         }
         self._atomic_write(
