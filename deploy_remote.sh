@@ -5,8 +5,11 @@ cd "$(dirname "$0")"
 HOST="${1:-root@117.148.166.55}"
 PORT="${2:-12888}"
 IMAGE="${VIBEFORGE_IMAGE:-vllm/vllm-openai:latest}"
+APP_IMAGE="${VIBEFORGE_APP_IMAGE:-vibeforge-app:latest}"
 CADDY_IMAGE="${VIBEFORGE_CADDY_IMAGE:-caddy:2.10.2-alpine}"
 NAME="${VIBEFORGE_CONTAINER:-vibeforge}"
+SANDBOX_NAME="${VIBEFORGE_SANDBOX_NAME:-vibeforge-sandbox}"
+SANDBOX_SERVER_IMAGE="${VIBEFORGE_SANDBOX_SERVER_IMAGE:-opensandbox/server:release-1.1.1}"
 HOST_IP="${HOST#*@}"
 
 if [ "$PORT" != "12888" ]; then
@@ -22,34 +25,137 @@ COPYFILE_DISABLE=1 tar czf - \
   --exclude='projects' \
   --exclude='data' \
   --exclude='.auth.env' \
+  --exclude='.sandbox.env' \
   --exclude='.llm.env' \
   --exclude='.runtime.env' \
   --exclude='tests/*.png' \
   . | ssh "$HOST" 'mkdir -p /opt/vibeforge && tar xzf - -C /opt/vibeforge'
+
+echo "→ building app image ${APP_IMAGE}"
+ssh "$HOST" "cd /opt/vibeforge && docker build -q -t ${APP_IMAGE} --build-arg BASE_IMAGE=${IMAGE} -f Dockerfile.app ."
 
 echo "→ ensuring access credentials"
 ssh "$HOST" '
   if [ ! -s /opt/vibeforge/.auth.env ]; then
     umask 077
     {
-      echo "VIBEFORGE_PASSWORD=$(openssl rand -hex 12)"
-      echo "VIBEFORGE_SECRET=$(openssl rand -hex 32)"
+      echo "VIBEFORGE_ADMIN_USER=admin"
+      echo "VIBEFORGE_ADMIN_PASSWORD=$(openssl rand -hex 12)"
       echo "VIBEFORGE_COOKIE_SECURE=1"
+      echo "VIBEFORGE_REGISTRATION=open"
     } > /opt/vibeforge/.auth.env
   fi
   chmod 600 /opt/vibeforge/.auth.env
-  if [ -s /opt/vibeforge/.llm.env ]; then
-    cat /opt/vibeforge/.auth.env /opt/vibeforge/.llm.env > /opt/vibeforge/.runtime.env
-  else
-    cp /opt/vibeforge/.auth.env /opt/vibeforge/.runtime.env
+
+  if [ ! -s /opt/vibeforge/.sandbox.env ]; then
+    umask 077
+    {
+      echo "VIBEFORGE_SANDBOX=opensandbox"
+      echo "VIBEFORGE_SANDBOX_DOMAIN=vibeforge-sandbox:8080"
+      echo "VIBEFORGE_SANDBOX_API_KEY=$(openssl rand -hex 24)"
+      echo "VIBEFORGE_SANDBOX_SERVER_PROXY=1"
+      echo "VIBEFORGE_SANDBOX_IMAGE=node:24-bookworm-slim"
+      echo "VIBEFORGE_SANDBOX_EGRESS=allowlist"
+    } > /opt/vibeforge/.sandbox.env
   fi
+  chmod 600 /opt/vibeforge/.sandbox.env
+
+  {
+    cat /opt/vibeforge/.auth.env
+    if [ -s /opt/vibeforge/.llm.env ]; then cat /opt/vibeforge/.llm.env; fi
+    cat /opt/vibeforge/.sandbox.env
+  } > /opt/vibeforge/.runtime.env
   chmod 600 /opt/vibeforge/.runtime.env
 '
 
 echo "→ preparing HTTPS network"
 ssh "$HOST" "docker rm -f ${NAME}-caddy 2>/dev/null || true
+docker rm -f ${SANDBOX_NAME} 2>/dev/null || true
 docker rm -f ${NAME} 2>/dev/null || true
 docker network inspect vibeforge-net >/dev/null 2>&1 || docker network create vibeforge-net"
+
+echo "→ backing up local database"
+ssh "$HOST" 'umask 077
+if [ -f /opt/vibeforge/data/vibeforge.db ]; then
+  mkdir -p /opt/vibeforge/backups
+  chmod 700 /opt/vibeforge/backups
+  stamp=$(date +%Y%m%d-%H%M%S)
+  cp /opt/vibeforge/data/vibeforge.db "/opt/vibeforge/backups/vibeforge-$stamp.db"
+  [ -f /opt/vibeforge/data/vibeforge.db-wal ] && cp /opt/vibeforge/data/vibeforge.db-wal "/opt/vibeforge/backups/vibeforge-$stamp.db-wal"
+  [ -f /opt/vibeforge/data/vibeforge.db-shm ] && cp /opt/vibeforge/data/vibeforge.db-shm "/opt/vibeforge/backups/vibeforge-$stamp.db-shm"
+  chmod 600 /opt/vibeforge/backups/vibeforge-$stamp.*
+fi'
+
+echo "→ configuring OpenSandbox"
+ssh "$HOST" '
+  mkdir -p /opt/vibeforge/sandbox
+  chmod 700 /opt/vibeforge/sandbox
+  KEY=$(grep "^VIBEFORGE_SANDBOX_API_KEY=" /opt/vibeforge/.sandbox.env | cut -d= -f2-)
+  GATEWAY=$(docker network inspect bridge -f "{{(index .IPAM.Config 0).Gateway}}" 2>/dev/null || true)
+  [ -n "$GATEWAY" ] || GATEWAY=172.17.0.1
+  cat > /opt/vibeforge/sandbox/config.toml <<EOF
+[server]
+host = "0.0.0.0"
+port = 8080
+max_sandbox_timeout_seconds = 3600
+api_key = "$KEY"
+
+[proxy]
+resolve_internal = false
+
+[log]
+level = "INFO"
+
+[runtime]
+type = "docker"
+execd_image = "opensandbox/execd:v1.1.0"
+
+[storage]
+allowed_host_paths = []
+
+[store]
+type = "sqlite"
+path = "/opt/opensandbox/opensandbox.db"
+
+[docker]
+network_mode = "bridge"
+port_range_min = 41000
+port_range_max = 42000
+publish_host = "$GATEWAY"
+drop_capabilities = ["AUDIT_WRITE", "MKNOD", "NET_ADMIN", "NET_RAW", "SYS_ADMIN", "SYS_MODULE", "SYS_PTRACE", "SYS_TIME", "SYS_TTY_CONFIG"]
+no_new_privileges = true
+pids_limit = 2048
+
+[ingress]
+mode = "direct"
+
+[egress]
+image = "opensandbox/egress:v1.1.7"
+mode = "dns+nft"
+readiness_timeout_seconds = 30.0
+EOF
+  chmod 600 /opt/vibeforge/sandbox/config.toml
+'
+
+echo "→ starting ${SANDBOX_NAME}"
+ssh "$HOST" "docker run -d --name ${SANDBOX_NAME} --restart unless-stopped \
+  --network vibeforge-net --network-alias vibeforge-sandbox \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -v /opt/vibeforge/sandbox:/opt/opensandbox \
+  --add-host=host.docker.internal:host-gateway \
+  ${SANDBOX_SERVER_IMAGE} --config /opt/opensandbox/config.toml"
+
+i=0
+while [ "$i" -lt 20 ]; do
+  RUNNING=$(ssh "$HOST" "docker inspect -f '{{.State.Running}}' ${SANDBOX_NAME} 2>/dev/null || true")
+  if [ "$RUNNING" = "true" ]; then break; fi
+  i=$((i + 1))
+  /bin/sleep 1
+done
+if [ "$RUNNING" != "true" ]; then
+  echo "⚠ sandbox server is not running; static projects still work"
+  ssh "$HOST" "docker logs --tail 40 ${SANDBOX_NAME}" || true
+fi
 
 echo "→ starting ${NAME} (internal only)"
 ssh "$HOST" "docker run -d --name ${NAME} --restart unless-stopped \
@@ -58,7 +164,7 @@ ssh "$HOST" "docker run -d --name ${NAME} --restart unless-stopped \
   --add-host=host.docker.internal:host-gateway \
   --env-file /opt/vibeforge/.runtime.env \
   --entrypoint python3 \
-  ${IMAGE} \
+  ${APP_IMAGE} \
   -m uvicorn server.main:app --host 0.0.0.0 --port ${PORT}"
 
 echo "→ starting Caddy TLS on :${PORT} (HTTP :80 for ACME)"
@@ -75,15 +181,20 @@ echo "→ waiting for HTTPS health"
 i=0
 while [ "$i" -lt 60 ]; do
   if ssh "$HOST" "curl -kfsS --resolve ${HOST_IP}:${PORT}:127.0.0.1 https://${HOST_IP}:${PORT}/api/health >/dev/null 2>&1"; then
-    CODE=$(ssh "$HOST" "curl -ks -o /dev/null -w '%{http_code}' --resolve ${HOST_IP}:${PORT}:127.0.0.1 https://${HOST_IP}:${PORT}/api/tasks")
+    CODE=$(ssh "$HOST" "curl -ks -o /dev/null -w '%{http_code}' --resolve ${HOST_IP}:${PORT}:127.0.0.1 https://${HOST_IP}:${PORT}/api/projects")
     if [ "$CODE" != "401" ]; then
       echo "✗ auth gate is not active (got ${CODE})"
       exit 1
     fi
-    ssh "$HOST" "curl -kfsS --resolve ${HOST_IP}:${PORT}:127.0.0.1 https://${HOST_IP}:${PORT}/api/health"
+    HEALTH=$(ssh "$HOST" "curl -kfsS --resolve ${HOST_IP}:${PORT}:127.0.0.1 https://${HOST_IP}:${PORT}/api/health")
+    echo "$HEALTH"
+    if echo "$HEALTH" | grep -q '"backend":"opensandbox"' && ! echo "$HEALTH" | grep -q '"reachable":true'; then
+      echo "⚠ sandbox backend is configured but unreachable; React builds will fail"
+    fi
     echo
     echo "✓ https://${HOST_IP}:${PORT}/"
     echo "  credentials: ${HOST}:/opt/vibeforge/.auth.env"
+    echo "  sandbox:     ${HOST}:/opt/vibeforge/.sandbox.env"
     exit 0
   fi
   i=$((i + 1))

@@ -3,13 +3,15 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import secrets
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .config import DATA_DIR, MAX_CONCURRENT_TASKS, PROJECTS_DIR
+from .config import DATA_DIR, MAX_CONCURRENT_TASKS
+from .db import db
 
 
 def _now() -> str:
@@ -21,6 +23,7 @@ class Task:
     id: str
     prompt: str
     capability: str
+    owner_id: str
     status: str = "queued"
     created_at: str = field(default_factory=_now)
     updated_at: str = field(default_factory=_now)
@@ -30,6 +33,10 @@ class Task:
     source: str = "director"
     title: str = ""
     revision: int = 0
+    stack: str = "static"
+    asset_key: str = ""
+    visibility: str = "private"
+    share_token: str | None = None
     refine_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     _seq: int = 0
     _subscribers: set[asyncio.Queue] = field(default_factory=set)
@@ -37,15 +44,27 @@ class Task:
 
     @property
     def dir(self) -> Path:
-        return DATA_DIR / "tasks" / self.id
+        return DATA_DIR / "users" / self.owner_id / "projects" / self.id
 
     @property
     def workspace(self) -> Path:
-        return PROJECTS_DIR / self.id
+        return self.dir / "workspace"
+
+    @property
+    def artifact_dir(self) -> Path:
+        if self.stack == "react":
+            return self.workspace / "dist"
+        if self.stack == "next":
+            return self.workspace / "runtime"
+        return self.workspace
+
+    @property
+    def runtime_dir(self) -> Path:
+        return self.workspace / "runtime"
 
     @property
     def url(self) -> str:
-        return f"/tasks/{self.id}/"
+        return f"/p/{self.id}/"
 
     def meta(self) -> dict[str, Any]:
         return {
@@ -60,8 +79,29 @@ class Task:
             "source": self.source,
             "title": self.title,
             "revision": self.revision,
+            "stack": self.stack,
             "url": self.url,
             "event_count": len(self.events),
+        }
+
+    def to_record(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "owner_id": self.owner_id,
+            "capability": self.capability,
+            "stack": self.stack,
+            "title": self.title,
+            "status": self.status,
+            "revision": self.revision,
+            "visibility": self.visibility,
+            "share_token": self.share_token,
+            "asset_key": self.asset_key,
+            "prompt": self.prompt,
+            "source": self.source,
+            "error": self.error,
+            "result": self.result,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
         }
 
     async def emit(self, event_type: str, **payload: Any) -> dict[str, Any]:
@@ -94,73 +134,119 @@ class Task:
 
     def save_meta(self) -> None:
         self.dir.mkdir(parents=True, exist_ok=True)
+        payload = {**self.meta(), "owner_id": self.owner_id, "asset_key": self.asset_key}
         target = self.dir / "meta.json"
         temp = self.dir / "meta.json.tmp"
-        temp.write_text(json.dumps(self.meta(), ensure_ascii=False, indent=2), encoding="utf-8")
+        temp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         os.replace(temp, target)
-
-    @classmethod
-    def from_disk(cls, path: Path) -> "Task | None":
-        try:
-            meta = json.loads((path / "meta.json").read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            return None
-        task = cls(
-            id=meta["id"],
-            prompt=meta.get("prompt", ""),
-            capability=meta.get("capability", "website"),
-            status=meta.get("status", "done"),
-            created_at=meta.get("created_at", _now()),
-            updated_at=meta.get("updated_at", _now()),
-            result=meta.get("result"),
-            error=meta.get("error"),
-            source=meta.get("source", "director"),
-            title=meta.get("title", ""),
-            revision=int(meta.get("revision", 0)),
-        )
-        events_path = path / "events.jsonl"
-        if events_path.exists():
-            for line in events_path.read_text(encoding="utf-8").splitlines():
-                try:
-                    event = json.loads(line)
-                except ValueError:
-                    continue
-                task.events.append(event)
-                task._seq = max(task._seq, int(event.get("seq", 0)))
-        if task.status in {"queued", "running", "deploying"}:
-            task.status = "interrupted"
-        return task
+        db.save_project(self.to_record())
 
 
 class TaskStore:
     def __init__(self) -> None:
         self.tasks: dict[str, Task] = {}
         self._semaphore = asyncio.Semaphore(MAX_CONCURRENT_TASKS)
-        self._load()
+        self._loaded = False
 
-    def _load(self) -> None:
-        root = DATA_DIR / "tasks"
-        for path in sorted(root.iterdir(), reverse=True):
-            if path.is_dir():
-                task = Task.from_disk(path)
-                if task:
-                    self.tasks[task.id] = task
+    def ensure_loaded(self) -> None:
+        if self._loaded:
+            return
+        self._loaded = True
+        for record in db.list_all_projects():
+            task = self._from_record(record)
+            if task:
+                if task.status in {"queued", "running", "deploying"}:
+                    task.status = "interrupted"
+                    task.save_meta()
+                self.tasks[task.id] = task
 
-    def create(self, prompt: str, capability: str, title: str = "") -> Task:
-        task_id = uuid.uuid4().hex[:10]
-        task = Task(id=task_id, prompt=prompt, capability=capability, title=title)
-        task.workspace.mkdir(parents=True, exist_ok=True)
-        task.dir.mkdir(parents=True, exist_ok=True)
-        self.tasks[task.id] = task
-        task.save_meta()
+    def reload(self) -> None:
+        self.tasks.clear()
+        self._loaded = False
+        self.ensure_loaded()
+
+    def _from_record(self, record: dict[str, Any]) -> Task | None:
+        try:
+            task = Task(
+                id=record["id"],
+                prompt=record.get("prompt", ""),
+                capability=record.get("capability", "website"),
+                owner_id=record["owner_id"],
+                status=record.get("status", "done"),
+                created_at=record.get("created_at", _now()),
+                updated_at=record.get("updated_at", _now()),
+                result=record.get("result"),
+                error=record.get("error"),
+                source=record.get("source", "director"),
+                title=record.get("title", ""),
+                revision=int(record.get("revision", 0)),
+                stack=record.get("stack", "static"),
+                asset_key=record.get("asset_key", ""),
+                visibility=record.get("visibility", "private"),
+                share_token=record.get("share_token"),
+            )
+        except (KeyError, TypeError, ValueError):
+            return None
+        events_path = task.dir / "events.jsonl"
+        if events_path.exists():
+            try:
+                lines = events_path.read_text(encoding="utf-8").splitlines()
+            except OSError:
+                lines = []
+            for line in lines:
+                try:
+                    event = json.loads(line)
+                except ValueError:
+                    continue
+                task.events.append(event)
+                task._seq = max(task._seq, int(event.get("seq", 0)))
         return task
 
-    def get(self, task_id: str) -> Task | None:
+    def create(
+        self,
+        prompt: str,
+        capability: str,
+        title: str = "",
+        owner_id: str = "",
+        stack: str = "static",
+    ) -> Task:
+        if not owner_id:
+            raise ValueError("owner_id is required")
+        task_id = uuid.uuid4().hex[:10]
+        task = Task(
+            id=task_id,
+            prompt=prompt,
+            capability=capability,
+            title=title,
+            owner_id=owner_id,
+            stack=stack,
+            asset_key=secrets.token_hex(16),
+        )
+        task.workspace.mkdir(parents=True, exist_ok=True)
+        task.dir.mkdir(parents=True, exist_ok=True)
+        task.save_meta()
+        self.tasks[task.id] = task
+        return task
+
+    def get(self, task_id: str, owner_id: str | None = None) -> Task | None:
+        self.ensure_loaded()
+        task = self.tasks.get(task_id)
+        if task and owner_id is not None and task.owner_id != owner_id:
+            return None
+        return task
+
+    def get_any(self, task_id: str) -> Task | None:
+        self.ensure_loaded()
         return self.tasks.get(task_id)
 
-    def list(self) -> list[dict[str, Any]]:
-        tasks = sorted(self.tasks.values(), key=lambda t: t.created_at, reverse=True)
-        return [t.meta() for t in tasks]
+    def list(self, owner_id: str) -> list[dict[str, Any]]:
+        self.ensure_loaded()
+        tasks = sorted(
+            (task for task in self.tasks.values() if task.owner_id == owner_id),
+            key=lambda task: task.created_at,
+            reverse=True,
+        )
+        return [task.meta() for task in tasks]
 
     def semaphore(self) -> asyncio.Semaphore:
         return self._semaphore

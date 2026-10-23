@@ -25,7 +25,8 @@
     .kicker{font:8px/1 ui-monospace,monospace;letter-spacing:.2em;color:var(--accent)}
     .card h2{font-family:ui-serif,Georgia,"Songti SC","STSong",serif;font-size:clamp(28px,3.4vw,40px);line-height:1;letter-spacing:-.04em;margin:14px 0 10px;font-weight:500}
     .card .sub{color:var(--muted);font-size:12px;line-height:1.7;margin:0 0 26px;max-width:36ch}
-    label{display:block;font:8px/1 ui-monospace,monospace;letter-spacing:.14em;color:var(--muted2);margin-bottom:8px;text-transform:uppercase}
+    label{display:block;font:8px/1 ui-monospace,monospace;letter-spacing:.14em;color:var(--muted2);margin:13px 0 8px;text-transform:uppercase}
+    form > label:first-of-type{margin-top:0}
     .field{position:relative}
     input{width:100%;border:1px solid var(--line2);border-radius:10px;background:#fbfaf7;color:var(--ink);padding:13px 46px 13px 13px;font-size:15px;outline:none;transition:.18s}
     input:focus{border-color:var(--accent);box-shadow:0 0 0 4px rgba(30,92,64,.07);background:#fff}
@@ -36,6 +37,13 @@
     .submit:hover{background:var(--accent);border-color:var(--accent)}
     .submit:disabled{opacity:.55;cursor:wait}
     .error{min-height:18px;color:var(--red);font-size:11px;line-height:1.5;margin-top:10px}
+    .tabs{display:flex;gap:4px;padding:4px;margin:0 0 18px;border:1px solid var(--line);border-radius:10px;background:#fbfaf7}
+    .tab{flex:1;border:0;background:transparent;color:var(--muted);padding:9px;border-radius:7px;font:700 11px/1 ui-monospace,monospace;letter-spacing:.04em}
+    .tab.active{background:var(--ink);color:#fff}
+    .register-only{display:none}
+    body.register .register-only{display:block}
+    .register-only label{margin-top:13px}
+    label span{color:var(--muted2);font-weight:400}
     .meta{border-top:1px solid var(--line);margin-top:22px;padding-top:13px;display:flex;justify-content:space-between;gap:12px;color:var(--muted2);font:8px/1.5 ui-monospace,monospace;letter-spacing:.08em}
     @media(max-width:820px){body{overflow:auto;padding:16px 0}.shell{grid-template-columns:1fr}.intro{min-height:auto;padding:24px}.intro h1{font-size:clamp(38px,11vw,56px)}.eyebrow{margin-top:28px}.intro-foot{margin-top:24px}.card{padding:26px 22px}}
   </style>
@@ -49,68 +57,127 @@
         <h1>你的想法，<br><span>只给你看。</span></h1>
         <p class="lede">这个 Agent Server 已启用访问保护。登录后继续生成、查看代码变化，并把成果部署到这台机器。</p>
       </div>
-      <div class="intro-foot"><span><i></i> SIGNED SESSION</span><span><i></i> LOCAL PROJECTS</span><span><i></i> 12888</span></div>
+      <div class="intro-foot"><span><i></i> SQLITE SESSIONS</span><span><i></i> LOCAL PROJECTS</span><span><i></i> 12888</span></div>
     </section>
     <section class="card">
-      <div class="kicker">ACCESS CONTROL</div>
+      <div class="kicker">LOCAL ACCOUNTS</div>
       <h2>进入工作台。</h2>
-      <p class="sub">输入访问密码。登录状态会保存在当前浏览器 7 天，手机和电脑需要分别登录。</p>
-      <form id="loginForm" autocomplete="on">
-        <label for="password">ACCESS PASSWORD</label>
+      <p class="sub" id="modeHint">登录后继续生成、查看代码变化。账号与项目都保存在这台机器上。</p>
+      <div class="tabs" role="tablist">
+        <button type="button" class="tab active" data-mode="login">登录</button>
+        <button type="button" class="tab" data-mode="register">注册</button>
+      </div>
+      <form id="authForm" autocomplete="on">
+        <label for="username">USERNAME</label>
         <div class="field">
-          <input id="password" name="password" type="password" autocomplete="current-password" placeholder="输入访问密码" required autofocus />
+          <input id="username" name="username" type="text" autocomplete="username" placeholder="用户名或邮箱" required autofocus />
+        </div>
+        <div class="register-only">
+          <label for="displayName">DISPLAY NAME <span>OPTIONAL</span></label>
+          <div class="field">
+            <input id="displayName" name="displayName" type="text" autocomplete="nickname" placeholder="显示名称（可选）" maxlength="40" />
+          </div>
+          <label for="email">EMAIL <span>OPTIONAL</span></label>
+          <div class="field">
+            <input id="email" name="email" type="email" autocomplete="email" placeholder="邮箱（可选）" maxlength="254" />
+          </div>
+        </div>
+        <label for="password">PASSWORD</label>
+        <div class="field">
+          <input id="password" name="password" type="password" autocomplete="current-password" placeholder="输入密码" required />
           <button class="reveal" type="button" id="togglePassword" aria-label="显示密码">显示</button>
         </div>
         <button class="submit" type="submit" id="submitBtn"><span>进入 VibeForge</span><span>↗</span></button>
         <div class="error" id="error" role="alert"></div>
       </form>
-      <div class="meta"><span>HTTP · SINGLE USER</span><span>VIBEFORGE / 2026</span></div>
+      <div class="meta"><span>LOCAL · SQLITE</span><span>VIBEFORGE / 2026</span></div>
     </section>
   </main>
   <script>
     (() => {
-      const form = document.getElementById("loginForm");
-      const input = document.getElementById("password");
+      const form = document.getElementById("authForm");
+      const username = document.getElementById("username");
+      const password = document.getElementById("password");
+      const displayName = document.getElementById("displayName");
+      const email = document.getElementById("email");
       const error = document.getElementById("error");
       const button = document.getElementById("submitBtn");
+      const label = button.querySelector("span");
+      const hint = document.getElementById("modeHint");
+      const tabs = document.querySelectorAll(".tab");
       const nextParam = new URLSearchParams(location.search).get("next") || "/";
       let next = "/";
+      let mode = "login";
       try {
         const candidate = new URL(nextParam, location.origin);
-        if (candidate.origin === location.origin && nextParam.startsWith("/") && !nextParam.startsWith("//") && !nextParam.includes("\\") && !/[\u0000-\u001f]/.test(nextParam)) {
-          next = candidate.pathname + candidate.search;
+        const resolved = candidate.pathname + candidate.search;
+        if (
+          candidate.origin === location.origin &&
+          nextParam.startsWith("/") &&
+          !nextParam.startsWith("//") &&
+          !nextParam.includes("\\") &&
+          !/[\u0000-\u001f]/.test(nextParam) &&
+          resolved.startsWith("/") &&
+          !resolved.startsWith("//") &&
+          !resolved.includes("\\") &&
+          !/[\u0000-\u001f]/.test(resolved)
+        ) {
+          next = resolved;
         }
       } catch (_) {}
+
+      function setMode(nextMode) {
+        mode = nextMode;
+        document.body.classList.toggle("register", mode === "register");
+        tabs.forEach((tab) => tab.classList.toggle("active", tab.dataset.mode === mode));
+        password.autocomplete = mode === "register" ? "new-password" : "current-password";
+        label.textContent = mode === "register" ? "创建本地账号" : "进入 VibeForge";
+        hint.textContent = mode === "register"
+          ? "注册后账号、会话和项目都只保存在这台机器上。用户名 3~32 位，密码至少 8 位。"
+          : "登录后继续生成、查看代码变化。账号与项目都保存在这台机器上。";
+        error.textContent = "";
+      }
+
+      tabs.forEach((tab) => tab.addEventListener("click", () => setMode(tab.dataset.mode)));
       document.getElementById("togglePassword").addEventListener("click", () => {
-        const visible = input.type === "text";
-        input.type = visible ? "password" : "text";
+        const visible = password.type === "text";
+        password.type = visible ? "password" : "text";
         document.getElementById("togglePassword").textContent = visible ? "显示" : "隐藏";
-        input.focus();
+        password.focus();
       });
+
       form.addEventListener("submit", async (event) => {
         event.preventDefault();
         error.textContent = "";
         button.disabled = true;
-        button.querySelector("span").textContent = "验证中…";
+        label.textContent = mode === "register" ? "创建中…" : "验证中…";
         try {
-          const response = await fetch("/api/auth/login", {
+          const body = { username: username.value.trim(), password: password.value };
+          if (mode === "register") {
+            body.display_name = displayName.value.trim();
+            body.email = email.value.trim();
+          }
+          const response = await fetch(mode === "register" ? "/api/auth/register" : "/api/auth/login", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ password: input.value }),
+            body: JSON.stringify(body),
           });
           const data = await response.json().catch(() => ({}));
           if (!response.ok) {
-            if (response.status === 429) throw new Error("尝试次数过多，请一分钟后再试");
-            throw new Error(data.detail || "密码不正确");
+            if (response.status === 429) throw new Error("尝试次数过多，请稍后再试");
+            if (response.status === 403) throw new Error(data.detail || "当前已关闭自助注册");
+            if (response.status === 409) throw new Error("用户名或邮箱已被使用");
+            throw new Error(data.detail || (mode === "register" ? "注册失败" : "用户名或密码不正确"));
           }
           location.replace(next);
         } catch (err) {
-          error.textContent = err.message || "登录失败，请重试";
-          input.select();
+          error.textContent = err.message || "操作失败，请重试";
+          (mode === "register" ? username : password).focus();
           button.disabled = false;
-          button.querySelector("span").textContent = "进入 VibeForge";
+          label.textContent = mode === "register" ? "创建本地账号" : "进入 VibeForge";
         }
       });
+      setMode("login");
     })();
   </script>
 </body>
