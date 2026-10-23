@@ -1,6 +1,6 @@
 # VibeForge 隔离方案：用户、项目、SSR 运行时与沙箱
 
-> 状态：设计稿 v3；Phase 1（用户/会话/项目持久化与所有权隔离）、Phase 2（OpenSandbox + Vite/React 构建）已完成并通过本地 E2E；Phase 3 首个版本（Next.js standalone 构建、运行时沙箱、start/stop、本地预览）已落地；公网域名网关、持久化数据卷、蓝绿切换仍待实施
+> 状态：设计稿 v3；Phase 1-3 已实施并通过本地 E2E（IP-only 模式：平台 12888 / SSR 应用 12889）；Phase 4 已落地管理员、分享、审计、存储配额；ACS/MicroVM 与 Next SSR 分享仍待后续
 > 分支：`feature/isolation`
 > 已确认：任意用户可自助注册；用户注册信息、会话、项目关联全部持久化在本地 SQLite；
 > 旧项目归首个管理员；支持 SSR/全栈运行时；单机 OpenSandbox（Docker runtime）；
@@ -451,13 +451,27 @@ lib/db.js             # 可选：node:sqlite 封装
 - 已新增 `stack=next`：生成 Next.js App Router 源码，包含 `/api/notes` Route Handler；沙箱内 `npm ci` + `next build`，打包 `.next/standalone`。
 - 新增 `server/runtime.py`：为项目创建独立运行时沙箱，上传 standalone 产物，后台启动 `node server.js`，健康检查通过后记录 `running`；支持 start/stop 和空闲 10 分钟自动停止。
 - 新增 `/apps/{id}/` 预览代理，但由 `VIBEFORGE_SSR_PREVIEW` 控制，默认关闭；当前没有域名，路径预览与平台同源，不能作为公网方案。
-- 当前运行时的留言数据保存在进程内存中，不挂载持久化卷；热更新、蓝绿切换、Next 源码二次修改尚未实现。
 - 当前 Docker runtime 的“休眠”是冷停止 + 冷启动，不是 MicroVM pause/resume。
+
+**实施记录（Phase 3 收口）**：
+
+- IP-only 方案落地：平台 `https://IP:12888`，SSR 应用独立 origin `https://IP:12889`；Caddy 只在 12889 暴露 `/apps/*`，12888 屏蔽 `/apps/*`，并移除 SSR 响应的 `X-Frame-Options` 以允许跨端口 iframe。
+- 运行时数据卷：OpenSandbox host bind 项目 `runtime-data/` 到沙箱 `/data`；Next Route Handler 使用 `node:fs` 持久化 `notes.json`，停止/重启运行时后数据保留。
+- React/Next 源码二次修改：LLM 返回唯一 patch，写入源码后重新构建；Next 先起新运行时、健康检查通过后再停旧运行时，实现蓝绿切换。
+- 已用 mock OpenAI 兼容服务跑通 React/Next 修改 E2E；真实模型仍需远端凭据验证。
 
 ### Phase 4 — 托管沙箱与运营
 
 - ACS E2B 后端适配器（如果已有 ACK/ACS 集群）。
 - 用户管理（禁用、会话撤销）、配额面板、分享撤销、审计日志。
+
+**实施记录（Phase 4 当前范围）**：
+
+- `/admin` 管理页：用户列表、项目数、存储占用、最近审计；支持禁用/启用账号、撤销全部会话；禁止管理员禁用自己或最后一个管理员。
+- 静态/React 项目支持只读分享 `/s/{token}/`，可撤销；Next SSR 分享暂不开放（需要独立分享网关）。
+- 新增本地 `audit_log` 表，记录注册/登录、项目创建/修改/部署、运行时启停、分享、管理员操作。
+- 每用户 1 GB 存储配额、项目数/活跃任务/源码构建并发限制。
+- **未完成/不适用**：ACS Agent Sandbox 适配需要 ACK/ACS 集群与域名，当前 IP-only 单机部署不适用；MicroVM、Next SSR 分享、存储清理策略仍为后续工作。
 - 视规模迁移到 MicroVM，获得 pause/resume 与更强隔离。
 
 ## 13. 决策记录与剩余开放项

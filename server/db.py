@@ -80,6 +80,17 @@ CREATE TABLE IF NOT EXISTS runtimes (
 );
 
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
+
+CREATE TABLE IF NOT EXISTS audit_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ts TEXT NOT NULL,
+  user_id TEXT,
+  action TEXT NOT NULL,
+  project_id TEXT,
+  ip TEXT,
+  detail TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit_log(ts DESC);
 """
 
 
@@ -485,6 +496,50 @@ class Database:
         with self._lock:
             rows = self._conn.execute("SELECT * FROM runtimes").fetchall()
         return [dict(row) for row in rows]
+
+    # ---- audit / sharing ----------------------------------------------
+    def log_audit(
+        self,
+        action: str,
+        *,
+        user_id: str | None = None,
+        project_id: str | None = None,
+        ip: str | None = None,
+        detail: str | None = None,
+    ) -> None:
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO audit_log (ts, user_id, action, project_id, ip, detail) VALUES (?, ?, ?, ?, ?, ?)",
+                (iso_utc(), user_id, action, project_id, ip, detail),
+            )
+            self._conn.commit()
+
+    def list_audit(self, limit: int = 200) -> list[dict[str, Any]]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT * FROM audit_log ORDER BY id DESC LIMIT ?", (max(1, min(limit, 500)),)
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def get_project_by_share_token(self, token: str) -> dict[str, Any] | None:
+        if not token:
+            return None
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM projects WHERE share_token = ? AND visibility = 'share'",
+                (token,),
+            ).fetchone()
+        return self._project_from_row(row) if row else None
+
+    def set_project_share(
+        self, project_id: str, token: str | None, visibility: str
+    ) -> None:
+        with self._lock:
+            self._conn.execute(
+                "UPDATE projects SET share_token = ?, visibility = ?, updated_at = ? WHERE id = ?",
+                (token, visibility, iso_utc(), project_id),
+            )
+            self._conn.commit()
 
 
 db = Database(DB_PATH)

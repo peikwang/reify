@@ -27,6 +27,7 @@
       <nav class="top-nav" aria-label="主导航">
         <a href="/" id="homeLink">工作台</a>
         <a href="/projects" id="projectsLink">项目库</a>
+        <a href="/admin" id="adminLink" class="hidden">管理</a>
       </nav>
     </div>
     <div class="top-actions">
@@ -131,6 +132,19 @@
       <footer class="home-footer"><span>VIBEFORGE / PROJECT LIBRARY</span><span>EACH PROJECT HAS ITS OWN PAGE</span></footer>
     </section>
 
+    <section id="adminView" class="projects-view view hidden">
+      <header class="projects-hero">
+        <div class="eyebrow"><span class="pulse-dot"></span> ADMIN / LOCAL</div>
+        <h1>用户与<br><span class="gradient-text">审计。</span></h1>
+        <p>管理本地账号、存储占用和最近操作。管理员默认不能读取其他用户的项目内容。</p>
+      </header>
+      <div class="project-stats" id="adminStats"></div>
+      <div class="admin-table" id="adminUsers"><div class="empty-state">加载用户中…</div></div>
+      <div class="section-label" style="margin-top:34px"><span>AUDIT LOG</span></div>
+      <div class="audit-list" id="adminAudit"></div>
+      <footer class="home-footer"><span>VIBEFORGE / ADMIN</span><span>LOCAL ACCOUNTS · AUDIT</span></footer>
+    </section>
+
     <section id="workspaceView" class="workspace-view view hidden">
       <div class="workspace-head">
         <div class="task-identity">
@@ -142,6 +156,7 @@
         </div>
         <div class="workspace-actions">
           <span class="status-pill running" id="runStatus"><i></i><span>PLANNING</span></span>
+          <button class="ghost-btn hidden" id="shareBtn">分享</button>
           <button class="primary-btn hidden" id="runtimeBtn">启动 SSR</button>
           <button class="ghost-btn" id="downloadBtn">导出代码</button>
           <button class="primary-btn" id="deployBtn">部署</button>

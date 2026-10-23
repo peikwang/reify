@@ -11,6 +11,7 @@ http://{$VIBEFORGE_HOST_IP} {
 	respond 404
 }
 
+# Platform UI/API: SSR app paths are intentionally not served on this origin.
 https://{$VIBEFORGE_HOST_IP}:12888 {
 	tls {
 		issuer acme {
@@ -19,7 +20,32 @@ https://{$VIBEFORGE_HOST_IP}:12888 {
 		}
 	}
 	encode zstd gzip
-	reverse_proxy vibeforge:12888 {
-		flush_interval -1
+	handle /apps/* {
+		respond 404
+	}
+	handle {
+		reverse_proxy vibeforge:12888 {
+			flush_interval -1
+		}
+	}
+}
+
+# SSR apps live on a separate origin (IP + port) so generated JS cannot read
+# platform API responses. Only /apps/* is reachable here.
+https://{$VIBEFORGE_HOST_IP}:{$VIBEFORGE_SSR_PORT:12889} {
+	tls {
+		issuer acme {
+			profile shortlived
+			disable_tlsalpn_challenge
+		}
+	}
+	encode zstd gzip
+	handle /apps/* {
+		reverse_proxy vibeforge:12888 {
+			flush_interval -1
+		}
+	}
+	handle {
+		respond 404
 	}
 }

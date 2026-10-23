@@ -12,7 +12,9 @@
     caps: [],
     sandbox: null,
     ssrPreview: false,
+    ssrPort: null,
     runtime: null,
+    me: null,
     tasks: [],
     projectFilter: "all",
     task: null,
@@ -41,6 +43,7 @@
   const els = {
     home: $("#homeView"),
     projectsView: $("#projectsView"),
+    adminView: $("#adminView"),
     workspace: $("#workspaceView"),
     composer: $("#composer"),
     prompt: $("#promptInput"),
@@ -48,6 +51,10 @@
     capPicker: $("#capPicker"),
     stackSelect: $("#stackSelect"),
     runtimeBtn: $("#runtimeBtn"),
+    shareBtn: $("#shareBtn"),
+    adminUsers: $("#adminUsers"),
+    adminAudit: $("#adminAudit"),
+    adminStats: $("#adminStats"),
     templateNote: $("#templateNote"),
     recentGrid: $("#recentGrid"),
     recentCount: $("#recentCount"),
@@ -57,6 +64,7 @@
     projectsNewBtn: $("#projectsNewBtn"),
     homeLink: $("#homeLink"),
     projectsLink: $("#projectsLink"),
+    adminLink: $("#adminLink"),
     allProjectsLink: $("#allProjectsLink"),
     modeSwitch: $("#modeSwitch"),
     conn: $("#conn"),
@@ -362,6 +370,8 @@
     els.previewUrl.textContent = "/p/--/";
     els.browserTag.textContent = "LOCAL";
     els.runtimeBtn.classList.add("hidden");
+    els.shareBtn.classList.add("hidden");
+    els.shareBtn.textContent = "分享";
     els.deployBtn.classList.remove("hidden");
     els.miniState.textContent = "WAITING";
     els.promptCard.innerHTML = "";
@@ -389,11 +399,13 @@
     document.body.dataset.view = view;
     els.home.classList.toggle("hidden", view !== "home");
     els.projectsView.classList.toggle("hidden", view !== "projects");
+    els.adminView.classList.toggle("hidden", view !== "admin");
     els.workspace.classList.toggle("hidden", view !== "workspace");
     els.modeSwitch.classList.toggle("hidden", view !== "workspace");
     els.homeLink.classList.toggle("current", view === "home");
     els.projectsLink.classList.toggle("current", view === "projects");
-    animateView(view === "home" ? els.home : view === "projects" ? els.projectsView : els.workspace);
+    els.adminLink.classList.toggle("current", view === "admin");
+    animateView(view === "home" ? els.home : view === "projects" ? els.projectsView : view === "admin" ? els.adminView : els.workspace);
   }
 
   function showWorkspace() {
@@ -415,6 +427,132 @@
     loadRecent();
     window.scrollTo({ top: 0, behavior: "auto" });
     setTimeout(() => els.prompt.focus(), 80);
+  }
+
+  function goAdmin(push = true) {
+    closeStream();
+    state.task = null;
+    state.taskId = null;
+    state.events = [];
+    state.lastSeq = 0;
+    setRunning(false);
+    setConn("", "LOCAL");
+    setView("admin");
+    if (push) history.pushState({}, "", "/admin");
+    loadAdmin();
+    window.scrollTo({ top: 0, behavior: "auto" });
+  }
+
+  function formatBytes(bytes) {
+    const value = Number(bytes) || 0;
+    if (value > 1024 * 1024 * 1024) return (value / 1024 / 1024 / 1024).toFixed(1) + " GB";
+    if (value > 1024 * 1024) return (value / 1024 / 1024).toFixed(1) + " MB";
+    return Math.round(value / 1024) + " KB";
+  }
+
+  async function loadAdmin() {
+    try {
+      const [users, audit] = await Promise.all([
+        api("/api/admin/users"),
+        api("/api/admin/audit?limit=100"),
+      ]);
+      const totalProjects = users.items.reduce((sum, user) => sum + user.projects, 0);
+      const totalStorage = users.items.reduce((sum, user) => sum + user.storage_bytes, 0);
+      els.adminStats.innerHTML =
+        '<span class="stat-pill"><b>' + users.items.length + "</b> 用户</span>" +
+        '<span class="stat-pill"><b>' + totalProjects + "</b> 项目</span>" +
+        '<span class="stat-pill"><b>' + formatBytes(totalStorage) + "</b> 存储</span>";
+      els.adminUsers.innerHTML = users.items
+        .map((user) => {
+          const actions =
+            '<button data-admin-user="' + escapeHtml(user.id) + '" data-admin-action="' +
+            (user.disabled ? "enable" : "disable") + '" class="' + (user.disabled ? "" : "danger") + '">' +
+            (user.disabled ? "启用" : "禁用") + "</button>" +
+            '<button data-admin-user="' + escapeHtml(user.id) + '" data-admin-action="revoke">下线</button>';
+          return (
+            '<div class="admin-row"><div><b>' + escapeHtml(user.display_name || user.username) +
+            "</b><small>@" + escapeHtml(user.username) + " · " + escapeHtml(user.role) +
+            (user.disabled ? " · DISABLED" : "") + "</small></div>" +
+            '<div class="admin-meta">' + user.projects + " 项目<br>" + formatBytes(user.storage_bytes) + "</div>" +
+            '<div class="admin-meta">' + escapeHtml(user.created_at || "").slice(0, 10) + "<br>" +
+            escapeHtml(user.last_login_at || "从未登录").slice(0, 18) + "</div>" +
+            '<div class="admin-actions">' + actions + "</div></div>"
+          );
+        })
+        .join("");
+      els.adminAudit.innerHTML = audit.items.length
+        ? audit.items
+            .map(
+              (item) =>
+                '<div class="audit-row"><span>' + escapeHtml(item.ts || "") + "</span><span><b>" +
+                escapeHtml(item.action || "") + "</b> · " + escapeHtml(item.detail || item.project_id || "") +
+                "</span><span>" + escapeHtml(item.user_id || "system") + "</span></div>"
+            )
+            .join("")
+        : '<div class="empty-state small">还没有审计记录。</div>';
+    } catch (error) {
+      els.adminUsers.innerHTML = '<div class="empty-state">管理数据加载失败：' + escapeHtml(error.message) + "</div>";
+      toast("管理数据加载失败：" + error.message);
+    }
+  }
+
+  async function adminAction(userId, action) {
+    try {
+      if (action === "revoke") {
+        await api("/api/admin/users/" + encodeURIComponent(userId) + "/revoke-sessions", { method: "POST" });
+        toast("该用户的会话已全部撤销");
+      } else {
+        await api("/api/admin/users/" + encodeURIComponent(userId) + "/status", {
+          method: "POST",
+          body: JSON.stringify({ disabled: action === "disable" }),
+        });
+        toast(action === "disable" ? "用户已禁用" : "用户已启用");
+      }
+      loadAdmin();
+    } catch (error) {
+      toast("操作失败：" + error.message);
+    }
+  }
+
+  async function loadMe() {
+    try {
+      const data = await api("/api/auth/me");
+      state.me = data.user;
+      els.adminLink.classList.toggle("hidden", !(data.user && data.user.role === "admin"));
+    } catch (_) {}
+  }
+
+  async function toggleShare() {
+    if (!state.taskId) return;
+    if (state.task?.stack === "next") return toast("SSR 项目分享暂未开放");
+    try {
+      if (state.task?.share_url) {
+        await api("/api/projects/" + encodeURIComponent(state.taskId) + "/share", { method: "DELETE" });
+        state.task.share_url = null;
+        els.shareBtn.textContent = "分享";
+        toast("已关闭分享");
+      } else {
+        const data = await api("/api/projects/" + encodeURIComponent(state.taskId) + "/share", { method: "POST" });
+        state.task.share_url = data.url;
+        els.shareBtn.textContent = "取消分享";
+        const url = location.origin + data.url;
+        try {
+          await navigator.clipboard.writeText(url);
+          toast("分享链接已复制");
+        } catch (_) {
+          window.prompt("分享链接", url);
+        }
+      }
+    } catch (error) {
+      toast("分享操作失败：" + error.message);
+    }
+  }
+
+  function updateShareUi(task) {
+    if (!els.shareBtn) return;
+    const supported = task && task.stack !== "next";
+    els.shareBtn.classList.toggle("hidden", !supported);
+    els.shareBtn.textContent = task?.share_url ? "取消分享" : "分享";
   }
 
   function goProjects(push = true) {
@@ -482,6 +620,7 @@
       state.caps = data.items || [];
       state.sandbox = data.sandbox || null;
       state.ssrPreview = Boolean(data.ssr_preview);
+      state.ssrPort = data.ssr_port || null;
       renderCapabilities();
       if (els.stackSelect) {
         const enabled = Boolean(state.sandbox && state.sandbox.backend && state.sandbox.backend !== "off");
@@ -670,8 +809,9 @@
         state.taskId = data.task.id;
         const isNext = data.task.stack === "next";
         setTaskHeading(data.task);
+        updateShareUi(data.task);
         els.promptCard.innerHTML = "<b>YOUR PROMPT</b>" + escapeHtml(prompt.trim());
-        els.previewUrl.textContent = isNext ? "/apps/" + encodeURIComponent(data.task.id) + "/" : data.task.url;
+        els.previewUrl.textContent = isNext ? (ssrPreviewUrl(data.task.id) || "/apps/" + encodeURIComponent(data.task.id) + "/") : data.task.url;
         els.deployBtn.classList.toggle("hidden", isNext);
         els.runtimeBtn.classList.toggle("hidden", !isNext);
         if (isNext) {
@@ -762,10 +902,10 @@
       els.promptCard.innerHTML = "<b>YOUR PROMPT</b>" + escapeHtml(data.task.prompt || "");
       setTaskHeading(data.task);
       const isNext = data.task.stack === "next";
-      const sourceProject = isNext || data.task.stack === "react";
-      els.previewUrl.textContent = isNext ? "/apps/" + encodeURIComponent(data.task.id) + "/" : data.task.url;
+      els.previewUrl.textContent = isNext ? (ssrPreviewUrl(data.task.id) || "/apps/" + encodeURIComponent(data.task.id) + "/") : data.task.url;
       els.deployBtn.classList.toggle("hidden", isNext);
       els.runtimeBtn.classList.toggle("hidden", !isNext);
+      updateShareUi(data.task);
       if (isNext) {
         els.browserTag.textContent = "SSR";
         const initial = data.task.result?.runtime || { status: "stopped", preview: state.ssrPreview };
@@ -783,11 +923,11 @@
       }
       const running = ["queued", "running", "deploying"].includes(data.task.status);
       setRefineState(
-        !sourceProject && !running,
+        !running,
         isNext
-          ? "Next.js 源码修改将在下一阶段接入"
-          : sourceProject
-            ? "React 源码修改将在下一阶段接入"
+          ? "基于当前 Next 源码继续修改（会重新构建并蓝绿切换运行时）"
+          : data.task.stack === "react"
+            ? "基于当前 React 源码继续修改（会重新构建并部署）"
             : running
               ? "Agent 正在运行…"
               : "基于当前成果继续修改"
@@ -1128,16 +1268,20 @@
         els.outcomeTitle.textContent = event.title || (state.task && state.task.title) || "已完成";
         els.outcomeText.textContent = event.summary || (isNext ? "构建完成，可以启动 SSR 运行时。" : "页面已完成并通过自检。");
         setRefineState(
-          state.task?.stack !== "react" && state.task?.stack !== "next",
+          true,
           state.task?.stack === "next"
-            ? "Next.js 源码修改将在下一阶段接入"
+            ? "基于当前 Next 源码继续修改（会重新构建并蓝绿切换运行时）"
             : state.task?.stack === "react"
-              ? "React 源码修改将在下一阶段接入"
+              ? "基于当前 React 源码继续修改（会重新构建并部署）"
               : refineFailed
                 ? "修改未应用，可以再试"
                 : "基于当前成果继续修改"
         );
-        if (isNext) updateRuntimeUi(state.task?.result?.runtime || { status: "stopped", preview: state.ssrPreview });
+        if (isNext) {
+          api("/api/projects/" + encodeURIComponent(state.taskId) + "/runtime")
+            .then((payload) => updateRuntimeUi(payload.runtime))
+            .catch(() => {});
+        }
         if (Array.isArray(event.checks)) {
           event.checks.forEach((check) => upsertCheck(check.name, check.ok, check.detail));
           renderChecks();
@@ -1416,6 +1560,14 @@
     els.previewLoading.classList.remove("hide");
   }
 
+  function ssrPreviewUrl(projectId) {
+    if (!projectId) return "";
+    const path = "/apps/" + encodeURIComponent(projectId) + "/";
+    if (!state.ssrPreview) return "";
+    if (!state.ssrPort || String(state.ssrPort) === String(location.port)) return path;
+    return location.protocol + "//" + location.hostname + ":" + state.ssrPort + path;
+  }
+
   function renderOutcomeIdle() {
     if (!state.checks.length) {
       els.outcomeChecks.innerHTML = '<div class="check-skeleton"></div><div class="check-skeleton"></div><div class="check-skeleton"></div>';
@@ -1480,7 +1632,7 @@
     els.previewLoading.classList.add("hide");
     els.browserTag.textContent = "SSR · STOPPED";
     els.miniState.textContent = "STOPPED";
-    if (state.taskId) els.previewUrl.textContent = "/apps/" + encodeURIComponent(state.taskId) + "/";
+    if (state.taskId) els.previewUrl.textContent = ssrPreviewUrl(state.taskId) || "/apps/" + encodeURIComponent(state.taskId) + "/";
   }
 
   function updateRuntimeUi(runtime) {
@@ -1499,7 +1651,7 @@
     if (running) {
       els.browserTag.textContent = "SSR";
       if (state.ssrPreview) {
-        const url = state.runtime.url || "/apps/" + encodeURIComponent(state.taskId) + "/";
+        const url = ssrPreviewUrl(state.taskId) || state.runtime.url || "/apps/" + encodeURIComponent(state.taskId) + "/";
         setPreview(url);
         els.previewUrl.textContent = url;
       } else {
@@ -1525,7 +1677,7 @@
       updateRuntimeUi(data.runtime);
       if (data.runtime.status === "running") {
         setStatus("done", "SSR RUNNING");
-        if (state.ssrPreview && data.runtime.url) setPreview(data.runtime.url);
+        if (state.ssrPreview) setPreview(ssrPreviewUrl(state.taskId) || data.runtime.url);
         toast(state.ssrPreview ? "SSR 运行时已启动" : "SSR 运行时已启动；公网预览需要域名");
       } else {
         setStatus("done", "BUILT");
@@ -1541,8 +1693,6 @@
 
   async function refineTask() {
     if (!state.taskId) return toast("还没有可修改的项目");
-    if (state.task?.stack === "react") return toast("React 源码修改将在下一阶段接入");
-    if (state.task?.stack === "next") return toast("Next.js 源码修改将在下一阶段接入");
     if (state.running) return toast("Agent 正在处理，请稍候");
     const instruction = els.refineInput.value.trim();
     if (!instruction) {
@@ -1659,6 +1809,15 @@
       event.preventDefault();
       goProjects();
     });
+    els.adminLink.addEventListener("click", (event) => {
+      event.preventDefault();
+      goAdmin();
+    });
+    els.adminUsers.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-admin-user]");
+      if (!button) return;
+      adminAction(button.dataset.adminUser, button.dataset.adminAction);
+    });
     els.allProjectsLink.addEventListener("click", (event) => {
       event.preventDefault();
       goProjects();
@@ -1667,6 +1826,7 @@
     els.backBtn.addEventListener("click", () => goProjects());
     els.deployBtn.addEventListener("click", deployTask);
     els.runtimeBtn.addEventListener("click", toggleRuntime);
+    els.shareBtn.addEventListener("click", toggleShare);
     els.downloadBtn.addEventListener("click", () => {
       if (!state.taskId) return toast("还没有可导出的项目");
       window.location.href = "/api/projects/" + encodeURIComponent(state.taskId) + "/bundle";
@@ -1705,6 +1865,9 @@
         else goProjects(false);
       } else if (path === "/projects") {
         goProjects(false);
+      } else if (path === "/admin") {
+        if (state.me?.role === "admin") goAdmin(false);
+        else goHome(false);
       } else {
         goHome(false);
       }
@@ -1715,6 +1878,7 @@
   async function init() {
     bind();
     setMode(state.mode, false);
+    await loadMe();
     await loadCapabilities();
     await loadRecent();
     const path = decodeURIComponent(location.pathname);
@@ -1726,6 +1890,9 @@
     } else if (path === "/projects") {
       setView("projects");
       loadProjects();
+    } else if (path === "/admin") {
+      if (state.me?.role === "admin") goAdmin(false);
+      else goHome(false);
     } else if (legacyTaskId && legacyTaskId !== "creating") {
       history.replaceState({}, "", "/projects/" + encodeURIComponent(legacyTaskId));
       loadTask(legacyTaskId);

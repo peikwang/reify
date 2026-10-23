@@ -5,6 +5,7 @@ import hmac
 import io
 import json
 import logging
+import secrets
 import zipfile
 from pathlib import Path
 from typing import Any
@@ -28,12 +29,15 @@ from .config import (
     AUTH_PASSWORD_GENERATED,
     AUTH_TTL_SECONDS,
     AUTO_MIGRATE_LEGACY,
+    DATA_DIR,
     HOST,
     LLM_ENABLED,
     MAX_ACTIVE_REACT_PER_USER,
     MAX_ACTIVE_TASKS_PER_USER,
     MAX_PROJECTS_PER_USER,
+    MAX_STORAGE_PER_USER,
     PORT,
+    SSR_PORT,
     SSR_PREVIEW_ENABLED,
     WEB_DIR,
 )
@@ -91,6 +95,10 @@ class PasswordRequest(BaseModel):
     new_password: str = Field(min_length=8, max_length=128)
 
 
+class UserStatusRequest(BaseModel):
+    disabled: bool
+
+
 def _secured(response):
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("Referrer-Policy", "no-referrer")
@@ -111,6 +119,53 @@ def _require_user(request: Request) -> User:
     if not user:
         raise HTTPException(status_code=401, detail="authentication required")
     return user
+
+
+def _require_admin(request: Request) -> User:
+    user = _require_user(request)
+    if not user.is_admin:
+        raise HTTPException(status_code=403, detail="admin only")
+    return user
+
+
+def _client_ip(request: Request) -> str:
+    forwarded = request.headers.get("x-forwarded-for", "")
+    if forwarded:
+        parts = [part.strip() for part in forwarded.split(",") if part.strip()]
+        if parts:
+            return parts[-1]
+    return request.client.host if request.client else "unknown"
+
+
+def _audit(
+    request: Request,
+    action: str,
+    *,
+    user: User | None = None,
+    project_id: str | None = None,
+    detail: str | None = None,
+) -> None:
+    db.log_audit(
+        action,
+        user_id=user.id if user else None,
+        project_id=project_id,
+        ip=_client_ip(request),
+        detail=detail,
+    )
+
+
+def _storage_bytes(user_id: str) -> int:
+    root = DATA_DIR / "users" / user_id
+    if not root.is_dir():
+        return 0
+    total = 0
+    for path in root.rglob("*"):
+        if path.is_file():
+            try:
+                total += path.stat().st_size
+            except OSError:
+                continue
+    return total
 
 
 def _project_for(request: Request, project_id: str) -> Task:
@@ -135,6 +190,8 @@ def _enforce_user_quota(user: User, *, exclude_project_id: str | None = None) ->
     items = store.list(user.id)
     if exclude_project_id is None and len(items) >= MAX_PROJECTS_PER_USER:
         raise HTTPException(status_code=429, detail="项目数量已达上限")
+    if _storage_bytes(user.id) >= MAX_STORAGE_PER_USER:
+        raise HTTPException(status_code=429, detail="存储空间已达上限")
     active = [
         item
         for item in items
@@ -188,6 +245,7 @@ async def auth_guard(request: Request, call_next):
     public = (
         path in PUBLIC_PATHS
         or asset_request
+        or path.startswith("/s/")
         or (path.startswith("/p/") and bool(request.query_params.get("k")))
     )
 
@@ -205,9 +263,9 @@ async def auth_guard(request: Request, call_next):
             return _json_error(403, "origin rejected")
 
     response = await call_next(request)
-    if path.startswith(("/api/", "/login", "/p/")):
+    if path.startswith(("/api/", "/login", "/p/", "/s/")):
         response.headers["Cache-Control"] = "no-store, max-age=0"
-    if path == "/p" or path.startswith(("/p/", "/media/")):
+    if path == "/p" or path.startswith(("/p/", "/media/", "/s/")):
         response.headers["Content-Security-Policy"] = (
             "sandbox allow-scripts allow-forms allow-popups allow-modals allow-downloads"
         )
@@ -215,7 +273,15 @@ async def auth_guard(request: Request, call_next):
         # Vite emits module scripts with crossorigin; the CSP sandbox gives the page
         # an opaque origin, so its own assets need a CORS-permitted response.
         response.headers["Access-Control-Allow-Origin"] = "*"
-    return _secured(response)
+    response = _secured(response)
+    if path.startswith("/apps/"):
+        # The platform UI (12888) embeds SSR apps served from the separate SSR
+        # origin (12889); SAMEORIGIN would block that cross-port iframe.
+        try:
+            del response.headers["x-frame-options"]
+        except KeyError:
+            pass
+    return response
 
 
 @app.get("/login")
@@ -238,6 +304,7 @@ async def register(payload: RegisterRequest, request: Request) -> JSONResponse:
         return _json_error(exc.status, exc.detail)
     response = JSONResponse({"ok": True, "user": user.public()})
     _set_session_cookie(response, token)
+    _audit(request, "auth.register", user=user)
     return _secured(response)
 
 
@@ -251,6 +318,7 @@ async def login(payload: LoginRequest, request: Request) -> JSONResponse:
         return _json_error(exc.status, exc.detail)
     response = JSONResponse({"ok": True, "user": user.public()})
     _set_session_cookie(response, token)
+    _audit(request, "auth.login", user=user)
     return _secured(response)
 
 
@@ -303,6 +371,11 @@ async def projects_index() -> FileResponse:
 
 @app.get("/projects/{project_id}")
 async def project_page(project_id: str) -> FileResponse:
+    return FileResponse(WEB_DIR / "index.html")
+
+
+@app.get("/admin")
+async def admin_page() -> FileResponse:
     return FileResponse(WEB_DIR / "index.html")
 
 
@@ -380,6 +453,7 @@ async def capabilities() -> dict[str, Any]:
         "items": [{"key": key, **value} for key, value in CAPABILITIES.items()],
         "sandbox": sandbox_runner.status(),
         "ssr_preview": SSR_PREVIEW_ENABLED,
+        "ssr_port": SSR_PORT if SSR_PREVIEW_ENABLED else None,
         "stacks": ["static", "react", "next"],
     }
 
@@ -423,6 +497,7 @@ async def create_project(payload: CreateTaskRequest, request: Request) -> dict[s
     background = asyncio.create_task(run_task(task))
     _background.add(background)
     background.add_done_callback(_background.discard)
+    _audit(request, "project.create", user=user, project_id=task.id, detail=capability)
     logger.info("project created id=%s owner=%s capability=%s", task.id, user.id, capability)
     return {"task": task.meta(), "events": []}
 
@@ -494,17 +569,18 @@ async def project_events(project_id: str, request: Request, after: int = 0) -> S
 async def refine_project(project_id: str, payload: RefineRequest, request: Request) -> dict[str, Any]:
     task = _project_for(request, project_id)
     user = _require_user(request)
-    if task.stack == "react":
-        raise HTTPException(status_code=400, detail="React 源码工程的二次修改将在下一阶段接入")
-    if task.stack == "next":
-        raise HTTPException(status_code=400, detail="Next.js 源码的二次修改将在后续阶段接入")
     _enforce_user_quota(user, exclude_project_id=task.id)
     async with task.refine_lock:
         if task.status in {"queued", "running", "deploying"}:
             raise HTTPException(status_code=409, detail="task is still running")
-        index = task.workspace / "index.html"
-        if not index.exists():
-            raise HTTPException(status_code=400, detail="index.html is missing")
+        if task.stack == "next":
+            required = task.workspace / "app" / "page.jsx"
+        elif task.stack == "react":
+            required = task.workspace / "src" / "App.jsx"
+        else:
+            required = task.workspace / "index.html"
+        if not required.exists():
+            raise HTTPException(status_code=400, detail=f"{required.name} is missing")
         instruction = payload.instruction.strip()
         if not instruction:
             raise HTTPException(status_code=400, detail="instruction is empty")
@@ -514,6 +590,7 @@ async def refine_project(project_id: str, payload: RefineRequest, request: Reque
     background = asyncio.create_task(runner(task, instruction))
     _background.add(background)
     background.add_done_callback(_background.discard)
+    _audit(request, "project.refine", user=user, project_id=task.id, detail=task.stack)
     logger.info("refine queued id=%s revision=%s capability=%s", task.id, task.revision + 1, task.capability)
     return {"task": task.meta()}
 
@@ -533,6 +610,7 @@ async def deploy_project(project_id: str, request: Request) -> dict[str, Any]:
         task.status = "done"
         task.result = {**(task.result or {}), "url": manifest["url"]}
         task.save_meta()
+    _audit(request, "project.deploy", user=_require_user(request), project_id=task.id)
     return {"ok": True, "url": manifest["url"], "manifest": manifest}
 
 
@@ -566,6 +644,7 @@ async def start_runtime(project_id: str, request: Request) -> dict[str, Any]:
         state = await runtime_manager.start(task)
     except SandboxError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+    _audit(request, "runtime.start", user=_require_user(request), project_id=task.id)
     return {"ok": True, "runtime": state}
 
 
@@ -575,6 +654,7 @@ async def stop_runtime(project_id: str, request: Request) -> dict[str, Any]:
     if task.stack != "next":
         raise HTTPException(status_code=400, detail="该项目不是 SSR 运行时项目")
     state = await runtime_manager.stop(task)
+    _audit(request, "runtime.stop", user=_require_user(request), project_id=task.id)
     return {"ok": True, "runtime": state}
 
 
@@ -637,6 +717,123 @@ async def ssr_file(project_id: str, filename: str, request: Request) -> Response
     if task.stack != "next":
         raise HTTPException(status_code=404, detail="not an SSR project")
     return await _proxy_ssr(task, request, filename)
+
+
+@app.post("/api/projects/{project_id}/share")
+async def share_project(project_id: str, request: Request) -> dict[str, Any]:
+    task = _project_for(request, project_id)
+    user = _require_user(request)
+    if task.stack == "next":
+        raise HTTPException(status_code=400, detail="SSR 项目的分享入口暂未开放")
+    token = task.share_token or secrets.token_urlsafe(24)
+    task.share_token = token
+    task.visibility = "share"
+    task.save_meta()
+    _audit(request, "project.share", user=user, project_id=task.id)
+    return {"ok": True, "share_token": token, "url": f"/s/{token}/"}
+
+
+@app.delete("/api/projects/{project_id}/share")
+async def unshare_project(project_id: str, request: Request) -> dict[str, Any]:
+    task = _project_for(request, project_id)
+    user = _require_user(request)
+    task.share_token = None
+    task.visibility = "private"
+    task.save_meta()
+    _audit(request, "project.unshare", user=user, project_id=task.id)
+    return {"ok": True}
+
+
+def _shared_project(token: str) -> Task:
+    record = db.get_project_by_share_token(token)
+    if not record:
+        raise HTTPException(status_code=404, detail="share not found")
+    task = store.get_any(record["id"])
+    if not task or task.stack == "next":
+        raise HTTPException(status_code=404, detail="share not found")
+    return task
+
+
+@app.get("/s/{token}")
+async def share_redirect(token: str) -> RedirectResponse:
+    return RedirectResponse(f"/s/{token}/", status_code=307)
+
+
+@app.get("/s/{token}/")
+async def share_index(token: str) -> FileResponse:
+    task = _shared_project(token)
+    target = _safe_file(task.artifact_dir, "index.html")
+    if not target:
+        raise HTTPException(status_code=404, detail="share not found")
+    return FileResponse(target)
+
+
+@app.get("/s/{token}/{filename:path}")
+async def share_file(token: str, filename: str) -> FileResponse:
+    task = _shared_project(token)
+    target = _safe_file(task.artifact_dir, filename)
+    if not target:
+        raise HTTPException(status_code=404, detail="share not found")
+    return FileResponse(target)
+
+
+@app.get("/api/admin/users")
+async def admin_users(request: Request) -> dict[str, Any]:
+    _require_admin(request)
+    users = []
+    for user in db.list_users():
+        projects = db.list_projects(user.id)
+        users.append(
+            {
+                **user.public(),
+                "disabled": user.disabled,
+                "last_login_at": user.last_login_at,
+                "projects": len(projects),
+                "storage_bytes": _storage_bytes(user.id),
+            }
+        )
+    return {"items": users}
+
+
+@app.post("/api/admin/users/{user_id}/status")
+async def admin_user_status(
+    user_id: str, payload: UserStatusRequest, request: Request
+) -> dict[str, Any]:
+    admin = _require_admin(request)
+    target = db.get_user(user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="user not found")
+    if target.id == admin.id and payload.disabled:
+        raise HTTPException(status_code=400, detail="不能禁用当前管理员")
+    if payload.disabled and target.is_admin and db.count_admins() <= 1:
+        raise HTTPException(status_code=400, detail="至少保留一个管理员")
+    db.set_user_disabled(target.id, payload.disabled)
+    if payload.disabled:
+        auth.revoke_all_sessions(target.id)
+    _audit(
+        request,
+        "admin.user.disable" if payload.disabled else "admin.user.enable",
+        user=admin,
+        detail=target.username,
+    )
+    return {"ok": True, "disabled": payload.disabled}
+
+
+@app.post("/api/admin/users/{user_id}/revoke-sessions")
+async def admin_revoke_sessions(user_id: str, request: Request) -> dict[str, Any]:
+    admin = _require_admin(request)
+    target = db.get_user(user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="user not found")
+    auth.revoke_all_sessions(target.id)
+    _audit(request, "admin.user.revoke_sessions", user=admin, detail=target.username)
+    return {"ok": True}
+
+
+@app.get("/api/admin/audit")
+async def admin_audit(request: Request, limit: int = 100) -> dict[str, Any]:
+    _require_admin(request)
+    return {"items": db.list_audit(limit)}
 
 
 @app.exception_handler(HTTPException)

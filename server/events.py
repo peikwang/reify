@@ -63,6 +63,10 @@ class Task:
         return self.workspace / "runtime"
 
     @property
+    def data_dir(self) -> Path:
+        return self.dir / "runtime-data"
+
+    @property
     def url(self) -> str:
         return f"/p/{self.id}/"
 
@@ -81,6 +85,8 @@ class Task:
             "revision": self.revision,
             "stack": self.stack,
             "url": self.url,
+            "shared": bool(self.share_token),
+            "share_url": f"/s/{self.share_token}/" if self.share_token else None,
             "event_count": len(self.events),
         }
 

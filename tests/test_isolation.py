@@ -238,6 +238,53 @@ def test_unauthenticated_api_and_cross_origin_writes_are_rejected():
     assert response.status_code == 403
 
 
+def test_admin_and_share_flows():
+    with TestClient(app) as admin:
+        login = admin.post(
+            "/api/auth/login", json={"username": "admin", "password": "admin-test-password"}
+        )
+        assert login.status_code == 200
+        owner = TestClient(app)
+        registered = owner.post(
+            "/api/auth/register",
+            json={"username": "shareuser", "password": "password123"},
+        )
+        assert registered.status_code == 200
+        owner_id = registered.json()["user"]["id"]
+        users = admin.get("/api/admin/users")
+        assert users.status_code == 200
+        assert any(item["username"] == "shareuser" for item in users.json()["items"])
+        assert admin.get("/api/admin/audit").status_code == 200
+
+        task = _make_project(owner_id, "Share project")
+        shared = owner.post(f"/api/projects/{task.id}/share")
+        assert shared.status_code == 200
+        token = shared.json()["share_token"]
+
+        anon = TestClient(app)
+        assert anon.get(f"/s/{token}/").status_code == 200
+        assert anon.get(f"/p/{task.id}/", follow_redirects=False).status_code == 303
+
+        assert owner.delete(f"/api/projects/{task.id}/share").status_code == 200
+        assert anon.get(f"/s/{token}/").status_code == 404
+        assert owner.get("/api/admin/users").status_code == 403
+
+        assert admin.post(
+            f"/api/admin/users/{owner_id}/status", json={"disabled": True}
+        ).status_code == 200
+        blocked = TestClient(app).post(
+            "/api/auth/login", json={"username": "shareuser", "password": "password123"}
+        )
+        assert blocked.status_code == 401
+        assert admin.post(
+            f"/api/admin/users/{owner_id}/status", json={"disabled": False}
+        ).status_code == 200
+        assert admin.post(
+            "/api/admin/users/" + admin.get("/api/auth/me").json()["user"]["id"] + "/status",
+            json={"disabled": True},
+        ).status_code == 400
+
+
 def test_storage_is_per_user():
     alice = db.get_user_by_key("alice")
     bob = db.get_user_by_key("bob")

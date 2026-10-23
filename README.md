@@ -24,9 +24,10 @@ VibeForge 是一个单机优先的个人设计 Agent。它把自然语言拆成�
 - 选择 **Next SSR** 后，Agent 生成 `app/`、`app/api/notes/route.js`、`next.config.mjs` 等源码，在 OpenSandbox 中执行 `npm ci` + `next build`，打包 `.next/standalone`。
 - 构建完成后点击“启动 SSR”：创建独立运行时沙箱，上传 standalone 产物，后台启动 `node server.js`，健康检查通过后状态变为 `SSR RUNNING`。
 - 运行时默认拒绝出网，1 CPU / 1 GiB，TTL 1 小时；空闲 10 分钟由监控任务停止。当前 Docker runtime 采用 stop/start 冷启动，不是 MicroVM pause/resume。
-- 当前示例是带 `/api/notes` 的服务端接口，留言保存在运行时进程内存中；停止后重置，持久化数据卷属于后续阶段。
-- `/apps/{id}/` 预览默认关闭（`VIBEFORGE_SSR_PREVIEW=0`）。只有当前 IP、没有域名时，路径预览会让生成应用与平台同源，存在读取平台 API/覆盖 Cookie 的风险；本地验证可临时设为 `1`，正式开放需要独立子域名网关。
+- 当前示例是带 `/api/notes` 的服务端接口，留言写入项目数据卷（`runtime-data/notes.json`），停止再启动仍保留；数据卷由 OpenSandbox host bind 提供。
+- `/apps/{id}/` 预览默认关闭（`VIBEFORGE_SSR_PREVIEW=0`）。生产部署在 IP-only 模式下使用独立 HTTPS 端口 `12889`：平台在 `:12888`，SSR 应用在 `:12889`，两者不同 origin；Caddy 只在 `:12889` 暴露 `/apps/*`，并在 `:12888` 屏蔽 `/apps/*`。需要在云安全组放行 `12889`。生成应用仍可覆盖同主机 Cookie 造成登出（DoS），但无法读取平台 Cookie/API 响应。
 - 运行时接口：`GET /api/projects/{id}/runtime`、`POST .../runtime/start`、`POST .../runtime/stop`。
+- React/Next 的「继续修改」会修改源码 patch、重新构建；Next 会先启动新运行时并通过健康检查，再停掉旧运行时（蓝绿切换）。
 
 ## React 构建与执行沙箱
 
@@ -38,7 +39,7 @@ VibeForge 是一个单机优先的个人设计 Agent。它把自然语言拆成�
 - **出网**：默认拒绝，只允许 `*.npmmirror.com`、`registry.npmjs.org`、`*.npmjs.org`；不向沙箱注入任何平台密钥。
 - **产物**：构建完成后把 `dist/` 打包、下载、校验大小，原子切换到 `workspace/dist/`；构建失败保留上一版产物。
 - **发布**：`/p/{id}/` 只服务 `dist/`，Vite 的 JS/CSS 资源使用项目 capability key，适配 CSP sandbox 下不携带 Cookie 的模块加载。
-- **当前限制**：React 项目的对话式二次修改尚未接入（Phase 3）；SSR/全栈运行时也需要独立 origin，等域名就绪后再开放。
+- **当前限制**：React/Next 的二次修改已接入“源码 patch → 重建 → 切换”，但需要可用的 LLM；SSR 预览使用独立端口 `12889`，不是域名级隔离。
 
 本地启用沙箱：
 
@@ -189,8 +190,18 @@ data/users/{uid}/projects/{pid}/events.jsonl 事件流
 - `GET /apps/{id}/` → SSR 预览（仅 `VIBEFORGE_SSR_PREVIEW=1`，且仅项目所有者）
 - `GET /api/projects/{id}/bundle` → 下载项目 zip
 - `GET /p/{id}/` → 已部署静态产物（仅项目所有者）
+- `POST|DELETE /api/projects/{id}/share` → 创建/撤销只读分享
+- `GET /s/{token}/` → 公开只读分享页（静态/React）
+- `GET /api/admin/users`、`POST /api/admin/users/{id}/status`、`POST /api/admin/users/{id}/revoke-sessions`、`GET /api/admin/audit` → 管理员接口
 
-生成完成后，静态项目的左侧会出现「继续修改」输入框。Agent 会读取当前 `index.html`，让模型返回精确的局部 patch，应用后重新自检并部署；修改失败时原页面保持不变。每次成功修改会增加 `revision`，原有事件流继续追加。React/Next 源码项目的对话式修改尚未接入。
+生成完成后，静态项目的左侧会出现「继续修改」输入框。Agent 会读取当前 `index.html`，让模型返回精确的局部 patch，应用后重新自检并部署；修改失败时原页面保持不变。每次成功修改会增加 `revision`，原有事件流继续追加。React/Next 项目会修改对应源码文件，重新构建后切换产物；Next 运行时采用新沙箱健康检查通过后再停旧沙箱的蓝绿切换。
+
+## 账号管理与分享
+
+- 管理员在 `/admin` 查看用户、项目数、存储占用和最近审计；可禁用/启用账号、撤销某用户全部会话。
+- 静态/React 项目支持只读分享链接：`POST /api/projects/{id}/share` 生成 `/s/{token}/`，`DELETE` 立即撤销。分享页不需要登录，但不能调用平台 API；Next SSR 项目暂不支持分享。
+- 密码、会话和审计都保存在本机 SQLite；审计记录包含注册/登录、项目创建/修改/部署、运行时启停、分享和管理员操作。
+- 每用户默认限制 50 个项目、1 GB 存储、2 个活跃任务、1 个源码构建；超出时 API 返回 429。
 
 ## 远程部署（HTTPS / Caddy）
 
@@ -206,7 +217,7 @@ cd vibeforge
 ./deploy_remote.sh root@117.148.166.55 12888
 ```
 
-部署脚本会基于 `${VIBEFORGE_IMAGE:-vllm/vllm-openai:latest}` 构建 `vibeforge-app:latest`（安装 `requirements.txt`），生成 `/opt/vibeforge/.sandbox.env`（沙箱 API Key）与 `/opt/vibeforge/sandbox/config.toml`，并启动 `vibeforge-sandbox`。`/api/health` 会返回沙箱 `backend` 与 `reachable`。如果已有预装依赖的镜像，可设置 `VIBEFORGE_APP_IMAGE` 跳过本地构建。
+部署脚本会基于 `${VIBEFORGE_IMAGE:-vllm/vllm-openai:latest}` 构建 `vibeforge-app:latest`（安装 `requirements.txt`），生成 `/opt/vibeforge/.sandbox.env`（沙箱 API Key）与 `/opt/vibeforge/sandbox/config.toml`，并启动 `vibeforge-sandbox`。`/api/health` 会返回沙箱 `backend` 与 `reachable`。如果已有预装依赖的镜像，可设置 `VIBEFORGE_APP_IMAGE` 跳过本地构建。Caddy 同时暴露 `12889` 作为 SSR 应用 origin；请确认云安全组已放行该端口。
 
 验证：
 
@@ -222,11 +233,12 @@ curl https://117.148.166.55:12888/api/health
 ## 安全边界
 
 - 自助注册 + SQLite 服务端会话；未认证访问页面会跳转登录，API/预览返回 401。
+- 管理员可禁用用户、撤销会话；分享链接为只读 capability URL，可随时撤销；所有关键操作写入本地审计表。
 - 每个项目强制 `owner_id`，所有 API、SSE、下载、预览和媒体都做所有权或项目能力 key 校验；跨用户统一返回 404。
 - 所有 `/p/` 生成物响应带 `Content-Security-Policy: sandbox`，直接打开新窗口也不会获得主站同源权限。
 - 产物只写入 `data/users/{uid}/projects/{pid}/workspace/`，所有文件工具做工作区路径校验。
 - 预览 iframe 使用 sandbox，不开放 same-origin；生成页面不能读取主站 Cookie。
 - 当前数据层已按用户隔离；React/Next 构建在独立 OpenSandbox 沙箱中执行，app 容器不持有 docker.sock。
 - 沙箱默认拒绝出网，仅放行 npm registry；不注入平台密钥，构建结束销毁。
-- Next SSR 运行时是单独沙箱，默认拒绝出网；`/apps/` 预览默认关闭，开启后生成应用与平台同源，存在读取平台 API/覆盖 Cookie 的风险，生产必须等独立子域名网关。
+- Next SSR 运行时是单独沙箱，默认拒绝出网；`/apps/` 预览通过独立端口 `12889` 与平台 `12888` 隔离，Caddy 只在该端口暴露 `/apps/*`。仍需注意同主机 Cookie 可被生成应用覆盖（DoS）。
 - 若要开放给不可信多用户并执行任意生成代码，建议把 Docker runtime 升级为 OpenSandbox Firecracker 或 ACS Agent Sandbox（MicroVM）。
