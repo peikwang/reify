@@ -124,6 +124,63 @@ def _apply_patches(current_html: str, patches: list[Any]) -> tuple[str, list[str
     return updated, notes
 
 
+async def refine_source(
+    current_source: str, instruction: str, capability: str, language: str
+) -> dict[str, Any] | None:
+    if not enabled():
+        return None
+    system = (
+        "你是 VibeForge 的源码编辑 Agent。用户要求在现有前端源码上做二次修改。"
+        "只输出一个 JSON 对象，不要 markdown，不要解释。格式："
+        '{"summary":"一句话说明改了什么","patches":[{"find":"当前源码中唯一且连续出现的原文","replace":"替换后的内容","note":"简短说明"}]}。'
+        f"当前文件是 {language}。规则：find 必须从当前源码原样复制且唯一出现；优先最小修改；"
+        "保留现有组件结构、样式类名、服务端接口和导入；不要引入新依赖或外部链接；1-6 个 patches。"
+    )
+    user = (
+        f"能力类型：{capability}\n当前源码：\n{current_source}\n\n"
+        f"用户的修改要求：{instruction}\n只输出 JSON。"
+    )
+    payload = {
+        "model": "",
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        "temperature": 0.35,
+        "max_tokens": LLM_REFINE_MAX_TOKENS,
+    }
+    headers = {"Content-Type": "application/json"}
+    if LLM_API_KEY:
+        headers["Authorization"] = f"Bearer {LLM_API_KEY}"
+    try:
+        async with httpx.AsyncClient(timeout=LLM_TIMEOUT) as client:
+            payload["model"] = await _resolve_model(client)
+            response = await client.post(
+                f"{LLM_BASE_URL}/chat/completions", json=payload, headers=headers
+            )
+            response.raise_for_status()
+            message = response.json()["choices"][0]["message"]
+        content = message.get("content") or message.get("reasoning_content") or ""
+        data = _extract_json(content)
+        if not data:
+            return None
+        patches = data.get("patches")
+        if not isinstance(patches, list):
+            return None
+        applied = _apply_patches(current_source, patches)
+        if not applied:
+            return None
+        updated, notes = applied
+        return {
+            "source": updated,
+            "summary": str(data.get("summary", "已根据你的要求完成修改"))[:200],
+            "notes": notes,
+        }
+    except Exception as exc:  # noqa: BLE001 - failed refinement keeps old source
+        logger.info("source refine fallback: %s", exc)
+        return None
+
+
 async def refine_html(current_html: str, instruction: str, capability: str) -> dict[str, Any] | None:
     """Edit an existing page through small, verifiable patches.
 

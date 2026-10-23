@@ -558,3 +558,32 @@ h1 {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
 }
+
+/* ---------- admin ---------- */
+.admin-table { display: grid; gap: 8px; margin-top: 20px; }
+.admin-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 1.4fr) .7fr .7fr .9fr auto;
+  gap: 14px;
+  align-items: center;
+  padding: 13px 16px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--panel);
+}
+.admin-row b { font-size: 13px; letter-spacing: -0.02em; }
+.admin-row small { display: block; color: var(--muted-2); font: 8px/1.5 var(--mono); letter-spacing: .05em; margin-top: 3px; }
+.admin-row .admin-meta { color: var(--muted); font: 9px/1.5 var(--mono); }
+.admin-actions { display: flex; gap: 5px; justify-content: flex-end; }
+.admin-actions button { border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 7px; padding: 6px 8px; font: 8px/1 var(--mono); }
+.admin-actions button:hover { color: var(--ink); border-color: var(--line-strong); }
+.admin-actions button.danger { color: var(--red); border-color: rgba(180, 70, 63, .28); }
+.audit-list { display: grid; gap: 6px; margin-top: 12px; }
+.audit-row { display: grid; grid-template-columns: 150px 1fr 150px; gap: 12px; padding: 10px 13px; border-bottom: 1px solid var(--line); color: var(--muted); font: 9px/1.5 var(--mono); }
+.audit-row b { color: var(--ink); font-weight: 700; }
+@media (max-width: 760px) {
+  .admin-row { grid-template-columns: 1fr auto; gap: 8px; }
+  .admin-row .admin-meta { grid-column: 1 / -1; }
+  .audit-row { grid-template-columns: 1fr; gap: 3px; }
+  .workspace-actions #shareBtn { display: inline-flex; }
+}

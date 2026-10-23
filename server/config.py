@@ -44,6 +44,7 @@ MAX_CONCURRENT_TASKS = int(os.getenv("VIBEFORGE_MAX_CONCURRENT", "4"))
 MAX_PROJECTS_PER_USER = int(os.getenv("VIBEFORGE_MAX_PROJECTS_PER_USER", "50"))
 MAX_ACTIVE_TASKS_PER_USER = int(os.getenv("VIBEFORGE_MAX_ACTIVE_PER_USER", "2"))
 MAX_ACTIVE_REACT_PER_USER = int(os.getenv("VIBEFORGE_MAX_ACTIVE_REACT_PER_USER", "1"))
+MAX_STORAGE_PER_USER = int(os.getenv("VIBEFORGE_MAX_STORAGE_PER_USER", str(1024 * 1024 * 1024)))
 
 # Execution sandbox (OpenSandbox server with Docker runtime).
 SANDBOX_BACKEND = os.getenv("VIBEFORGE_SANDBOX", "off").strip().lower()
@@ -77,6 +78,8 @@ RUNTIME_IDLE_SECONDS = int(os.getenv("VIBEFORGE_RUNTIME_IDLE", "600"))
 RUNTIME_READY_TIMEOUT = int(os.getenv("VIBEFORGE_RUNTIME_READY_TIMEOUT", "90"))
 RUNTIME_PORT = int(os.getenv("VIBEFORGE_RUNTIME_PORT", "3000"))
 SSR_PREVIEW_ENABLED = os.getenv("VIBEFORGE_SSR_PREVIEW", "0") not in {"0", "false", "False", "off"}
+SSR_PORT = int(os.getenv("VIBEFORGE_SSR_PORT", "12889"))
+SANDBOX_HOST_DATA_ROOT = os.getenv("VIBEFORGE_SANDBOX_HOST_DATA_ROOT", "").strip()
 
 AUTH_COOKIE_NAME = "vibeforge_session"
 AUTH_TTL_SECONDS = int(os.getenv("VIBEFORGE_AUTH_TTL", str(7 * 24 * 3600)))

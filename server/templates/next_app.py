@@ -246,15 +246,36 @@ export default function NoteBoard() {{
 }}
 """
 
-    api_route = """export const dynamic = "force-dynamic";
+    api_route = """import { mkdir, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
 
-let notes = [
-  { id: 1, text: "这条留言保存在服务端内存中。", at: new Date().toISOString() },
-];
-let nextId = 2;
+export const dynamic = "force-dynamic";
+
+const DATA_DIR = process.env.DATA_DIR || "/data";
+const NOTES_FILE = path.join(DATA_DIR, "notes.json");
+let cache = null;
+
+async function loadNotes() {
+  if (cache) return cache;
+  await mkdir(DATA_DIR, { recursive: true });
+  try {
+    cache = JSON.parse(await readFile(NOTES_FILE, "utf8"));
+    if (!Array.isArray(cache)) cache = [];
+  } catch (_) {
+    cache = [{ id: 1, text: "这条留言保存在服务端数据卷中。", at: new Date().toISOString() }];
+    await saveNotes(cache);
+  }
+  return cache;
+}
+
+async function saveNotes(notes) {
+  cache = notes;
+  await mkdir(DATA_DIR, { recursive: true });
+  await writeFile(NOTES_FILE, JSON.stringify(notes), "utf8");
+}
 
 export async function GET() {
-  return Response.json({ notes });
+  return Response.json({ notes: await loadNotes() });
 }
 
 export async function POST(request) {
@@ -268,8 +289,11 @@ export async function POST(request) {
   if (!text) {
     return Response.json({ error: "text is required" }, { status: 400 });
   }
-  notes = [...notes, { id: nextId++, text, at: new Date().toISOString() }].slice(-20);
-  return Response.json({ notes });
+  const notes = await loadNotes();
+  const nextId = notes.reduce((max, note) => Math.max(max, Number(note.id) || 0), 0) + 1;
+  const updated = [...notes, { id: nextId, text, at: new Date().toISOString() }].slice(-20);
+  await saveNotes(updated);
+  return Response.json({ notes: updated });
 }
 """
 

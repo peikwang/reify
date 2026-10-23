@@ -56,9 +56,20 @@ ssh "$HOST" '
       echo "VIBEFORGE_SANDBOX_SERVER_PROXY=1"
       echo "VIBEFORGE_SANDBOX_IMAGE=node:24-bookworm-slim"
       echo "VIBEFORGE_SANDBOX_EGRESS=allowlist"
+      echo "VIBEFORGE_SANDBOX_HOST_DATA_ROOT=/opt/vibeforge/data/users"
+      echo "VIBEFORGE_SSR_PREVIEW=1"
+      echo "VIBEFORGE_SSR_PORT=12889"
     } > /opt/vibeforge/.sandbox.env
   fi
   chmod 600 /opt/vibeforge/.sandbox.env
+  for line in \
+    "VIBEFORGE_SANDBOX_HOST_DATA_ROOT=/opt/vibeforge/data/users" \
+    "VIBEFORGE_SSR_PREVIEW=1" \
+    "VIBEFORGE_SSR_PORT=12889"; do
+    key=${line%%=*}
+    grep -q "^${key}=" /opt/vibeforge/.sandbox.env || echo "$line" >> /opt/vibeforge/.sandbox.env
+  done
+  mkdir -p /opt/vibeforge/data/users
 
   {
     cat /opt/vibeforge/.auth.env
@@ -111,7 +122,7 @@ type = "docker"
 execd_image = "opensandbox/execd:v1.1.0"
 
 [storage]
-allowed_host_paths = []
+allowed_host_paths = ["/opt/vibeforge/data/users"]
 
 [store]
 type = "sqlite"
@@ -167,11 +178,12 @@ ssh "$HOST" "docker run -d --name ${NAME} --restart unless-stopped \
   ${APP_IMAGE} \
   -m uvicorn server.main:app --host 0.0.0.0 --port ${PORT}"
 
-echo "→ starting Caddy TLS on :${PORT} (HTTP :80 for ACME)"
+echo "→ starting Caddy TLS on :${PORT} (HTTP :80 for ACME, SSR :12889)"
 ssh "$HOST" "docker run -d --name ${NAME}-caddy --restart unless-stopped \
   --network vibeforge-net \
-  -p ${PORT}:${PORT} -p 80:80 \
+  -p ${PORT}:${PORT} -p 12889:12889 -p 80:80 \
   -e VIBEFORGE_HOST_IP=${HOST_IP} \
+  -e VIBEFORGE_SSR_PORT=12889 \
   -v /opt/vibeforge/Caddyfile:/etc/caddy/Caddyfile:ro \
   -v ${NAME}-caddy-data:/data \
   -v ${NAME}-caddy-config:/config \
@@ -195,6 +207,7 @@ while [ "$i" -lt 60 ]; do
     echo "✓ https://${HOST_IP}:${PORT}/"
     echo "  credentials: ${HOST}:/opt/vibeforge/.auth.env"
     echo "  sandbox:     ${HOST}:/opt/vibeforge/.sandbox.env"
+    echo "  SSR apps:    https://${HOST_IP}:12889/apps/<project>/ (open 12889 in the firewall)"
     exit 0
   fi
   i=$((i + 1))

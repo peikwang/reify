@@ -15,8 +15,9 @@ from .config import (
     VIDEO_RESOLUTION,
 )
 from .events import Task, store
-from .llm import design_brief, enabled as llm_enabled, refine_html
+from .llm import design_brief, enabled as llm_enabled, refine_html, refine_source
 from .media import MediaError, create_video, download_asset, generate_images, wait_video
+from .runtime import runtime_manager
 from .sandbox import SandboxError, sandbox_runner
 from .templates.library import (
     CAPABILITIES,
@@ -482,6 +483,112 @@ async def _refine_failed(task: Task, message: str) -> None:
     )
 
 
+async def _run_source_refine(task: Task, instruction: str, revision: int) -> None:
+    workspace = Workspace(task)
+    is_next = task.stack == "next"
+    page_path = "app/page.jsx" if is_next else "src/App.jsx"
+    style_path = "app/globals.css" if is_next else "src/styles.css"
+    style_words = ("颜色", "配色", "字体", "字号", "间距", "留白", "样式", "主题", "背景", "css", "style")
+    target_path = style_path if any(word in instruction.lower() for word in style_words) else page_path
+    target = task.workspace / target_path
+    if not target.is_file():
+        await _refine_failed(task, f"缺少可修改的源码文件：{target_path}")
+        return
+    original = target.read_text(encoding="utf-8")
+    if not llm_enabled():
+        await _refine_failed(task, "当前没有可用的 LLM，无法进行源码修改。")
+        return
+    result = await refine_source(
+        original,
+        instruction,
+        task.capability,
+        "Next.js App Router JSX" if is_next else "React JSX",
+    )
+    if not result:
+        await _refine_failed(task, "模型没有返回可应用的源码修改，已保留原运行时。")
+        return
+    updated = result["source"]
+    await task.emit(
+        "thinking",
+        step="应用源码修改",
+        summary=result.get("summary", "已生成局部源码修改。"),
+        detail=f"目标文件 {target_path}，应用 {len(result.get('notes', []))} 处 patch。",
+        source="llm",
+    )
+    await workspace.write_file(target_path, updated, "根据对话修改源码：" + instruction[:40])
+    source_files = _collect_source_files(task)
+    try:
+        if is_next:
+            build = await sandbox_runner.build(task, source_files, validate=next_checks_files)
+            await workspace.install_runtime(build.files)
+            checks = next_checks_files(build.files)
+            for name, ok, detail in checks:
+                await task.emit("verify", name=name, ok=ok, detail=detail)
+            await runtime_manager.deploy(task)
+            event_url = None
+        else:
+            build = await sandbox_runner.build(task, source_files, validate=react_checks_files)
+            await workspace.install_artifact(build.files)
+            checks = react_checks(task.artifact_dir)
+            for name, ok, detail in checks:
+                await task.emit("verify", name=name, ok=ok, detail=detail)
+            manifest = await Workspace(task).deploy(task.title)
+            event_url = manifest["url"]
+        task.revision = revision
+        task.source = "llm-edit"
+        task.error = None
+        task.status = "done"
+        task.result = {
+            "url": event_url,
+            "title": task.title,
+            "capability": task.capability,
+            "source": "llm-edit",
+            "revision": revision,
+            "stack": task.stack,
+            "runtime": runtime_manager.status(task) if is_next else None,
+            "build": {
+                "files": len(build.files),
+                "bytes": build.total_bytes,
+                "duration_ms": build.duration_ms,
+            },
+            "checks": [{"name": name, "ok": ok, "detail": detail} for name, ok, detail in checks],
+        }
+        task.save_meta()
+        await task.emit(
+            "done",
+            url=event_url,
+            title=task.title,
+            summary=result.get("summary", "已根据你的要求完成修改。"),
+            source="llm-edit",
+            capability=task.capability,
+            revision=revision,
+        )
+    except Exception as exc:  # noqa: BLE001 - keep the previous build/runtime intact
+        logger.exception("source refine failed for task %s", task.id)
+        await workspace.restore_file(target_path, original)
+        task.error = str(exc)
+        await _refine_failed(task, "源码修改没有通过构建/校验，原版本保持不变。")
+
+
+def _collect_source_files(task: Task) -> dict[str, str]:
+    skip_dirs = {"dist", "runtime", "node_modules", ".next", "assets", ".git", "__pycache__"}
+    suffixes = {".js", ".jsx", ".mjs", ".json", ".css", ".md", ".html"}
+    files: dict[str, str] = {}
+    for path in task.workspace.rglob("*"):
+        if not path.is_file():
+            continue
+        relative = path.relative_to(task.workspace)
+        if any(part in skip_dirs for part in relative.parts):
+            continue
+        if path.name in {"build.json", "deploy.json"} or path.suffix.lower() not in suffixes:
+            continue
+        try:
+            files[relative.as_posix()] = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+    return files
+
+
 async def run_refine(task: Task, instruction: str) -> None:
     started = time.monotonic()
     revision = task.revision + 1
@@ -504,17 +611,8 @@ async def run_refine(task: Task, instruction: str) -> None:
                 source="llm" if llm_enabled() else "director",
             )
             await _pause(0.45)
-            if task.stack == "react":
-                await _refine_failed(
-                    task,
-                    "React 源码工程的二次修改将在下一阶段接入；当前请新建一个 React 项目。",
-                )
-                return
-            if task.stack == "next":
-                await _refine_failed(
-                    task,
-                    "Next.js 源码的二次修改将在后续阶段接入；当前请重新生成项目。",
-                )
+            if task.stack in {"react", "next"}:
+                await _run_source_refine(task, instruction, revision)
                 return
             if not llm_enabled():
                 await _refine_failed(task, "当前没有可用的 LLM，无法进行语义修改。")
