@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+projects/
+data/
+.env
+.auth.env
+.llm.env
+.runtime.env
+.DS_Store

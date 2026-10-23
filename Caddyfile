@@ -1,0 +1,25 @@
+{
+	default_sni {$VIBEFORGE_HOST_IP}
+	https_port 12888
+	http_port 80
+	auto_https disable_redirects
+}
+
+http://{$VIBEFORGE_HOST_IP} {
+	@notacme not path /.well-known/acme-challenge/*
+	redir @notacme https://{$VIBEFORGE_HOST_IP}:12888{uri} 308
+	respond 404
+}
+
+https://{$VIBEFORGE_HOST_IP}:12888 {
+	tls {
+		issuer acme {
+			profile shortlived
+			disable_tlsalpn_challenge
+		}
+	}
+	encode zstd gzip
+	reverse_proxy vibeforge:12888 {
+		flush_interval -1
+	}
+}
