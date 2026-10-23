@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Stre
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from .agent import run_refine, run_task
+from .agent import run_media_refine, run_refine, run_task
 from .config import (
     APP_NAME,
     APP_VERSION,
@@ -126,7 +126,7 @@ def _terminal(task) -> bool:
 @app.middleware("http")
 async def auth_guard(request: Request, call_next):
     path = request.url.path
-    public = path in {"/login", "/api/auth/login", "/api/health"} or path.startswith("/static/")
+    public = path in {"/login", "/api/auth/login", "/api/health"} or path.startswith(("/static/", "/media/"))
     if path == "/login" and _authenticated(request):
         return _secured(RedirectResponse("/", status_code=303))
     if not public and not _authenticated(request):
@@ -198,6 +198,22 @@ async def projects_index() -> FileResponse:
 @app.get("/projects/{task_id}")
 async def project_page(task_id: str) -> FileResponse:
     return FileResponse(WEB_DIR / "index.html")
+
+
+@app.get("/media/{task_id}/{filename:path}")
+async def media_asset(task_id: str, filename: str):
+    task = store.get(task_id)
+    if not task or not filename.startswith("assets/"):
+        raise HTTPException(status_code=404, detail="asset not found")
+    assets_root = (task.workspace / "assets").resolve()
+    target = (task.workspace / filename).resolve()
+    try:
+        target.relative_to(assets_root)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="asset not found") from exc
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail="asset not found")
+    return FileResponse(target)
 
 
 @app.get("/api/health")
@@ -321,10 +337,11 @@ async def refine_task(task_id: str, payload: RefineRequest) -> dict[str, Any]:
             raise HTTPException(status_code=400, detail="instruction is empty")
         task.status = "queued"
         task.save_meta()
-    background = asyncio.create_task(run_refine(task, instruction))
+    runner = run_media_refine if task.capability in {"image", "video"} else run_refine
+    background = asyncio.create_task(runner(task, instruction))
     _background.add(background)
     background.add_done_callback(_background.discard)
-    logger.info("refine queued id=%s revision=%s", task.id, task.revision + 1)
+    logger.info("refine queued id=%s revision=%s capability=%s", task.id, task.revision + 1, task.capability)
     return {"task": task.meta()}
 
 

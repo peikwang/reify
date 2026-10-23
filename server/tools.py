@@ -81,6 +81,22 @@ class Workspace:
         target.parent.mkdir(parents=True, exist_ok=True)
         self._atomic_write(target, content)
 
+    async def save_asset(self, path: str, data: bytes, mime: str, label: str = "") -> dict[str, Any]:
+        target = self._safe_path(path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        temp = target.with_name(target.name + ".tmp")
+        temp.write_bytes(data)
+        os.replace(temp, target)
+        await self.task.emit(
+            "asset_created",
+            path=path,
+            mime=mime,
+            bytes=len(data),
+            url=f"/media/{self.task.id}/{path}",
+            summary=label or path,
+        )
+        return {"path": path, "url": f"/media/{self.task.id}/{path}", "mime": mime, "bytes": len(data)}
+
     async def edit_file(self, path: str, old: str, new: str, reason: str = "") -> dict[str, Any]:
         target = self._safe_path(path)
         if not target.exists():
