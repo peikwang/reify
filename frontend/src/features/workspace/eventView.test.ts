@@ -101,7 +101,7 @@ describe("applyProjectEvent", () => {
     const state = applyProjectEvent(
       initialProjectView,
       event(1, "file_diff", {
-        path: "src/App.jsx",
+        path: "src/App.tsx",
         before: "a\nb",
         after: "a\nb\nc",
         created: false,
@@ -110,9 +110,9 @@ describe("applyProjectEvent", () => {
     );
     expect(state.timeline[0]?.summary).toContain("+1 行");
     expect(state.timeline[0]?.detail).toBe("添加区块");
-    expect(state.files["src/App.jsx"]?.content).toBe("a\nb\nc");
-    expect(state.files["src/App.jsx"]?.before).toBe("a\nb");
-    expect(state.terminalLines.at(-1)?.text).toContain("src/App.jsx");
+    expect(state.files["src/App.tsx"]?.content).toBe("a\nb\nc");
+    expect(state.files["src/App.tsx"]?.before).toBe("a\nb");
+    expect(state.terminalLines.at(-1)?.text).toContain("src/App.tsx");
   });
 
   it("closes the view on done with checks and outcome", () => {

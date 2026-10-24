@@ -20,7 +20,7 @@ VibeForge 是一个单机优先的个人设计 Agent。它把自然语言拆成�
 
 ## Next.js SSR 运行时
 
-- 提示词明确要求 Next.js/SSR 时，Agent 生成 `app/`、`app/api/notes/route.js`、`next.config.mjs` 等源码，在 OpenSandbox 中执行 `npm ci` + `next build`，打包 `.next/standalone`。
+- 提示词明确要求 Next.js/SSR 时，Agent 生成 `app/`、`app/api/notes/route.ts`、`next.config.mjs` 等 TypeScript 源码，在 OpenSandbox 中执行 `npm ci` + `next build`，打包 `.next/standalone`。
 - 构建完成后点击“启动应用”：创建独立运行时沙箱，上传 standalone 产物，后台启动 `node server.js`，健康检查通过后状态变为 `APP RUNNING`。
 - 运行时默认 1 CPU / 1 GiB、TTL 1 小时；空闲 10 分钟由监控任务停止。当前 Docker runtime 采用 stop/start 冷启动，不是 MicroVM pause/resume。
 - 远端 55 机器上 OpenSandbox server 同时接入 `vibeforge-net` 与默认 `bridge`：app 通过 `vibeforge-sandbox:8080` 调用，server 通过 bridge 直接代理到沙箱 execd；不把 40000-60000 端口暴露公网。

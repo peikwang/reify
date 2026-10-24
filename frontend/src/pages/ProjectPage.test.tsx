@@ -53,7 +53,7 @@ const events: TaskEvent[] = [
     seq: 3,
     type: "file_diff",
     ts: "2026-10-24T06:00:03+00:00",
-    path: "src/App.jsx",
+    path: "src/App.tsx",
     before: "",
     after: "const title = 'hello';\n",
     created: true,
@@ -133,7 +133,7 @@ describe("ProjectPage", () => {
 
     fireEvent.click(screen.getByRole("tab", { name: "编程" }));
     await waitFor(() => {
-      expect(document.querySelector("#diffPath")?.textContent).toBe("src/App.jsx");
+      expect(document.querySelector("#diffPath")?.textContent).toBe("src/App.tsx");
     });
     expect(document.querySelectorAll(".diff-line.add").length).toBeGreaterThan(0);
     expect(screen.getByText("TERMINAL")).toBeInTheDocument();
