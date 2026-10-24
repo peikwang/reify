@@ -6,6 +6,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 WEB_DIR = ROOT / "web"
+REACT_DIST_DIR = WEB_DIR / "dist"
+UI_MODE = os.getenv("VIBEFORGE_UI", "legacy").strip().lower()
+if UI_MODE not in {"legacy", "react"}:
+    UI_MODE = "legacy"
 PROJECTS_DIR = Path(os.getenv("VIBEFORGE_PROJECTS", str(ROOT / "projects"))).resolve()
 DATA_DIR = Path(os.getenv("VIBEFORGE_DATA", str(ROOT / "data"))).resolve()
 USERS_DIR = DATA_DIR / "users"

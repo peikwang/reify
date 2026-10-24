@@ -9,3 +9,5 @@ data/
 .llm.env
 .runtime.env
 .DS_Store
+frontend/node_modules/
+web/dist/

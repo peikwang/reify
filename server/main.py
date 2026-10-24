@@ -37,8 +37,10 @@ from .config import (
     MAX_PROJECTS_PER_USER,
     MAX_STORAGE_PER_USER,
     PORT,
+    REACT_DIST_DIR,
     SSR_PORT,
     SSR_PREVIEW_ENABLED,
+    UI_MODE,
     WEB_DIR,
 )
 from .db import User, db
@@ -236,10 +238,37 @@ def _safe_file(root: Path, relative: str) -> Path | None:
     return target if target.is_file() else None
 
 
+def _ui_index() -> Response:
+    if UI_MODE == "react":
+        index = REACT_DIST_DIR / "index.html"
+        if not index.is_file():
+            raise HTTPException(
+                status_code=503,
+                detail="React UI build is missing; run npm ci && npm run build in frontend/",
+            )
+        response: Response = FileResponse(index)
+    else:
+        response = FileResponse(WEB_DIR / "index.html")
+    response.headers["Cache-Control"] = "no-store, max-age=0"
+    return response
+
+
+def _ui_asset(filename: str) -> FileResponse:
+    if UI_MODE != "react":
+        raise HTTPException(status_code=404, detail="asset not found")
+    target = _safe_file(REACT_DIST_DIR / "assets", filename)
+    if not target:
+        raise HTTPException(status_code=404, detail="asset not found")
+    return FileResponse(
+        target,
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )
+
+
 @app.middleware("http")
 async def auth_guard(request: Request, call_next):
     path = request.url.path
-    asset_request = path.startswith(("/static/", "/media/"))
+    asset_request = path.startswith(("/static/", "/media/", "/assets/"))
     user = None if asset_request else auth.resolve_session(request.cookies.get(AUTH_COOKIE_NAME))
     request.state.user = user
     public = (
@@ -285,7 +314,9 @@ async def auth_guard(request: Request, call_next):
 
 
 @app.get("/login")
-async def login_page() -> FileResponse:
+async def login_page() -> Response:
+    if UI_MODE == "react":
+        return _ui_index()
     return FileResponse(WEB_DIR / "login.html")
 
 
@@ -360,23 +391,28 @@ async def change_password(payload: PasswordRequest, request: Request) -> JSONRes
 
 
 @app.get("/")
-async def index() -> FileResponse:
-    return FileResponse(WEB_DIR / "index.html")
+async def index() -> Response:
+    return _ui_index()
 
 
 @app.get("/projects")
-async def projects_index() -> FileResponse:
-    return FileResponse(WEB_DIR / "index.html")
+async def projects_index() -> Response:
+    return _ui_index()
 
 
 @app.get("/projects/{project_id}")
-async def project_page(project_id: str) -> FileResponse:
-    return FileResponse(WEB_DIR / "index.html")
+async def project_page(project_id: str) -> Response:
+    return _ui_index()
 
 
 @app.get("/admin")
-async def admin_page() -> FileResponse:
-    return FileResponse(WEB_DIR / "index.html")
+async def admin_page() -> Response:
+    return _ui_index()
+
+
+@app.get("/assets/{filename:path}")
+async def ui_asset(filename: str) -> FileResponse:
+    return _ui_asset(filename)
 
 
 @app.get("/p/{project_id}")
@@ -834,6 +870,18 @@ async def admin_revoke_sessions(user_id: str, request: Request) -> dict[str, Any
 async def admin_audit(request: Request, limit: int = 100) -> dict[str, Any]:
     _require_admin(request)
     return {"items": db.list_audit(limit)}
+
+
+@app.get("/{path:path}")
+async def spa_fallback(path: str) -> Response:
+    if UI_MODE != "react":
+        raise HTTPException(status_code=404, detail="not found")
+    first = path.split("/", 1)[0]
+    if first in {"api", "p", "s", "media", "apps", "static", "assets"}:
+        raise HTTPException(status_code=404, detail="not found")
+    if "." in path.rsplit("/", 1)[-1]:
+        raise HTTPException(status_code=404, detail="not found")
+    return _ui_index()
 
 
 @app.exception_handler(HTTPException)

@@ -6,3 +6,5 @@ projects
 backups
 tests
 *.env
+frontend/node_modules
+web/dist
