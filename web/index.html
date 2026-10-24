@@ -54,23 +54,14 @@
                     <button type="button" class="cap-chip" data-cap="game">小游戏</button>
                     <button type="button" class="cap-chip" data-cap="website">网站</button>
                     <button type="button" class="cap-chip" data-cap="image">图片</button>
-                    <button type="button" class="cap-chip" data-cap="video">视频</button>
+                    <button type="button" class="cap-chip" data-cap="video">视频制作</button>
                     <button type="button" class="cap-chip" data-cap="resume">简历</button>
                     <button type="button" class="cap-chip" data-cap="travel">旅游攻略</button>
-                    <button type="button" class="cap-chip" data-cap="adapt">适配制作</button>
                     <button type="button" class="cap-chip" data-cap="code">编程</button>
                   </div>
                 </div>
                 <div class="composer-meta">
-                  <label class="stack-toggle" for="stackSelect" title="选择实现方式">
-                    <span>STACK</span>
-                    <select id="stackSelect">
-                      <option value="static">静态模板</option>
-                      <option value="react">React 源码</option>
-                      <option value="next">Next SSR</option>
-                    </select>
-                  </label>
-                  <span class="auto-pill">可直接修改</span>
+                  <span class="auto-pill">自动匹配实现 · 可直接修改</span>
                 </div>
               </div>
               <textarea id="promptInput" rows="3" maxlength="2000" placeholder="选一个模板会填入专用提示词，也可以直接描述你想做的东西…"></textarea>
@@ -157,7 +148,7 @@
         <div class="workspace-actions">
           <span class="status-pill running" id="runStatus"><i></i><span>PLANNING</span></span>
           <button class="ghost-btn hidden" id="shareBtn">分享</button>
-          <button class="primary-btn hidden" id="runtimeBtn">启动 SSR</button>
+          <button class="primary-btn hidden" id="runtimeBtn">启动应用</button>
           <button class="ghost-btn" id="downloadBtn">导出代码</button>
           <button class="primary-btn" id="deployBtn">部署</button>
         </div>

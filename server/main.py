@@ -49,6 +49,7 @@ from .llm import enabled as llm_enabled
 from .migrate import migrate_legacy
 from .runtime import runtime_manager
 from .sandbox import SandboxError, sandbox_runner
+from .stacks import SOURCE_STACKS, STACKS, resolve_stack
 from .templates.library import CAPABILITIES, classify, defaults
 from .tools import Workspace
 
@@ -74,7 +75,7 @@ PUBLIC_PATHS = {
 class CreateTaskRequest(BaseModel):
     prompt: str = Field(min_length=1, max_length=2000)
     capability: str | None = None
-    stack: str = "static"
+    stack: str | None = None
 
 class RegisterRequest(BaseModel):
     username: str = Field(min_length=3, max_length=32)
@@ -508,16 +509,16 @@ async def create_project(payload: CreateTaskRequest, request: Request) -> dict[s
     capability = payload.capability or classify(prompt)
     if capability not in CAPABILITIES:
         capability = classify(prompt)
-    stack = payload.stack if payload.stack in {"static", "react", "next"} else "static"
-    if stack in {"react", "next"}:
-        if not sandbox_runner.enabled:
-            raise HTTPException(status_code=503, detail="构建沙箱未启用")
-        if not await sandbox_runner.reachable():
-            raise HTTPException(status_code=503, detail="构建沙箱暂不可达")
-        if capability != "website":
-            raise HTTPException(status_code=400, detail="源码工程当前只支持网站能力")
+    requested_stack = payload.stack if payload.stack in STACKS else None
+    stack = resolve_stack(capability, prompt, requested_stack)
+    if stack in SOURCE_STACKS:
+        unavailable = not sandbox_runner.enabled or not await sandbox_runner.reachable()
+        if unavailable and requested_stack in SOURCE_STACKS:
+            raise HTTPException(status_code=503, detail="构建沙箱暂不可用")
+        if unavailable:
+            stack = "static"
     _enforce_user_quota(user)
-    if stack in {"react", "next"}:
+    if stack in SOURCE_STACKS:
         _enforce_react_quota(user)
     if not auth.limiter.hit(f"create:{user.id}", 10, 60):
         raise HTTPException(status_code=429, detail="创建过于频繁，请稍后再试")
@@ -533,7 +534,13 @@ async def create_project(payload: CreateTaskRequest, request: Request) -> dict[s
     _background.add(background)
     background.add_done_callback(_background.discard)
     _audit(request, "project.create", user=user, project_id=task.id, detail=capability)
-    logger.info("project created id=%s owner=%s capability=%s", task.id, user.id, capability)
+    logger.info(
+        "project created id=%s owner=%s capability=%s stack=%s",
+        task.id,
+        user.id,
+        capability,
+        stack,
+    )
     return {"task": task.meta(), "events": []}
 
 

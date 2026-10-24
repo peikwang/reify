@@ -398,13 +398,14 @@ app/globals.css
 
 - 通用 Composer、模板画廊、最近项目、项目卡片、筛选、统计。
 - 创建请求只发送 `{prompt, capability}`；技术栈由后端自动路由，前端不提供选择器。
-- 验收：创建静态项目后项目库正确刷新；提示词驱动的 React/Next 自动路由在后端合并后验收；移动端布局一致。
+- 验收：创建静态项目后项目库正确刷新；提示词驱动的 React/Next 自动路由已合并并验证，沙箱可用时走源码、不可用时回退静态；移动端布局一致。
 
 ### Phase 1.5 — 模板画廊与免登录公开链接
 
 - 模板合并为 7 个：移除“适配制作”，把“视频”更名为“视频制作”。
 - 每个模板有独立插图和提示词；模板画廊位于聊天框外，点击后填入单一通用 Composer，Composer 不显示模板 tab 或 STACK。
 - 新生成的静态/React 项目自动获得 `/s/<token>/` 免登录只读公开链接；项目库显示公开页入口、复制链接和创建成功提示。
+- 后端 `resolve_stack` 自动路由已合入：非网站模板强制 static；网站默认 static；提示词明确要求 React/Vite 或 Next/SSR 时才走源码；沙箱不可用时自动回退 static，显式 API 指定源码则返回 503。
 - 验收：点击模板正确填入提示词；公开链接在无 Cookie 下返回 200，撤销后 404；Next 公开链接留待应用运行时阶段。
 
 ### Phase 2 — 项目页只读 + SSE
@@ -441,6 +442,7 @@ app/globals.css
 - 单元/组件：Vitest + React Testing Library；Diff 算法、URL 校验、事件 reducer。
 - 模板库：7 个模板、独立插图、点击填入通用输入框。
 - 公开链接：静态/React 新项目自动签发；无 Cookie 200、撤销后 404；Next 不签发。
+- 自动路由：`resolve_stack` 单测覆盖非网站强制 static、网站默认 static、React/Vite 与 Next/SSR 识别；API 使用 mock 沙箱验证 react/next 分支与沙箱不可用回退。
 - SSE：模拟 EventSource，覆盖 open/message/error/done/interrupted/401。
 - E2E：Playwright 复用现有真实链路：
   - 注册/登录/退出
@@ -490,7 +492,7 @@ app/globals.css
 4. 静态模板：默认保留；是否新增 `react-game` 等按需求另开议题。
 5. 包管理器：npm + lockfile（与当前 sandbox 一致），不引入 pnpm/yarn。
 6. 分支：`feature/react-ts` 从 `feature/isolation` 拉出；每阶段一个 commit，全部通过后再合并。
-7. 技术栈选择：不暴露给用户；后端 `resolve_stack` 自动路由（在 `feature/isolation` 实现），前端只传 `{prompt, capability}`。
+7. 技术栈选择：不暴露给用户；后端 `resolve_stack` 自动路由（已从 `feature/isolation` 合并到 `feature/react-ts`），前端只传 `{prompt, capability}`。
 8. 模板数量：固定 7 个；适配制作不进入模板库，历史数据仍可渲染和筛选。
 9. 公开链接：默认免登录只读，自动签发、可撤销；不做 magic link 自动登录。Next 公开链接另行设计 12889 token。
 

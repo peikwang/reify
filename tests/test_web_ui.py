@@ -212,3 +212,103 @@ def test_react_ui_reports_missing_build(client: TestClient, tmp_path: Path, monk
     response = client.get("/")
     assert response.status_code == 503
     assert "npm run build" in response.json()["detail"]
+
+
+def test_auto_source_routing_falls_back_when_sandbox_unavailable(monkeypatch):
+    async def noop(_task):
+        return None
+
+    monkeypatch.setattr(main_module, "run_task", noop)
+    headers = {"X-Forwarded-For": "198.51.100.71"}
+    with TestClient(main_module.app) as routed:
+        registered = routed.post(
+            "/api/auth/register",
+            json={"username": "autofallback", "password": "correct-horse-battery"},
+            headers=headers,
+        )
+        assert registered.status_code == 200, registered.text
+
+        auto = routed.post(
+            "/api/projects",
+            json={"prompt": "用 React 做一个作品集网站", "capability": "website"},
+            headers=headers,
+        )
+        assert auto.status_code == 200, auto.text
+        auto_task = auto.json()["task"]
+        assert auto_task["stack"] == "static"
+        assert auto_task["share_url"]
+
+        game = routed.post(
+            "/api/projects",
+            json={
+                "prompt": "做一个霓虹风格的贪吃蛇小游戏",
+                "capability": "game",
+                "stack": "react",
+            },
+            headers=headers,
+        )
+        assert game.status_code == 200, game.text
+        assert game.json()["task"]["stack"] == "static"
+
+        explicit = routed.post(
+            "/api/projects",
+            json={
+                "prompt": "用 React 做一个作品集网站",
+                "capability": "website",
+                "stack": "react",
+            },
+            headers=headers,
+        )
+        assert explicit.status_code == 503
+
+
+def test_auto_source_routing_selects_react_and_next_with_sandbox_available(monkeypatch):
+    class FakeSandbox:
+        enabled = True
+
+        async def reachable(self):
+            return True
+
+    async def noop(_task):
+        return None
+
+    monkeypatch.setattr(main_module, "sandbox_runner", FakeSandbox())
+    monkeypatch.setattr(main_module, "run_task", noop)
+    react_headers = {"X-Forwarded-For": "198.51.100.81"}
+    with TestClient(main_module.app) as react_client:
+        registered = react_client.post(
+            "/api/auth/register",
+            json={"username": "autoreact", "password": "correct-horse-battery"},
+            headers=react_headers,
+        )
+        assert registered.status_code == 200, registered.text
+        created = react_client.post(
+            "/api/projects",
+            json={"prompt": "用 React 做一个作品集网站", "capability": "website"},
+            headers=react_headers,
+        )
+        assert created.status_code == 200, created.text
+        react_task = created.json()["task"]
+        assert react_task["stack"] == "react"
+        assert react_task["share_url"]
+
+    next_headers = {"X-Forwarded-For": "198.51.100.82"}
+    with TestClient(main_module.app) as next_client:
+        registered = next_client.post(
+            "/api/auth/register",
+            json={"username": "autonext", "password": "correct-horse-battery"},
+            headers=next_headers,
+        )
+        assert registered.status_code == 200, registered.text
+        created = next_client.post(
+            "/api/projects",
+            json={
+                "prompt": "用 Next.js 做官网，带服务端留言板",
+                "capability": "website",
+            },
+            headers=next_headers,
+        )
+        assert created.status_code == 200, created.text
+        next_task = created.json()["task"]
+        assert next_task["stack"] == "next"
+        assert next_task["share_url"] is None

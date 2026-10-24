@@ -49,7 +49,6 @@
     prompt: $("#promptInput"),
     runBtn: $("#runBtn"),
     capPicker: $("#capPicker"),
-    stackSelect: $("#stackSelect"),
     runtimeBtn: $("#runtimeBtn"),
     shareBtn: $("#shareBtn"),
     adminUsers: $("#adminUsers"),
@@ -524,7 +523,7 @@
 
   async function toggleShare() {
     if (!state.taskId) return;
-    if (state.task?.stack === "next") return toast("SSR 项目分享暂未开放");
+    if (state.task?.stack === "next") return toast("在线应用暂不支持分享");
     try {
       if (state.task?.share_url) {
         await api("/api/projects/" + encodeURIComponent(state.taskId) + "/share", { method: "DELETE" });
@@ -622,17 +621,6 @@
       state.ssrPreview = Boolean(data.ssr_preview);
       state.ssrPort = data.ssr_port || null;
       renderCapabilities();
-      if (els.stackSelect) {
-        const enabled = Boolean(state.sandbox && state.sandbox.backend && state.sandbox.backend !== "off");
-        Array.from(els.stackSelect.options).forEach((option) => {
-          if (option.value !== "static") option.disabled = !enabled;
-        });
-        if (!enabled) els.stackSelect.value = "static";
-        els.stackSelect.closest(".stack-toggle")?.setAttribute(
-          "title",
-          enabled ? "选择静态、React 或 Next SSR 实现" : "源码构建沙箱未启用"
-        );
-      }
     } catch (error) {
       console.warn(error);
     }
@@ -642,7 +630,7 @@
     game: { key: "game", label: "小游戏", short: "GAME" },
     website: { key: "website", label: "网站", short: "WEB" },
     image: { key: "image", label: "图片", short: "IMAGE" },
-    video: { key: "video", label: "视频", short: "VIDEO" },
+    video: { key: "video", label: "视频制作", short: "VIDEO" },
     resume: { key: "resume", label: "简历", short: "CV" },
     travel: { key: "travel", label: "旅游攻略", short: "TRIP" },
     adapt: { key: "adapt", label: "适配制作", short: "ADAPT" },
@@ -698,7 +686,7 @@
       '</p><div class="project-card-foot"><span>' +
       escapeHtml(revision) +
       "</span><span>" +
-      escapeHtml((task.stack === "react" ? "react" : task.stack === "next" ? "next" : task.capability || "website").toUpperCase()) +
+      escapeHtml(info.short) +
       "</span></div></div></a>"
     );
   }
@@ -776,8 +764,7 @@
 
   function setTaskHeading(task) {
     const info = capInfo(task.capability);
-    const stackLabel = task.stack === "next" ? "NEXT" : task.stack === "react" ? "REACT" : info.short;
-    let label = stackLabel + " / " + task.id.toUpperCase();
+    let label = info.short + " / " + task.id.toUpperCase();
     if (task.revision) label += " / REV " + task.revision;
     els.taskEyebrow.textContent = label;
     els.taskTitle.textContent = task.title || task.prompt || "未命名项目";
@@ -789,19 +776,15 @@
       toast("先写一句你想做的东西");
       return;
     }
-    const stack = els.stackSelect?.value || "static";
-    const useSource = stack !== "static";
     resetWorkspace();
     showWorkspace();
-    const selectedCapability =
+    const capability =
       state.cap && state.templatePrompt && prompt.trim() === state.templatePrompt.trim() ? state.cap : null;
-    const capability = useSource ? "website" : selectedCapability;
     api("/api/projects", {
       method: "POST",
       body: JSON.stringify({
         prompt: prompt.trim(),
         capability,
-        stack,
       }),
     })
       .then((data) => {
@@ -817,7 +800,7 @@
         if (isNext) {
           state.runtime = { status: "stopped", preview: state.ssrPreview };
           updateRuntimeUi(state.runtime);
-          els.browserTag.textContent = "SSR";
+          els.browserTag.textContent = "APP";
         } else {
           els.browserTag.textContent = "LOCAL";
         }
@@ -907,14 +890,14 @@
       els.runtimeBtn.classList.toggle("hidden", !isNext);
       updateShareUi(data.task);
       if (isNext) {
-        els.browserTag.textContent = "SSR";
+        els.browserTag.textContent = "APP";
         const initial = data.task.result?.runtime || { status: "stopped", preview: state.ssrPreview };
         updateRuntimeUi(initial);
         api("/api/projects/" + encodeURIComponent(data.task.id) + "/runtime")
           .then((payload) => {
             updateRuntimeUi(payload.runtime);
-            if (payload.runtime?.status === "running") setStatus("done", "SSR RUNNING");
-            else if (payload.runtime?.status === "error") setStatus("error", "SSR ERROR");
+            if (payload.runtime?.status === "running") setStatus("done", "APP RUNNING");
+            else if (payload.runtime?.status === "error") setStatus("error", "APP ERROR");
             else setStatus("done", "BUILT");
           })
           .catch(() => {});
@@ -925,9 +908,9 @@
       setRefineState(
         !running,
         isNext
-          ? "基于当前 Next 源码继续修改（会重新构建并蓝绿切换运行时）"
+          ? "基于当前源码继续修改（会重新构建并蓝绿切换运行时）"
           : data.task.stack === "react"
-            ? "基于当前 React 源码继续修改（会重新构建并部署）"
+            ? "基于当前源码继续修改（会重新构建并部署）"
             : running
               ? "Agent 正在运行…"
               : "基于当前成果继续修改"
@@ -1134,7 +1117,7 @@
       }
       case "build_started": {
         setStatus("running", "BUILDING");
-        els.flowTitle.textContent = "沙箱内构建 React 工程";
+        els.flowTitle.textContent = "沙箱内构建源码工程";
         els.termStatus.textContent = "BUILDING";
         addTimeline({
           type: "step",
@@ -1187,37 +1170,37 @@
         break;
       }
       case "runtime_starting": {
-        setStatus("running", "SSR STARTING");
-        els.termStatus.textContent = "SSR STARTING";
-        addTimeline({ type: "thought", title: "RUNTIME / STARTING", summary: "正在启动 SSR 沙箱", time, animate });
-        terminal("● starting SSR runtime on :" + (event.port || 3000), "");
+        setStatus("running", "APP STARTING");
+        els.termStatus.textContent = "APP STARTING";
+        addTimeline({ type: "thought", title: "RUNTIME / STARTING", summary: "正在启动应用沙箱", time, animate });
+        terminal("● starting app runtime on :" + (event.port || 3000), "");
         break;
       }
       case "runtime_ready": {
         updateRuntimeUi({ status: "running", url: event.url, preview: state.ssrPreview });
-        setStatus("done", "SSR RUNNING");
+        setStatus("done", "APP RUNNING");
         addTimeline({
           type: "deploy",
           title: "RUNTIME / READY",
-          summary: event.url ? "SSR 预览已就绪" : "SSR 运行时已启动（预览需域名）",
+          summary: event.url ? "应用预览已就绪" : "应用运行时已启动（预览需域名）",
           time,
           animate,
         });
-        terminal("✔ SSR runtime ready", "ok");
+        terminal("✔ app runtime ready", "ok");
         break;
       }
       case "runtime_error": {
         updateRuntimeUi({ status: "error", error: event.message });
-        setStatus("error", "SSR ERROR");
-        addTimeline({ type: "error", title: "RUNTIME / FAILED", summary: event.message || "SSR 运行时启动失败", time, animate });
-        terminal("✗ SSR runtime failed · " + (event.message || ""), "err");
+        setStatus("error", "APP ERROR");
+        addTimeline({ type: "error", title: "RUNTIME / FAILED", summary: event.message || "应用运行时启动失败", time, animate });
+        terminal("✗ app runtime failed · " + (event.message || ""), "err");
         break;
       }
       case "runtime_stopped": {
         updateRuntimeUi({ status: "stopped" });
         setStatus("done", "BUILT");
-        addTimeline({ type: "step", title: "RUNTIME / STOPPED", summary: event.message || "SSR 运行时已停止", time, animate });
-        terminal("● SSR runtime stopped", "");
+        addTimeline({ type: "step", title: "RUNTIME / STOPPED", summary: event.message || "应用运行时已停止", time, animate });
+        terminal("● app runtime stopped", "");
         break;
       }
       case "verify": {
@@ -1266,13 +1249,13 @@
         els.flowTitle.textContent = refineFailed ? "修改未应用" : isRefine ? "修改完成" : isNext ? "构建完成" : "交付完成";
         els.agentOrb.className = "agent-orb done";
         els.outcomeTitle.textContent = event.title || (state.task && state.task.title) || "已完成";
-        els.outcomeText.textContent = event.summary || (isNext ? "构建完成，可以启动 SSR 运行时。" : "页面已完成并通过自检。");
+        els.outcomeText.textContent = event.summary || (isNext ? "构建完成，可以启动应用运行时。" : "页面已完成并通过自检。");
         setRefineState(
           true,
           state.task?.stack === "next"
-            ? "基于当前 Next 源码继续修改（会重新构建并蓝绿切换运行时）"
+            ? "基于当前源码继续修改（会重新构建并蓝绿切换运行时）"
             : state.task?.stack === "react"
-              ? "基于当前 React 源码继续修改（会重新构建并部署）"
+              ? "基于当前源码继续修改（会重新构建并部署）"
               : refineFailed
                 ? "修改未应用，可以再试"
                 : "基于当前成果继续修改"
@@ -1304,7 +1287,7 @@
               : isRefine
                 ? "修改已应用并重新部署"
                 : isNext
-                  ? "构建完成，可以启动 SSR 运行时"
+                  ? "构建完成，可以启动应用运行时"
                   : "生成完成，已部署到本地"
           );
         }
@@ -1630,7 +1613,7 @@
     els.previewFrame.src = "about:blank";
     els.miniFrame.src = "about:blank";
     els.previewLoading.classList.add("hide");
-    els.browserTag.textContent = "SSR · STOPPED";
+    els.browserTag.textContent = "APP · STOPPED";
     els.miniState.textContent = "STOPPED";
     if (state.taskId) els.previewUrl.textContent = ssrPreviewUrl(state.taskId) || "/apps/" + encodeURIComponent(state.taskId) + "/";
   }
@@ -1646,20 +1629,20 @@
     els.deployBtn.classList.add("hidden");
     const status = state.runtime.status || "stopped";
     const running = status === "running";
-    els.runtimeBtn.textContent = running ? "停止 SSR" : status === "starting" ? "启动中…" : status === "error" ? "重试 SSR" : "启动 SSR";
+    els.runtimeBtn.textContent = running ? "停止应用" : status === "starting" ? "启动中…" : status === "error" ? "重试启动" : "启动应用";
     els.runtimeBtn.disabled = status === "starting";
     if (running) {
-      els.browserTag.textContent = "SSR";
+      els.browserTag.textContent = "APP";
       if (state.ssrPreview) {
         const url = ssrPreviewUrl(state.taskId) || state.runtime.url || "/apps/" + encodeURIComponent(state.taskId) + "/";
         setPreview(url);
         els.previewUrl.textContent = url;
       } else {
-        els.browserTag.textContent = "SSR · LOCAL";
+        els.browserTag.textContent = "APP · LOCAL";
       }
     } else if (status === "error") {
       clearSsrPreview();
-      els.browserTag.textContent = "SSR · ERROR";
+      els.browserTag.textContent = "APP · ERROR";
     } else if (status === "stopped") {
       clearSsrPreview();
     }
@@ -1676,16 +1659,16 @@
       );
       updateRuntimeUi(data.runtime);
       if (data.runtime.status === "running") {
-        setStatus("done", "SSR RUNNING");
+        setStatus("done", "APP RUNNING");
         if (state.ssrPreview) setPreview(ssrPreviewUrl(state.taskId) || data.runtime.url);
-        toast(state.ssrPreview ? "SSR 运行时已启动" : "SSR 运行时已启动；公网预览需要域名");
+        toast(state.ssrPreview ? "应用运行时已启动" : "应用运行时已启动；公网预览需要域名");
       } else {
         setStatus("done", "BUILT");
-        toast("SSR 运行时已停止");
+        toast("应用运行时已停止");
       }
     } catch (error) {
-      setStatus("error", "SSR ERROR");
-      toast("SSR 操作失败：" + error.message);
+      setStatus("error", "APP ERROR");
+      toast("应用操作失败：" + error.message);
     } finally {
       els.runtimeBtn.disabled = false;
     }

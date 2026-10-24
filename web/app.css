@@ -180,14 +180,6 @@ h1 {
 .cap-chip.active { background: var(--ink); border-color: var(--ink); color: #fff; }
 .auto-pill { font: 7px/1 var(--mono); letter-spacing: 0.12em; color: var(--muted-2); border: 1px solid var(--line); border-radius: 999px; padding: 6px 8px; white-space: nowrap; }
 .composer-meta { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
-.stack-toggle { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--line); border-radius: 999px; padding: 6px 10px; font: 7px/1 var(--mono); letter-spacing: 0.08em; color: var(--muted); cursor: pointer; white-space: nowrap; background: var(--panel-soft); }
-.stack-toggle select { appearance: none; border: 0; background: transparent; color: var(--ink); font: 700 9px/1 var(--mono); outline: none; cursor: pointer; }
-.stack-toggle option { color: var(--ink); background: #fff; }
-.stack-toggle input { appearance: none; -webkit-appearance: none; width: 13px; height: 13px; border: 1px solid var(--line-strong); border-radius: 4px; margin: 0; position: relative; background: #fff; }
-.stack-toggle input:checked { background: var(--accent); border-color: var(--accent); }
-.stack-toggle input:checked::after { content: "✓"; position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font-size: 8px; line-height: 1; }
-.stack-toggle.disabled { opacity: 0.45; cursor: not-allowed; }
-.stack-toggle.disabled input { cursor: not-allowed; }
 .composer textarea {
   width: 100%;
   min-height: 104px;
