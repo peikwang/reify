@@ -370,7 +370,7 @@ app/globals.css
 - 生成页面继续在 iframe + CSP `sandbox` 中运行；不把生成 HTML 插入平台 DOM。
 - `/apps` 仍在 12889 独立 origin；平台 12888 屏蔽 `/apps/*`。
 - 登录 Cookie、CSRF/Origin、项目 owner 校验、分享撤销、管理员权限全部由后端继续兜底。
-- 公开链接使用高熵 token，不对外列举，可撤销；生成页面仍在 CSP `sandbox` 中运行，不与平台共享执行上下文。Next 公开访问需要独立的 12889 token 路由，不在本期复用平台会话。
+- 公开链接使用高熵 token，不对外列举，可撤销；生成页面仍在 CSP `sandbox` 中运行，不与平台共享执行上下文。React 分享页的 Vite module scripts 在 opaque origin 下需要 `/s/` 资源响应带 `Access-Control-Allow-Origin: *`。Next 公开访问需要独立的 12889 token 路由，不在本期复用平台会话。
 - TypeScript 只是开发期约束，不是运行时安全边界。
 
 ## 10. 资源与部署影响
