@@ -13,7 +13,7 @@ from server.migrate import migrate_legacy  # noqa: E402
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Migrate legacy flat VibeForge projects to per-user storage.")
+    parser = argparse.ArgumentParser(description="Migrate legacy flat Reify projects to per-user storage.")
     parser.add_argument("--dry-run", action="store_true", help="report without copying or writing")
     parser.add_argument("--admin-id", default="", help="owner user id (defaults to the first admin)")
     args = parser.parse_args()

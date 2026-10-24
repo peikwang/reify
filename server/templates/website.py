@@ -67,7 +67,7 @@ BODY = """
 <div class="grain"></div>
 <div class="wrap">
   <nav>
-    <div class="logo"><b>V</b>{{TITLE}}</div>
+    <div class="logo"><b>R</b>{{TITLE}}</div>
     <div class="links"><a href="#features">能力</a><a href="#process">过程</a><a href="#contact">联系</a><a class="nav-cta" href="#contact">开始合作</a></div>
   </nav>
   <header class="hero">
@@ -93,9 +93,9 @@ BODY = """
     <div class="step reveal"><div class="n">03</div><h3>验证再发布</h3><p>检查结构、响应式与交互，部署到本地 Agent Server，拿到一个真正能打开的地址。</p></div>
   </section>
   <section id="contact">
-    <div class="cta reveal"><h2>让下一个想法，<br>今天就能打开。</h2><div><p style="color:var(--muted);line-height:1.7;max-width:34ch;margin:0 0 18px;font-size:14px">这是一张由 VibeForge 即时生成的品牌页。改一句描述，版式和语气就会重新长出来。</p><a class="primary" href="mailto:hello@vibeforge.local">hello@vibeforge.local</a></div></div>
+    <div class="cta reveal"><h2>让下一个想法，<br>今天就能打开。</h2><div><p style="color:var(--muted);line-height:1.7;max-width:34ch;margin:0 0 18px;font-size:14px">这是一张由 Reify 即时生成的品牌页。改一句描述，版式和语气就会重新长出来。</p><a class="primary" href="mailto:hello@reify.local">hello@reify.local</a></div></div>
   </section>
-  <footer><span>{{TITLE}} · BUILT LOCALLY</span><span>VIBEFORGE / {{YEAR}}</span></footer>
+  <footer><span>{{TITLE}} · BUILT LOCALLY</span><span>REIFY / {{YEAR}}</span></footer>
 </div>
 """
 

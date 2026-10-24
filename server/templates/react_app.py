@@ -26,7 +26,7 @@ def build_files(brief: dict[str, Any], prompt: str) -> dict[str, str]:
 
     package_json = json.dumps(
         {
-            "name": "vibeforge-react-site",
+            "name": "reify-react-site",
             "private": True,
             "version": "1.0.0",
             "type": "module",
@@ -141,7 +141,7 @@ export default function App() {{
     <div className="page">
       <header className="nav">
         <a className="brand" href="#top" aria-label="回到顶部">
-          <span className="brand-mark">V</span>
+          <span className="brand-mark">R</span>
           <span>{{title}}</span>
         </a>
         <button className="menu" type="button" onClick={{() => setOpen(!open)}} aria-label="打开菜单">
@@ -215,8 +215,8 @@ export default function App() {{
         <section id="contact" className="cta">
           <p className="kicker">START SOMETHING</p>
           <h2>让下一个想法，<br />今天就能打开。</h2>
-          <p>{{title}} · 由 VibeForge 生成并构建</p>
-          <a className="button primary" href="mailto:hello@vibeforge.local">说说你的想法</a>
+          <p>{{title}} · 由 Reify 生成并构建</p>
+          <a className="button primary" href="mailto:hello@reify.local">说说你的想法</a>
         </section>
       </main>
 
@@ -386,7 +386,7 @@ footer {{
 
     readme = f"""# {title}
 
-由 VibeForge 生成的 Vite + React + TypeScript 源码工程。
+由 Reify 生成的 Vite + React + TypeScript 源码工程。
 
 ## 本地开发
 
@@ -402,7 +402,7 @@ npm run typecheck
 npm run build
 ```
 
-`npm run build` 会先执行 `tsc --noEmit`。构建产物位于 `dist/`，由 VibeForge 的沙箱构建并发布到项目页面。
+`npm run build` 会先执行 `tsc --noEmit`。构建产物位于 `dist/`，由 Reify 的沙箱构建并发布到项目页面。
 
 ## 原始需求
 

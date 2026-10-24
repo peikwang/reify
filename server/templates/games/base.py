@@ -123,7 +123,7 @@ def render_game_page(
     body = f"""
 <div class="shell">
   <header class="top">
-    <div class="brand"><i></i> VibeForge · Game Studio</div>
+    <div class="brand"><i></i> Reify · Game Studio</div>
     <div class="meta">{genre_label} / LOCAL BUILD / 60 FPS / NO DEPENDENCIES</div>
   </header>
   <section class="arena">
@@ -145,7 +145,7 @@ def render_game_page(
       <div class="stats">{stats_html}</div>
       <div class="panel"><small>CONTROLS</small>{controls_html}</div>
       <div class="panel"><small>MISSION</small><p>{esc(mission)}</p></div>
-      <div class="panel"><small>BUILT BY AGENT</small><p>这个页面由 VibeForge 的 ToolAct 循环生成：规划 → 写文件 → 自检 → 部署。</p></div>
+      <div class="panel"><small>BUILT BY AGENT</small><p>这个页面由 Reify 的 ToolAct 循环生成：规划 → 写文件 → 自检 → 部署。</p></div>
     </aside>
   </section>
   <div class="tips">{tips_html}</div>

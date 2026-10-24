@@ -82,7 +82,7 @@ def check_next(root: Path) -> None:
 
 
 def main() -> int:
-    work = Path(tempfile.mkdtemp(prefix="vibeforge-ts-scaffolds-"))
+    work = Path(tempfile.mkdtemp(prefix="reify-ts-scaffolds-"))
     try:
         check_react(work / "react")
         check_next(work / "next")

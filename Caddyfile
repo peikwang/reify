@@ -1,18 +1,18 @@
 {
-	default_sni {$VIBEFORGE_HOST_IP}
+	default_sni {$REIFY_HOST_IP}
 	https_port 12888
 	http_port 80
 	auto_https disable_redirects
 }
 
-http://{$VIBEFORGE_HOST_IP} {
+http://{$REIFY_HOST_IP} {
 	@notacme not path /.well-known/acme-challenge/*
-	redir @notacme https://{$VIBEFORGE_HOST_IP}:12888{uri} 308
+	redir @notacme https://{$REIFY_HOST_IP}:12888{uri} 308
 	respond 404
 }
 
 # Platform UI/API: SSR app paths are intentionally not served on this origin.
-https://{$VIBEFORGE_HOST_IP}:12888 {
+https://{$REIFY_HOST_IP}:12888 {
 	tls {
 		issuer acme {
 			profile shortlived
@@ -24,7 +24,7 @@ https://{$VIBEFORGE_HOST_IP}:12888 {
 		respond 404
 	}
 	handle {
-		reverse_proxy vibeforge:12888 {
+		reverse_proxy reify:12888 {
 			flush_interval -1
 		}
 	}
@@ -32,7 +32,7 @@ https://{$VIBEFORGE_HOST_IP}:12888 {
 
 # SSR apps live on a separate origin (IP + port) so generated JS cannot read
 # platform API responses. Only /apps/* is reachable here.
-https://{$VIBEFORGE_HOST_IP}:{$VIBEFORGE_SSR_PORT:12889} {
+https://{$REIFY_HOST_IP}:{$REIFY_SSR_PORT:12889} {
 	tls {
 		issuer acme {
 			profile shortlived
@@ -41,7 +41,7 @@ https://{$VIBEFORGE_HOST_IP}:{$VIBEFORGE_SSR_PORT:12889} {
 	}
 	encode zstd gzip
 	handle /apps/* {
-		reverse_proxy vibeforge:12888 {
+		reverse_proxy reify:12888 {
 			flush_interval -1
 		}
 	}

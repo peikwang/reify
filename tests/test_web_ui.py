@@ -6,13 +6,13 @@ from pathlib import Path
 
 import pytest
 
-ROOT = Path(tempfile.mkdtemp(prefix="vibeforge-webui-test-"))
-os.environ.setdefault("VIBEFORGE_DATA", str(ROOT / "data"))
-os.environ.setdefault("VIBEFORGE_PROJECTS", str(ROOT / "legacy-projects"))
-os.environ.setdefault("VIBEFORGE_DB", str(ROOT / "data" / "vibeforge.db"))
-os.environ.setdefault("VIBEFORGE_ADMIN_PASSWORD", "admin-test-password")
-os.environ.setdefault("VIBEFORGE_COOKIE_SECURE", "0")
-os.environ.setdefault("VIBEFORGE_AUTO_MIGRATE", "0")
+ROOT = Path(tempfile.mkdtemp(prefix="reify-webui-test-"))
+os.environ.setdefault("REIFY_DATA", str(ROOT / "data"))
+os.environ.setdefault("REIFY_PROJECTS", str(ROOT / "legacy-projects"))
+os.environ.setdefault("REIFY_DB", str(ROOT / "data" / "reify.db"))
+os.environ.setdefault("REIFY_ADMIN_PASSWORD", "admin-test-password")
+os.environ.setdefault("REIFY_COOKIE_SECURE", "0")
+os.environ.setdefault("REIFY_AUTO_MIGRATE", "0")
 
 from fastapi.testclient import TestClient  # noqa: E402
 

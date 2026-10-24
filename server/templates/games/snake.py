@@ -5,7 +5,7 @@ from .base import render_game_page
 SCRIPT = r"""
 let snake, dir, nextDir, food, score, best, running, paused, timer, tickMs, particles;
 const speedEl = document.getElementById('speed');
-best = readBest('vibeforge-snake-best');
+best = readBest('reify-snake-best');
 bestEl.textContent = best;
 
 function reset() {
@@ -65,7 +65,7 @@ function draw() {
 }
 function gameOver() {
   running = false; clearInterval(timer); setStatus('GAME OVER');
-  best = Math.max(best, score); saveBest('vibeforge-snake-best', best); bestEl.textContent = best;
+  best = Math.max(best, score); saveBest('reify-snake-best', best); bestEl.textContent = best;
   showOverlay(score >= best && score > 0 ? 'NEW HIGH SCORE' : 'RUN COMPLETE', '本局得分 ' + score, '最高分 ' + best + '。再来一局，试试更长的轨迹。', '再来一局');
 }
 function setDir(x,y){ if (dir.x === -x && dir.y === -y) return; nextDir={x,y}; }

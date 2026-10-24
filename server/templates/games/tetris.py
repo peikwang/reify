@@ -17,7 +17,7 @@ const SHAPES = {
   L: [[0,0,1],[1,1,1]],
 };
 const COLORS = { I:'#5ee0ff', O:'#f5d76e', T:'#c792ea', S:'#7ee787', Z:'#ff7b72', J:'#79c0ff', L:'#ffa657' };
-best = readBest('vibeforge-tetris-best');
+best = readBest('reify-tetris-best');
 bestEl.textContent = best;
 
 function emptyBoard() { return Array.from({length: ROWS}, () => Array(COLS).fill(null)); }
@@ -63,7 +63,7 @@ function clearLines() {
     restartTimer();
   }
   best = Math.max(best, score);
-  saveBest('vibeforge-tetris-best', best);
+  saveBest('reify-tetris-best', best);
   updateStats();
 }
 function updateStats() {
@@ -111,7 +111,7 @@ function hardDrop() {
 }
 function gameOver() {
   running = false; clearInterval(timer); setStatus('GAME OVER');
-  best = Math.max(best, score); saveBest('vibeforge-tetris-best', best); bestEl.textContent = best;
+  best = Math.max(best, score); saveBest('reify-tetris-best', best); bestEl.textContent = best;
   showOverlay('RUN COMPLETE', '本局得分 ' + score, '消掉 ' + lines + ' 行，最高分 ' + best + '。再来一局，拼出完整一行。', '再来一局');
   draw();
 }

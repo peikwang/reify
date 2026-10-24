@@ -36,10 +36,10 @@ export function AppShell() {
 
       <header className="topbar">
         <NavLink className="brand" to="/" aria-label="回到工作台">
-          <span className="brand-mark">V</span>
+          <span className="brand-mark">R</span>
           <span className="brand-copy">
-            VibeForge
-            <small>LOCAL DESIGN AGENT</small>
+            Reify
+            <small>IDEA → REALITY AGENT</small>
           </span>
         </NavLink>
         <div className="top-center">

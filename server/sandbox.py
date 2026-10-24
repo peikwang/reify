@@ -38,7 +38,7 @@ from .config import (
 )
 from .events import Task
 
-logger = logging.getLogger("vibeforge.sandbox")
+logger = logging.getLogger("reify.sandbox")
 ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
 
 
@@ -163,7 +163,7 @@ class SandboxRunner:
         validate: Callable[[dict[str, bytes]], list[tuple[str, bool, str]]] | None = None,
     ) -> BuildResult:
         if not self.enabled:
-            raise SandboxError("沙箱未启用：请配置 VIBEFORGE_SANDBOX=opensandbox 与 API Key")
+            raise SandboxError("沙箱未启用：请配置 REIFY_SANDBOX=opensandbox 与 API Key")
         from opensandbox.sandbox import Sandbox
         from opensandbox.models.execd import RunCommandOpts
 

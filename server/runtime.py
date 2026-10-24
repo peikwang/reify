@@ -26,7 +26,7 @@ from .db import db
 from .events import Task, store
 from .sandbox import SandboxError, sandbox_runner
 
-logger = logging.getLogger("vibeforge.runtime")
+logger = logging.getLogger("reify.runtime")
 
 
 def _now() -> str:

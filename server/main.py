@@ -52,7 +52,7 @@ from .templates.library import CAPABILITIES, classify, defaults
 from .tools import Workspace
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
-logger = logging.getLogger("vibeforge")
+logger = logging.getLogger("reify")
 
 app = FastAPI(title=APP_NAME, version=APP_VERSION)
 
@@ -657,7 +657,7 @@ async def deploy_project(project_id: str, request: Request) -> dict[str, Any]:
         index = task.artifact_dir / "index.html"
         if not index.exists():
             raise HTTPException(status_code=400, detail="index.html is missing")
-        manifest = await Workspace(task).deploy(task.title or "VibeForge project")
+        manifest = await Workspace(task).deploy(task.title or "Reify project")
         task.status = "done"
         task.result = {**(task.result or {}), "url": manifest["url"]}
         task.save_meta()
@@ -674,7 +674,7 @@ async def bundle_project(project_id: str, request: Request):
             if path.is_file():
                 archive.write(path, path.relative_to(task.workspace))
     buffer.seek(0)
-    headers = {"Content-Disposition": f'attachment; filename="vibeforge-{task.id}.zip"'}
+    headers = {"Content-Disposition": f'attachment; filename="reify-{task.id}.zip"'}
     return StreamingResponse(buffer, media_type="application/zip", headers=headers)
 
 
@@ -912,7 +912,7 @@ async def http_error(request: Request, exc: HTTPException):
 async def startup() -> None:
     admin, admin_created = auth.bootstrap_admin()
     if AUTH_PASSWORD_GENERATED and admin_created:
-        logger.warning("VIBEFORGE_ADMIN_PASSWORD is not set; generated admin password: %s", ADMIN_PASSWORD)
+        logger.warning("REIFY_ADMIN_PASSWORD is not set; generated admin password: %s", ADMIN_PASSWORD)
     if AUTO_MIGRATE_LEGACY:
         report = migrate_legacy(admin.id)
         if report["migrated"]:
