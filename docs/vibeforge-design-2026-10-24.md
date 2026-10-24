@@ -249,8 +249,8 @@ data/
 3. **运行时治理**
    强制每用户/全局活跃运行时配额；补齐空闲回收、存储清理、构建失败重试和运行时崩溃恢复。
 
-4. **55 的 Git 基线**
-   推送 `feature/isolation` 到 `/opt/git/vibeforge.git`，在 `/opt/vibeforge` 初始化 Git 工作区，让 55 上的 Agent 可以直接改、可以回滚。同步最新的 README 和 `docs/isolation-design.md`。
+4. **55 的 Git 基线（已完成）**
+   `feature/isolation` 已合并到 `main` 并推送到 `/opt/git/vibeforge.git`；完整仓库（含 `.git`）已同步到 `/opt/vibeforge/repo`（容器 `/app/repo`），55 上的 Agent 可以直接改、可以回滚。
 
 ### P1：把“生成—构建—运行—分享”闭环做顺
 
@@ -389,10 +389,10 @@ cost_per_project
 
 截至 2026-10-24：
 
-- `/opt/vibeforge` 是部署工作树，代码与本地 `0b935d3` 的关键后端文件哈希一致；
+- `/opt/vibeforge` 是部署工作树，代码与 `feature/isolation` 的 `0b935d3` 一致（`main` 是 `5b79b31` 的合并提交）；
 - 完整仓库（含 `.git`）同步在 `/opt/vibeforge/repo`，容器内路径是 `/app/repo`；`/opt/vibeforge` 本身仍不包含 `.git`；
 - `/opt/git/vibeforge.git` 是裸仓库；`main` 已合并 `feature/isolation`，包含最新部署；
-- `README.md` 和 `docs/isolation-design.md` 比本地旧；`架构设计文档.md` 一致；
+- `docs/isolation-design.md` 与仓库一致；`README.md` 在 55 上有一个由并行工作更新的更大版本，本次未覆盖，以仓库 `main` 中的 README 为准；`架构设计文档.md` 一致；
 - 直接在 55 上改代码是可行的：优先在 `/opt/vibeforge/repo` 里用 Git 修改；部署工作树 `/opt/vibeforge` 仍按原方式更新。静态文件通常立即生效，Python/模板改动需要 `docker restart vibeforge`，依赖变更需要重建镜像，`.runtime.env` 变更需要重建容器；
 - 如果只想快速改运行中的代码，也可以直接改 `/opt/vibeforge`，但建议先在 `/opt/vibeforge/repo` 留一个可回滚的提交。
 
