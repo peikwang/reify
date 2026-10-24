@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -49,13 +49,24 @@ const task: Task = {
 const events: TaskEvent[] = [
   { seq: 1, type: "plan", ts: "2026-10-24T06:00:01+00:00", steps: ["规划", "生成", "发布"] },
   { seq: 2, type: "step_started", ts: "2026-10-24T06:00:02+00:00", index: 0, title: "规划" },
-  { seq: 3, type: "step_done", ts: "2026-10-24T06:00:03+00:00", index: 0, summary: "完成" },
-  { seq: 4, type: "verify", ts: "2026-10-24T06:00:04+00:00", name: "结构完整", ok: true, detail: "ok" },
-  { seq: 5, type: "deployed", ts: "2026-10-24T06:00:05+00:00", url: "/p/p1/" },
   {
-    seq: 6,
+    seq: 3,
+    type: "file_diff",
+    ts: "2026-10-24T06:00:03+00:00",
+    path: "src/App.jsx",
+    before: "",
+    after: "const title = 'hello';\n",
+    created: true,
+    language: "jsx",
+    reason: "生成页面",
+  },
+  { seq: 4, type: "step_done", ts: "2026-10-24T06:00:04+00:00", index: 0, summary: "完成" },
+  { seq: 5, type: "verify", ts: "2026-10-24T06:00:05+00:00", name: "结构完整", ok: true, detail: "ok" },
+  { seq: 6, type: "deployed", ts: "2026-10-24T06:00:06+00:00", url: "/p/p1/" },
+  {
+    seq: 7,
     type: "done",
-    ts: "2026-10-24T06:00:06+00:00",
+    ts: "2026-10-24T06:00:07+00:00",
     title: "测试项目",
     summary: "已完成",
     revision: 1,
@@ -112,5 +123,13 @@ describe("ProjectPage", () => {
     const iframe = document.querySelector("iframe");
     expect(iframe).not.toBeNull();
     expect(iframe?.getAttribute("src")).toBe("/p/p1/");
+
+    fireEvent.click(screen.getByRole("tab", { name: "编程" }));
+    await waitFor(() => {
+      expect(document.querySelector("#diffPath")?.textContent).toBe("src/App.jsx");
+    });
+    expect(document.querySelectorAll(".diff-line.add").length).toBeGreaterThan(0);
+    expect(screen.getByText("TERMINAL")).toBeInTheDocument();
+    expect(document.querySelector("#miniState")?.textContent).toBe("READY");
   });
 });
