@@ -23,7 +23,7 @@ const FALLBACK_CAPABILITIES: Record<string, CapabilityInfo> = {
   game: { key: "game", label: "小游戏", short: "GAME" },
   website: { key: "website", label: "网站", short: "WEB" },
   image: { key: "image", label: "图片", short: "IMAGE" },
-  video: { key: "video", label: "视频", short: "VIDEO" },
+  video: { key: "video", label: "视频制作", short: "VIDEO" },
   resume: { key: "resume", label: "简历", short: "CV" },
   travel: { key: "travel", label: "旅游攻略", short: "TRIP" },
   adapt: { key: "adapt", label: "适配制作", short: "ADAPT" },

@@ -1,6 +1,6 @@
 # VibeForge
 
-> 从 Vibe Coding 到 Vibe Working：一句话生成网站、简历、小游戏、旅游攻略、多尺寸适配、图片、视频和编程演示，并把成品直接部署到自己的 Agent Server。
+> 从 Vibe Coding 到 Vibe Working：一句话生成网站、简历、小游戏、旅游攻略、图片、视频制作和编程演示，并把成品直接部署到自己的 Agent Server。
 
 VibeForge 是一个单机优先的个人设计 Agent。它把自然语言拆成计划，逐步写文件，展示代码 Diff 与 Agent 思考流，跑结构/交互/语法自检，最后发布到 `/p/{id}/`。当前版本支持多用户自助注册，账号、会话和项目归属全部持久化在本机 SQLite，每个用户只能访问自己的项目。
 
@@ -12,17 +12,16 @@ VibeForge 是一个单机优先的个人设计 Agent。它把自然语言拆成�
 | 网站 | 有品牌感的响应式落地页 | 结构、viewport、内容区块、脚本 |
 | 简历 | 单页双栏、在线可读、A4 可打印 | 结构、打印样式、viewport |
 | 旅游攻略 | 按天切换的路线、预算与贴士 | 结构、每日路线交互、viewport |
-| 适配制作 | 16:9 / 1:1 / 9:16 多画板切换 | 结构、多尺寸标记、viewport |
 | 图片 | 一次生成 4 张本地保存的图片 + 画廊 | 结构、图片资源、viewport |
-| 视频 | 异步渲染视频 + 播放器页 | 结构、视频资源、viewport |
+| 视频制作 | 异步渲染视频 + 播放器页 | 结构、视频资源、viewport |
 | 编程 | Python 代码 + 交互式可视化 | 结构、代码演示、`py_compile` |
 
-生成网站时可以在首页的 STACK 选择 **React 源码** 或 **Next SSR**：React 生成 Vite 工程并构建静态 `dist/`；Next 生成 App Router 全栈工程，构建 standalone 产物，并在独立运行时沙箱中启动 Node 服务。源码仍可在“编程模式”里逐个文件查看。
+实现方式由 Agent 自动选择，界面上不再暴露技术栈：小游戏、简历、攻略、图片、视频制作和编程固定使用静态模板；网站默认静态，只有提示词明确要求 React/Vite 或 Next.js/SSR 时才走源码工程——React 生成 Vite 工程并构建静态 `dist/`，Next 生成 App Router 全栈工程，构建 standalone 产物，并在独立运行时沙箱中启动 Node 服务。源码仍可在“编程模式”里逐个文件查看。
 
 ## Next.js SSR 运行时
 
-- 选择 **Next SSR** 后，Agent 生成 `app/`、`app/api/notes/route.js`、`next.config.mjs` 等源码，在 OpenSandbox 中执行 `npm ci` + `next build`，打包 `.next/standalone`。
-- 构建完成后点击“启动 SSR”：创建独立运行时沙箱，上传 standalone 产物，后台启动 `node server.js`，健康检查通过后状态变为 `SSR RUNNING`。
+- 提示词明确要求 Next.js/SSR 时，Agent 生成 `app/`、`app/api/notes/route.js`、`next.config.mjs` 等源码，在 OpenSandbox 中执行 `npm ci` + `next build`，打包 `.next/standalone`。
+- 构建完成后点击“启动应用”：创建独立运行时沙箱，上传 standalone 产物，后台启动 `node server.js`，健康检查通过后状态变为 `APP RUNNING`。
 - 运行时默认 1 CPU / 1 GiB、TTL 1 小时；空闲 10 分钟由监控任务停止。当前 Docker runtime 采用 stop/start 冷启动，不是 MicroVM pause/resume。
 - 远端 55 机器上 OpenSandbox server 同时接入 `vibeforge-net` 与默认 `bridge`：app 通过 `vibeforge-sandbox:8080` 调用，server 通过 bridge 直接代理到沙箱 execd；不把 40000-60000 端口暴露公网。
 - 当前示例是带 `/api/notes` 的服务端接口，留言写入项目数据卷（`runtime-data/notes.json`），停止再启动仍保留；数据卷由 OpenSandbox host bind 提供。
@@ -192,7 +191,7 @@ data/users/{uid}/projects/{pid}/events.jsonl 事件流
 - `GET /api/projects/{id}/bundle` → 下载项目 zip
 - `GET /p/{id}/` → 已部署静态产物（仅项目所有者）
 - `POST|DELETE /api/projects/{id}/share` → 创建/撤销只读分享
-- `GET /s/{token}/` → 公开只读分享页（静态/React）
+- `GET /s/{token}/` → 公开只读分享页（静态/React；新项目自动签发）
 - `GET /api/admin/users`、`POST /api/admin/users/{id}/status`、`POST /api/admin/users/{id}/revoke-sessions`、`GET /api/admin/audit` → 管理员接口
 
 生成完成后，静态项目的左侧会出现「继续修改」输入框。Agent 会读取当前 `index.html`，让模型返回精确的局部 patch，应用后重新自检并部署；修改失败时原页面保持不变。每次成功修改会增加 `revision`，原有事件流继续追加。React/Next 项目会修改对应源码文件，重新构建后切换产物；Next 运行时采用新沙箱健康检查通过后再停旧沙箱的蓝绿切换。
@@ -200,7 +199,7 @@ data/users/{uid}/projects/{pid}/events.jsonl 事件流
 ## 账号管理与分享
 
 - 管理员在 `/admin` 查看用户、项目数、存储占用和最近审计；可禁用/启用账号、撤销某用户全部会话。
-- 静态/React 项目支持只读分享链接：`POST /api/projects/{id}/share` 生成 `/s/{token}/`，`DELETE` 立即撤销。分享页不需要登录，但不能调用平台 API；Next SSR 项目暂不支持分享。
+- 新生成的静态/React 项目会自动获得只读分享链接 `/s/{token}/`；也可用 `POST /api/projects/{id}/share` 重新签发，`DELETE` 立即撤销。分享页不需要登录，但不能调用平台 API；Next SSR 项目暂不支持分享。
 - 密码、会话和审计都保存在本机 SQLite；审计记录包含注册/登录、项目创建/修改/部署、运行时启停、分享和管理员操作。
 - 每用户默认限制 50 个项目、1 GB 存储、2 个活跃任务、1 个源码构建；超出时 API 返回 429。
 
