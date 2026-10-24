@@ -2,7 +2,7 @@
 
 > 品牌：Reify（原 VibeForge）。
 > 当前 `main`：React + TypeScript 前端 + 多用户隔离 + 沙箱/Next SSR，线上仍沿用 `vibeforge` 部署命名。
-> `feature/reify`：已完成 Reify 更名、7 模板与通用生成，部署命名将迁移到 `reify` / `REIFY_*`（尚未上线）。
+> `reify`：已完成 Reify 更名、7 模板与通用生成，部署命名将迁移到 `reify` / `REIFY_*`（尚未上线）。
 > 本文描述当前已落地架构、Reify 产品方向，以及下一步和更远期的演进设想。
 
 ---
@@ -272,7 +272,7 @@ data/
 | 生成自由度 | 内置模板 + 通用生成 | 长尾生成受 spec/自检约束；Next 仍是高级旁路 |
 | 修复闭环 | 通用生成有一轮修复 + 回退 | 跨阶段 Inspector → Builder 自动修复仍未做 |
 | 分享 | 静态/React 自动签发 `/s/<token>/` | Next 公开链接仍待 12889 token 方案 |
-| 品牌/部署命名 | 线上仍是 `/opt/vibeforge` + `vibeforge` 容器 + `VIBEFORGE_*`；`feature/reify` 使用 `/opt/reify` + `reify` + `REIFY_*` | Reify 代码已在分支，部署迁移尚未执行 |
+| 品牌/部署命名 | 线上仍是 `/opt/vibeforge` + `vibeforge` 容器 + `VIBEFORGE_*`；`reify` 使用 `/opt/reify` + `reify` + `REIFY_*` | Reify 代码已在分支，部署迁移尚未执行 |
 | 线上版本 | 55 运行 `feature/react-ts`（React TS，VibeForge 命名） | Reify 品牌、7 模板与通用生成尚未上线 |
 | 55 Git | 部署目录 `/opt/vibeforge` 本身无 `.git`；完整仓库在 `/opt/vibeforge/repo` | 直接改运行目录仍无回滚；应优先在 repo 目录修改 |
 
@@ -292,7 +292,7 @@ data/
    强制每用户/全局活跃运行时配额；补齐空闲回收、存储清理、构建失败重试和运行时崩溃恢复。
 
 4. **55 的 Git 基线（已完成）**
-   `feature/isolation` 与 `feature/react-ts` 已合并到 `main`；`feature/reify` 已推送；完整仓库（含 `.git`）已同步到 `/opt/vibeforge/repo`（容器 `/app/repo`），55 上的 Agent 可以直接改、可以回滚。
+   `feature/isolation` 与 `feature/react-ts` 已合并到 `main`；`reify` 已推送；完整仓库（含 `.git`）已同步到 `/opt/vibeforge/repo`（容器 `/app/repo`），55 上的 Agent 可以直接改、可以回滚。
 
 5. **Reify 部署迁移**
    统一 `REIFY_*` 环境变量、`/opt/reify`、`reify` / `reify-sandbox` 容器与 `reify-net`；迁移 SQLite 和用户目录；验证 12888 / 12889、公开链接和旧项目兼容。当前只同步了代码和文档，线上仍是 VibeForge 命名。
@@ -444,10 +444,10 @@ cost_per_project
 
 - 线上 `/opt/vibeforge` 运行的是 `feature/react-ts` 的 React + TypeScript 版本，容器名仍是 `vibeforge`，环境变量仍是 `VIBEFORGE_*`；
 - 完整仓库（含 `.git`）同步在 `/opt/vibeforge/repo`，容器内路径是 `/app/repo`；`/opt/vibeforge` 本身仍不包含 `.git`；
-- `/opt/git/vibeforge.git` 是裸仓库；`main` 已包含 React TS 部署与 Reify 设计文档，`feature/reify` 已推送但未部署；
+- `/opt/git/vibeforge.git` 是裸仓库；`main` 已包含 React TS 部署与 Reify 设计文档，`reify` 已推送但未部署；
 - 仓库里有 `frontend/`（React + TypeScript 源码）、`docs/frontend-react-ts-design.md`、`docs/isolation-design.md` 和本设计文档；线上 `/opt/vibeforge/web/dist` 是前端构建产物；
-- Reify 目标部署是 `/opt/reify` + `reify` / `reify-sandbox` 容器 + `reify-net` + `REIFY_*` + `data/reify.db`；迁移脚本在 `feature/reify`，尚未执行；
-- 线上 `README.md` 仍是 React TS 版本；仓库 `main` 的 README 也是 React TS 版本，`feature/reify` 的 README 才是 Reify 7 模板版本；本次未覆盖线上 README；
+- Reify 目标部署是 `/opt/reify` + `reify` / `reify-sandbox` 容器 + `reify-net` + `REIFY_*` + `data/reify.db`；迁移脚本在 `reify`，尚未执行；
+- 线上 `README.md` 仍是 React TS 版本；仓库 `main` 的 README 也是 React TS 版本，`reify` 的 README 才是 Reify 7 模板版本；本次未覆盖线上 README；
 - 直接在 55 上改代码是可行的：优先在 `/opt/vibeforge/repo` 里用 Git 修改；当前线上部署树 `/opt/vibeforge` 按下面的方式更新。静态文件通常立即生效，Python/模板改动需要 `docker restart vibeforge`，依赖变更需要重建镜像，`.runtime.env` 变更需要重建容器；
 - 如果只想快速改运行中的代码，也可以直接改 `/opt/vibeforge`，但建议先在 `/opt/vibeforge/repo` 留一个可回滚的提交。
 
