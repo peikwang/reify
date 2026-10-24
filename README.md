@@ -16,7 +16,7 @@ VibeForge 是一个单机优先的个人设计 Agent。它把自然语言拆成�
 | 视频制作 | 异步渲染视频 + 播放器页 | 结构、视频资源、viewport |
 | 编程 | Python 代码 + 交互式可视化 | 结构、代码演示、`py_compile` |
 
-实现方式由 Agent 自动选择，界面上不再暴露技术栈：小游戏、简历、攻略、图片、视频制作和编程固定使用静态模板；网站默认静态，只有提示词明确要求 React/Vite 或 Next.js/SSR 时才走源码工程——React 生成 Vite 工程并构建静态 `dist/`，Next 生成 App Router 全栈工程，构建 standalone 产物，并在独立运行时沙箱中启动 Node 服务。源码仍可在“编程模式”里逐个文件查看。
+实现方式由 Agent 自动选择，界面上不再暴露技术栈：小游戏、简历、攻略、图片、视频制作和编程固定使用静态模板；公司/工作室官网默认静态；个人网站、作品集、博客在沙箱可用时默认 React；只有提示词明确要求 Next.js/SSR 时才走 Next 源码工程——React 生成 Vite 工程并构建静态 `dist/`，Next 生成 App Router 全栈工程，构建 standalone 产物，并在独立运行时沙箱中启动 Node 服务。源码仍可在“编程模式”里逐个文件查看。
 
 ## Next.js SSR 运行时
 

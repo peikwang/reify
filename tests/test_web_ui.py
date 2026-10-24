@@ -230,7 +230,7 @@ def test_auto_source_routing_falls_back_when_sandbox_unavailable(monkeypatch):
 
         auto = routed.post(
             "/api/projects",
-            json={"prompt": "用 React 做一个作品集网站", "capability": "website"},
+            json={"prompt": "帮我做一个个人作品集网站", "capability": "website"},
             headers=headers,
         )
         assert auto.status_code == 200, auto.text
@@ -284,7 +284,7 @@ def test_auto_source_routing_selects_react_and_next_with_sandbox_available(monke
         assert registered.status_code == 200, registered.text
         created = react_client.post(
             "/api/projects",
-            json={"prompt": "用 React 做一个作品集网站", "capability": "website"},
+            json={"prompt": "帮我做一个个人作品集网站", "capability": "website"},
             headers=react_headers,
         )
         assert created.status_code == 200, created.text

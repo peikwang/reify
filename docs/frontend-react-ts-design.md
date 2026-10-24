@@ -33,7 +33,7 @@
 - API、认证、SSE、项目数据格式保持不变，迁移不影响已有项目。
 - 保持现有视觉、动画、移动端布局和 12888/12889 部署方式。
 - 每个阶段可独立验收、可回滚。
-- 产品约束：技术栈对用户不可见。用户只选择模板或描述需求，Composer 不提供 STACK 选择器；非网站模板固定使用静态实现，网站由后端根据提示词自动选择静态/React/Next，沙箱不可用时自动回退静态。
+- 产品约束：技术栈对用户不可见。用户只选择模板或描述需求，Composer 不提供 STACK 选择器；非网站模板固定使用静态实现，公司/工作室官网默认静态，个人网站/作品集/博客在沙箱可用时默认 React，明确要求 Next/SSR 时才走 Next；沙箱不可用时自动回退静态。
 - 模板库固定为 7 个模板：小游戏、网站、图片、视频制作、简历、旅游攻略、编程。每个模板有独立插图和提示词，位于聊天框外；点击模板后把提示词填入单一通用 Composer。
 - 新生成的静态/React 项目自动获得不可猜的 `/s/<token>/` 免登录只读公开链接；Next 应用运行时的公开链接需要单独的 12889 token 方案。
 - 用户可见的运行时文案统一使用“应用运行时 / APP RUNNING”，不暴露 SSR、React、Next 等技术栈术语。
@@ -405,7 +405,7 @@ app/globals.css
 - 模板合并为 7 个：移除“适配制作”，把“视频”更名为“视频制作”。
 - 每个模板有独立插图和提示词；模板画廊位于聊天框外，点击后填入单一通用 Composer，Composer 不显示模板 tab 或 STACK。
 - 新生成的静态/React 项目自动获得 `/s/<token>/` 免登录只读公开链接；项目库显示公开页入口、复制链接和创建成功提示。
-- 后端 `resolve_stack` 自动路由已合入：非网站模板强制 static；网站默认 static；提示词明确要求 React/Vite 或 Next/SSR 时才走源码；沙箱不可用时自动回退 static，显式 API 指定源码则返回 503。
+- 后端 `resolve_stack` 自动路由已合入：非网站模板强制 static；公司/工作室官网默认 static；个人网站、作品集、博客在沙箱可用时默认 react；提示词明确要求 Next/SSR 时走 next；沙箱不可用时自动回退 static，显式 API 指定源码则返回 503。
 - 验收：点击模板正确填入提示词；公开链接在无 Cookie 下返回 200，撤销后 404；Next 公开链接留待应用运行时阶段。
 
 ### Phase 2 — 项目页只读 + SSE
@@ -442,7 +442,7 @@ app/globals.css
 - 单元/组件：Vitest + React Testing Library；Diff 算法、URL 校验、事件 reducer。
 - 模板库：7 个模板、独立插图、点击填入通用输入框。
 - 公开链接：静态/React 新项目自动签发；无 Cookie 200、撤销后 404；Next 不签发。
-- 自动路由：`resolve_stack` 单测覆盖非网站强制 static、网站默认 static、React/Vite 与 Next/SSR 识别；API 使用 mock 沙箱验证 react/next 分支与沙箱不可用回退。
+- 自动路由：`resolve_stack` 单测覆盖非网站强制 static、公司/工作室官网 static、个人网站/作品集/博客默认 react、Next/SSR 识别与显式覆盖；API 使用 mock 沙箱验证 react/next 分支与沙箱不可用回退。
 - SSE：模拟 EventSource，覆盖 open/message/error/done/interrupted/401。
 - E2E：Playwright 复用现有真实链路：
   - 注册/登录/退出
