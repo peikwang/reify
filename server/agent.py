@@ -276,10 +276,10 @@ async def run_task(task: Task) -> None:
             elif capability == "code":
                 extras = extra_files(capability, brief, task.prompt, task.id)
                 await workspace.write_file("main.py", extras["main.py"], "生成算法主体")
-                html = render_html(capability, brief)
+                html = render_html(capability, brief, task.prompt)
                 await workspace.write_file("index.html", html, "把算法过程做成可交互页面")
             else:
-                html = render_html(capability, brief)
+                html = render_html(capability, brief, task.prompt)
                 await workspace.write_file("index.html", html, "完成页面结构、视觉与交互")
             if is_next:
                 await task.emit(
