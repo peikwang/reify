@@ -4,6 +4,8 @@
 > 当前 `main`：React + TypeScript 前端 + 多用户隔离 + 沙箱/Next SSR，线上仍沿用 `vibeforge` 部署命名。
 > `reify`：已完成 Reify 更名、7 模板与通用生成，部署命名将迁移到 `reify` / `REIFY_*`（尚未上线）。
 > 本文描述当前已落地架构、Reify 产品方向，以及下一步和更远期的演进设想。
+>
+> **现状更新（2026-10-24 20:30）**：Reify 已完成品牌、目录、环境变量和部署迁移；55 线上使用 `/opt/reify`、`reify` / `reify-caddy` / `reify-sandbox`、`reify-net`、`data/reify.db` 和 `REIFY_*`，旧 VibeForge 容器/网络已清理。文中“尚未上线 / 线上仍是 VibeForge”等描述是写作时快照，以本节和 README 为准。
 
 ---
 
