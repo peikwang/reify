@@ -2,11 +2,15 @@
 
 > One sentence. Made real. 一句话生成网站、简历、小游戏、旅游攻略、图片、视频制作和编程演示，并把成品直接部署到自己的 Agent Server。
 
+**简体中文** | [English](README.en.md)
+
+> 文档导航：[功能与模板](#功能与模板) · [总体架构](#总体架构) · [本地启动](#本地启动) · [远程部署](#远程部署https--caddy) · [API](#api) · [安全边界](#安全边界) · [架构设计文档](架构设计文档.md) · [产品设计](docs/reify-design-2026-10-24.md) · [隔离设计](docs/isolation-design.md)
+
 ## 项目介绍
 
 Reify 是一个单机优先的个人设计 Agent：把一句自然语言需求拆成计划，逐步写文件，展示代码 Diff 与 Agent 思考流，跑结构/交互/语法自检，最后发布成可访问的项目。它面向希望快速把想法变成可展示成果的个人、独立开发者和小团队，不要求用户理解 React、Next 或构建工具。
 
-**当前分支**：`reify`。当前开发工作区：`/Users/shaodeng/Desktop/reify`。
+**当前分支**：`main`。**线上部署**：55 机器 `/data/reify-deploy`（容器 `reify` / `reify-caddy` / `reify-sandbox`）。
 
 设计原则：
 
@@ -231,7 +235,7 @@ REIFY_SSR_PORT=12889 \
 ```
 
 ```bash
-# 后端单测（79 项）
+# 后端单测（82 项）
 .venv/bin/python -m pytest -q
 
 # 前端组件/Reducer/SSE 测试（59 项）+ 类型检查 + 构建
