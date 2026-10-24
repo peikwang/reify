@@ -30,9 +30,20 @@ def build_files(brief: dict[str, Any], prompt: str) -> dict[str, str]:
             "private": True,
             "version": "1.0.0",
             "type": "module",
-            "scripts": {"dev": "vite", "build": "vite build", "preview": "vite preview"},
+            "scripts": {
+                "dev": "vite",
+                "typecheck": "tsc --noEmit",
+                "build": "tsc --noEmit && vite build",
+                "preview": "vite preview",
+            },
             "dependencies": {"react": "19.1.0", "react-dom": "19.1.0"},
-            "devDependencies": {"@vitejs/plugin-react": "4.4.1", "vite": "6.3.5"},
+            "devDependencies": {
+                "@types/react": "19.1.2",
+                "@types/react-dom": "19.1.2",
+                "@vitejs/plugin-react": "4.4.1",
+                "typescript": "~5.8.3",
+                "vite": "6.3.5",
+            },
         },
         ensure_ascii=False,
         indent=2,
@@ -48,6 +59,33 @@ export default defineConfig({
 });
 """
 
+    tsconfig = json.dumps(
+        {
+            "compilerOptions": {
+                "target": "ES2022",
+                "useDefineForClassFields": True,
+                "lib": ["ES2022", "DOM", "DOM.Iterable"],
+                "module": "ESNext",
+                "skipLibCheck": True,
+                "moduleResolution": "bundler",
+                "allowImportingTsExtensions": True,
+                "resolveJsonModule": True,
+                "isolatedModules": True,
+                "noEmit": True,
+                "jsx": "react-jsx",
+                "strict": True,
+                "noUnusedLocals": True,
+                "noUnusedParameters": True,
+                "noFallthroughCasesInSwitch": True,
+            },
+            "include": ["src"],
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
+
+    vite_env = '/// <reference types="vite/client" />\n'
+
     index_html = """<!doctype html>
 <html lang="zh-CN">
   <head>
@@ -57,39 +95,44 @@ export default defineConfig({
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
 """.replace("__TITLE__", esc(title))
 
-    main_jsx = """import React from "react";
+    main_tsx = """import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import App from "./App.jsx";
+import App from "./App";
 import "./styles.css";
 
-createRoot(document.getElementById("root")).render(
-  <React.StrictMode>
+const container = document.getElementById("root");
+if (!container) throw new Error("Root element not found");
+
+createRoot(container).render(
+  <StrictMode>
     <App />
-  </React.StrictMode>,
+  </StrictMode>,
 );
 """
 
-    app_jsx = f"""import {{ useEffect, useState }} from "react";
+    app_tsx = f"""import {{ useEffect, useState }} from "react";
 
-const title = {_js(title)};
-const tagline = {_js(tagline)};
-const paragraph = {_js(paragraph)};
-const highlights = {json.dumps(highlights, ensure_ascii=False)};
-const prompt = {_js(prompt)};
+const title: string = {_js(title)};
+const tagline: string = {_js(tagline)};
+const paragraph: string = {_js(paragraph)};
+const highlights: string[] = {json.dumps(highlights, ensure_ascii=False)};
+const prompt: string = {_js(prompt)};
 
-const steps = [
+type Step = {{ label: string; title: string; text: string }};
+
+const steps: Step[] = [
   {{ label: "01", title: "听见方向", text: "先确定语气、信息层级和第一屏要让人记住什么。" }},
   {{ label: "02", title: "长出骨架", text: "用 React 组件把结构、排版和节奏拆成可维护的模块。" }},
   {{ label: "03", title: "验证再发布", text: "在沙箱内完成依赖安装与生产构建，再把静态产物发布上线。" }},
 ];
 
 export default function App() {{
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState<boolean>(false);
   useEffect(() => {{
     document.documentElement.style.setProperty("--accent", {_js(accent)});
   }}, []);
@@ -127,7 +170,7 @@ export default function App() {{
             <div className="visual-card">
               <span>REACT / VITE</span>
               <strong>Built in a sandbox.</strong>
-              <small>source → install → build → deploy</small>
+              <small>source → typecheck → build → deploy</small>
             </div>
           </div>
         </section>
@@ -343,7 +386,7 @@ footer {{
 
     readme = f"""# {title}
 
-由 VibeForge 生成的 Vite + React 源码工程。
+由 VibeForge 生成的 Vite + React + TypeScript 源码工程。
 
 ## 本地开发
 
@@ -352,13 +395,14 @@ npm install
 npm run dev
 ```
 
-## 生产构建
+## 类型检查与生产构建
 
 ```bash
+npm run typecheck
 npm run build
 ```
 
-构建产物位于 `dist/`，由 VibeForge 的沙箱构建并发布到项目页面。
+`npm run build` 会先执行 `tsc --noEmit`。构建产物位于 `dist/`，由 VibeForge 的沙箱构建并发布到项目页面。
 
 ## 原始需求
 
@@ -368,10 +412,12 @@ npm run build
     return {
         "package.json": package_json,
         "package-lock.json": _lockfile(),
-        "vite.config.js": vite_config,
+        "vite.config.ts": vite_config,
+        "tsconfig.json": tsconfig,
         "index.html": index_html,
-        "src/main.jsx": main_jsx,
-        "src/App.jsx": app_jsx,
+        "src/vite-env.d.ts": vite_env,
+        "src/main.tsx": main_tsx,
+        "src/App.tsx": app_tsx,
         "src/styles.css": styles_css,
         "README.md": readme,
     }

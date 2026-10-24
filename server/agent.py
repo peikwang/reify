@@ -31,6 +31,8 @@ from .templates.library import (
     safe_brief,
     scaffold_html,
 )
+from .templates.games import detect_genre
+from .templates.games.custom import render as render_custom_game
 from .templates.next_app import build_files as next_build_files
 from .templates.next_app import next_checks_files
 from .templates.react_app import build_files as react_build_files
@@ -39,6 +41,34 @@ from .tools import Workspace
 
 logger = logging.getLogger("vibeforge.agent")
 MEDIA_CAPS = {"image", "video"}
+
+
+async def _render_static_html(
+    capability: str, brief: dict[str, Any], prompt: str, task: Task
+) -> str:
+    if capability == "game" and detect_genre(prompt) == "custom" and llm_enabled():
+        await task.emit(
+            "thinking",
+            step="实现自定义玩法",
+            summary="当前玩法不在内置引擎里，正在按 GameSpec 生成单文件 Canvas 游戏。",
+            source="llm",
+        )
+        html = await render_custom_game(brief, prompt)
+        if html:
+            await task.emit(
+                "thinking",
+                step="自定义玩法已通过自检",
+                summary="生成结果包含 canvas、游戏循环、输入、计分和重开，并且没有外部依赖。",
+                source="llm",
+            )
+            return html
+        await task.emit(
+            "thinking",
+            step="回退内置街机",
+            summary="自定义玩法未通过结构或离线自检，已回退到内置引擎，页面仍然可玩。",
+            source="fallback",
+        )
+    return render_html(capability, brief, prompt)
 
 
 async def _pause(multiplier: float = 1.0) -> None:
@@ -276,10 +306,10 @@ async def run_task(task: Task) -> None:
             elif capability == "code":
                 extras = extra_files(capability, brief, task.prompt, task.id)
                 await workspace.write_file("main.py", extras["main.py"], "生成算法主体")
-                html = render_html(capability, brief)
+                html = render_html(capability, brief, task.prompt)
                 await workspace.write_file("index.html", html, "把算法过程做成可交互页面")
             else:
-                html = render_html(capability, brief)
+                html = await _render_static_html(capability, brief, task.prompt, task)
                 await workspace.write_file("index.html", html, "完成页面结构、视觉与交互")
             if is_next:
                 await task.emit(
@@ -486,7 +516,31 @@ async def _refine_failed(task: Task, message: str) -> None:
 async def _run_source_refine(task: Task, instruction: str, revision: int) -> None:
     workspace = Workspace(task)
     is_next = task.stack == "next"
-    page_path = "app/page.jsx" if is_next else "src/App.jsx"
+    page_path = (
+        next(
+            (
+                path
+                for path in (
+                    "app/page.tsx",
+                    "app/page.jsx",
+                )
+                if (task.workspace / path).is_file()
+            ),
+            "app/page.tsx",
+        )
+        if is_next
+        else next(
+            (
+                path
+                for path in (
+                    "src/App.tsx",
+                    "src/App.jsx",
+                )
+                if (task.workspace / path).is_file()
+            ),
+            "src/App.tsx",
+        )
+    )
     style_path = "app/globals.css" if is_next else "src/styles.css"
     style_words = ("颜色", "配色", "字体", "字号", "间距", "留白", "样式", "主题", "背景", "css", "style")
     target_path = style_path if any(word in instruction.lower() for word in style_words) else page_path
@@ -498,11 +552,15 @@ async def _run_source_refine(task: Task, instruction: str, revision: int) -> Non
     if not llm_enabled():
         await _refine_failed(task, "当前没有可用的 LLM，无法进行源码修改。")
         return
+    if page_path.endswith(".tsx"):
+        language = "Next.js App Router TypeScript (TSX/TS)" if is_next else "React TypeScript (TSX)"
+    else:
+        language = "Next.js App Router JSX" if is_next else "React JSX"
     result = await refine_source(
         original,
         instruction,
         task.capability,
-        "Next.js App Router JSX" if is_next else "React JSX",
+        language,
     )
     if not result:
         await _refine_failed(task, "模型没有返回可应用的源码修改，已保留原运行时。")
@@ -578,7 +636,7 @@ async def _run_source_refine(task: Task, instruction: str, revision: int) -> Non
 
 def _collect_source_files(task: Task) -> dict[str, str]:
     skip_dirs = {"dist", "runtime", "node_modules", ".next", "assets", ".git", "__pycache__"}
-    suffixes = {".js", ".jsx", ".mjs", ".json", ".css", ".md", ".html"}
+    suffixes = {".js", ".jsx", ".mjs", ".ts", ".tsx", ".json", ".css", ".md", ".html"}
     files: dict[str, str] = {}
     for path in task.workspace.rglob("*"):
         if not path.is_file():

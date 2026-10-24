@@ -1,11 +1,13 @@
 .venv/
 __pycache__/
 *.pyc
-projects/
-data/
+/projects/
+/data/
 .env
 .auth.env
 .sandbox.env
 .llm.env
 .runtime.env
 .DS_Store
+frontend/node_modules/
+web/dist/

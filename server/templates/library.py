@@ -11,7 +11,7 @@ CAPABILITIES: dict[str, dict[str, str]] = {
     "game": {
         "label": "小游戏",
         "short": "GAME",
-        "description": "可玩、可计分、适配触控的浏览器小游戏",
+        "description": "贪吃蛇、俄罗斯方块、飞机大战、打砖块等可玩的小游戏",
         "example": "做一个霓虹风格的贪吃蛇小游戏，要有最高分和手机方向键",
         "prompt": "做一个霓虹风格的贪吃蛇小游戏：深色网格背景，蛇身带发光轨迹，吃到能量点有粒子反馈；支持方向键/WASD 和手机方向键，显示分数、最高分和速度等级；页面打开即可开始，带暂停和重开。",
     },
@@ -30,7 +30,7 @@ CAPABILITIES: dict[str, dict[str, str]] = {
         "prompt": "生成 4 张风格统一的视觉图片：安静的日系静物摄影，陶瓷咖啡杯、亚麻布、晨光和柔和阴影，构图克制，细节真实，适合作为品牌视觉素材。",
     },
     "video": {
-        "label": "视频",
+        "label": "视频制作",
         "short": "VIDEO",
         "description": "把一个画面意图生成可播放的短视频",
         "example": "生成一段 5 秒的咖啡杯晨光慢镜头，轻微推进",
@@ -49,13 +49,6 @@ CAPABILITIES: dict[str, dict[str, str]] = {
         "description": "按天拆分的路线、预算与在地体验指南",
         "example": "做一份大理 3 天 2 晚的慢旅行攻略，预算人均 1500",
         "prompt": "做一份大理 3 天 2 晚的慢旅行攻略：不赶景点，每天安排三个体验，包含路线、预算、交通和在地小贴士；页面像随身小册子，按天切换，适合手机阅读。",
-    },
-    "adapt": {
-        "label": "适配制作",
-        "short": "ADAPT",
-        "description": "一套内容自动适配横版、方图与竖版投放",
-        "example": "把一张品牌主视觉适配成 16:9、1:1、9:16 三种尺寸",
-        "prompt": "把一张手冲咖啡品牌主视觉适配成 16:9 横版、1:1 方图和 9:16 竖版三种尺寸：同一套标题、正文和 CTA 自动重排，不裁切、不溢出，并给出安全边距和导出规格。",
     },
     "code": {
         "label": "编程",
@@ -94,10 +87,10 @@ THINKING = {
     ],
     "game": [
         "先把它做成一个 30 秒就能理解的街机：目标单一、反馈立刻、失败也愿意再来。",
-        "用一个 canvas 承载网格、蛇身、能量点和粒子反馈，所有逻辑保持单文件。",
-        "加入速度递进、最高分持久化和触控方向键，确保手机上也能玩。",
+        "用一个 canvas 承载核心玩法、计分和反馈，所有逻辑保持单文件。",
+        "把移动、碰撞、得分和重开串成完整循环，并补上触控操作。",
         "补上操作说明和三个设计注脚，让页面本身也能解释它自己。",
-        "检查结构、交互脚本和移动端 viewport，然后挂到本地静态路由。",
+        "检查结构、核心玩法脚本和移动端 viewport，然后挂到本地静态路由。",
     ],
     "website": [
         "先确定一句话主张和第一屏的视觉记忆点，再决定区块顺序。",
@@ -139,14 +132,41 @@ THINKING = {
 
 def classify(prompt: str) -> str:
     text = prompt.lower()
-    if any(k in text for k in ("游戏", "game", "贪吃蛇", "俄罗斯方块", "飞机大战", "扫雷", "街机")):
+    if any(
+        k in text
+        for k in (
+            "游戏",
+            "game",
+            "贪吃蛇",
+            "snake",
+            "俄罗斯方块",
+            "tetris",
+            "飞机大战",
+            "打砖块",
+            "breakout",
+            "弹球",
+            "扫雷",
+            "街机",
+            "射击",
+            "2048",
+            "数独",
+            "连连看",
+            "五子棋",
+            "井字棋",
+            "跑酷",
+            "塔防",
+            "platformer",
+            "合成",
+            "迷宫",
+            "拼图",
+            "棋",
+        )
+    ):
         return "game"
     if any(k in text for k in ("简历", "resume", "cv", "求职", "个人介绍页")):
         return "resume"
     if any(k in text for k in ("旅游", "旅行", "攻略", "行程", "出游", "三日游", "两日游")):
         return "travel"
-    if any(k in text for k in ("适配", "多尺寸", "多端", "方图", "竖版", "横版", "海报", "banner", "封面")):
-        return "adapt"
     if any(k in text for k in ("网站", "网页", "官网", "落地页", "landing", "web")):
         return "website"
     if any(k in text for k in ("视频", "短片", "影片", "动画", "镜头", "运镜", "剪辑", "video", "wan")):
@@ -205,13 +225,7 @@ def _extract_days(prompt: str) -> int:
 
 def defaults(capability: str, prompt: str) -> dict[str, Any]:
     if capability == "game":
-        return {
-            "title": "霓虹贪吃蛇",
-            "tagline": "在霓虹网格里收集能量，别撞上自己的轨迹。",
-            "paragraph": "一个足够小、足够快的浏览器街机，打开就能玩。",
-            "highlights": ["键盘 / 触控双操作", "连击加速", "本地最高分", "零依赖单文件"],
-            "accent": "#b8ff5a",
-        }
+        return game.defaults(prompt)
     if capability == "image":
         clean = _media_title(prompt)
         return {
@@ -298,10 +312,11 @@ def safe_brief(capability: str, brief: dict[str, Any]) -> dict[str, Any]:
     return value
 
 
-def render_html(capability: str, brief: dict[str, Any]) -> str:
+def render_html(capability: str, brief: dict[str, Any], prompt: str = "") -> str:
     brief = safe_brief(capability, brief)
+    if capability == "game":
+        return game.render(brief, prompt)
     renderers = {
-        "game": game.render,
         "website": website.render,
         "resume": resume.render,
         "travel": travel.render,

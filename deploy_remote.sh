@@ -4,7 +4,7 @@ cd "$(dirname "$0")"
 
 HOST="${1:-root@117.148.166.55}"
 PORT="${2:-12888}"
-IMAGE="${VIBEFORGE_IMAGE:-vllm/vllm-openai:latest}"
+IMAGE="${VIBEFORGE_IMAGE:-python:3.12-slim}"
 APP_IMAGE="${VIBEFORGE_APP_IMAGE:-vibeforge-app:latest}"
 CADDY_IMAGE="${VIBEFORGE_CADDY_IMAGE:-caddy:2.10.2-alpine}"
 NAME="${VIBEFORGE_CONTAINER:-vibeforge}"
@@ -24,6 +24,12 @@ COPYFILE_DISABLE=1 tar czf - \
   --exclude='.git' \
   --exclude='projects' \
   --exclude='data' \
+  --exclude='backups' \
+  --exclude='.pytest_cache' \
+  --exclude='.env' \
+  --exclude='frontend/node_modules' \
+  --exclude='frontend/dist' \
+  --exclude='web/dist' \
   --exclude='.auth.env' \
   --exclude='.sandbox.env' \
   --exclude='.llm.env' \
@@ -33,6 +39,16 @@ COPYFILE_DISABLE=1 tar czf - \
 
 echo "→ building app image ${APP_IMAGE}"
 ssh "$HOST" "cd /opt/vibeforge && docker build -q -t ${APP_IMAGE} --build-arg BASE_IMAGE=${IMAGE} -f Dockerfile.app ."
+
+echo "→ publishing frontend build from image"
+ssh "$HOST" "set -e
+mkdir -p /opt/vibeforge/web/dist
+cid=\$(docker create ${APP_IMAGE})
+docker cp \$cid:/app/web/dist/. /opt/vibeforge/web/dist/
+docker rm \$cid >/dev/null
+chmod -R a+rX /opt/vibeforge/web/dist
+test -f /opt/vibeforge/web/dist/index.html
+grep -q 'id=\"root\"' /opt/vibeforge/web/dist/index.html"
 
 echo "→ ensuring access credentials"
 ssh "$HOST" '
@@ -59,6 +75,9 @@ ssh "$HOST" '
       echo "VIBEFORGE_SANDBOX_EGRESS=open"
       echo "VIBEFORGE_SANDBOX_BUILD_MEMORY=4Gi"
       echo "VIBEFORGE_SANDBOX_HOST_DATA_ROOT=/opt/vibeforge/data/users"
+      echo "VIBEFORGE_SANDBOX_REQUEST_TIMEOUT=900"
+      echo "VIBEFORGE_NPM_INSTALL_TIMEOUT=600"
+      echo "VIBEFORGE_NPM_BUILD_TIMEOUT=600"
       echo "VIBEFORGE_SSR_PREVIEW=1"
       echo "VIBEFORGE_SSR_PORT=12889"
     } > /opt/vibeforge/.sandbox.env
@@ -67,10 +86,14 @@ ssh "$HOST" '
   for line in \
     "VIBEFORGE_SANDBOX_BUILD_MEMORY=4Gi" \
     "VIBEFORGE_SANDBOX_HOST_DATA_ROOT=/opt/vibeforge/data/users" \
+    "VIBEFORGE_SANDBOX_REQUEST_TIMEOUT=900" \
+    "VIBEFORGE_NPM_INSTALL_TIMEOUT=600" \
+    "VIBEFORGE_NPM_BUILD_TIMEOUT=600" \
     "VIBEFORGE_SSR_PREVIEW=1" \
     "VIBEFORGE_SSR_PORT=12889"; do
     key=${line%%=*}
-    grep -q "^${key}=" /opt/vibeforge/.sandbox.env || echo "$line" >> /opt/vibeforge/.sandbox.env
+    sed -i "/^${key}=/d" /opt/vibeforge/.sandbox.env
+    echo "$line" >> /opt/vibeforge/.sandbox.env
   done
   mkdir -p /opt/vibeforge/data/users
 
@@ -81,12 +104,6 @@ ssh "$HOST" '
   } > /opt/vibeforge/.runtime.env
   chmod 600 /opt/vibeforge/.runtime.env
 '
-
-echo "→ preparing HTTPS network"
-ssh "$HOST" "docker rm -f ${NAME}-caddy 2>/dev/null || true
-docker rm -f ${SANDBOX_NAME} 2>/dev/null || true
-docker rm -f ${NAME} 2>/dev/null || true
-docker network inspect vibeforge-net >/dev/null 2>&1 || docker network create vibeforge-net"
 
 echo "→ backing up local database"
 ssh "$HOST" 'umask 077
@@ -99,6 +116,11 @@ if [ -f /opt/vibeforge/data/vibeforge.db ]; then
   [ -f /opt/vibeforge/data/vibeforge.db-shm ] && cp /opt/vibeforge/data/vibeforge.db-shm "/opt/vibeforge/backups/vibeforge-$stamp.db-shm"
   chmod 600 /opt/vibeforge/backups/vibeforge-$stamp.*
 fi'
+
+echo "→ replacing platform containers (sandbox is kept)"
+ssh "$HOST" "docker rm -f ${NAME}-caddy 2>/dev/null || true
+docker rm -f ${NAME} 2>/dev/null || true
+docker network inspect vibeforge-net >/dev/null 2>&1 || docker network create vibeforge-net"
 
 echo "→ configuring OpenSandbox"
 ssh "$HOST" '
@@ -151,20 +173,24 @@ EOF
   chmod 600 /opt/vibeforge/sandbox/config.toml
 '
 
-echo "→ starting ${SANDBOX_NAME}"
-ssh "$HOST" "docker run -d --name ${SANDBOX_NAME} --restart unless-stopped \
-  --network vibeforge-net --network-alias vibeforge-sandbox \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -v /opt/vibeforge/sandbox:/opt/opensandbox \
-  --add-host=host.docker.internal:host-gateway \
-  ${SANDBOX_SERVER_IMAGE} --config /opt/opensandbox/config.toml"
+echo "→ ensuring ${SANDBOX_NAME}"
+ssh "$HOST" "
+if docker inspect ${SANDBOX_NAME} >/dev/null 2>&1; then
+  echo 'sandbox container exists; keeping it'
+  docker start ${SANDBOX_NAME} >/dev/null 2>&1 || true
+fi
+if ! docker inspect ${SANDBOX_NAME} >/dev/null 2>&1; then
+  docker run -d --name ${SANDBOX_NAME} --restart unless-stopped \
+    --network vibeforge-net --network-alias vibeforge-sandbox \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -v /opt/vibeforge/sandbox:/opt/opensandbox \
+    --add-host=host.docker.internal:host-gateway \
+    ${SANDBOX_SERVER_IMAGE} --config /opt/opensandbox/config.toml
+fi"
 
-i=0
-while [ "$i" -lt 10 ]; do
-  docker network connect bridge ${SANDBOX_NAME} 2>/dev/null && break
-  i=$((i + 1))
-  /bin/sleep 1
-done
+if ! ssh "$HOST" "docker inspect -f '{{json .NetworkSettings.Networks}}' ${SANDBOX_NAME} | grep -q '\"bridge\"'"; then
+  ssh "$HOST" "docker network connect bridge ${SANDBOX_NAME}" || true
+fi
 
 i=0
 while [ "$i" -lt 20 ]; do
@@ -183,6 +209,8 @@ ssh "$HOST" "docker run -d --name ${NAME} --restart unless-stopped \
   --network vibeforge-net --network-alias vibeforge \
   -v /opt/vibeforge:/app -w /app \
   --add-host=host.docker.internal:host-gateway \
+  --cpus 2 --memory 4g --pids-limit 512 \
+  --cap-drop ALL --security-opt no-new-privileges \
   --env-file /opt/vibeforge/.runtime.env \
   --entrypoint python3 \
   ${APP_IMAGE} \
@@ -210,6 +238,15 @@ while [ "$i" -lt 60 ]; do
     fi
     HEALTH=$(ssh "$HOST" "curl -kfsS --resolve ${HOST_IP}:${PORT}:127.0.0.1 https://${HOST_IP}:${PORT}/api/health")
     echo "$HEALTH"
+    UI_CODE=$(ssh "$HOST" "curl -ks -o /dev/null -w '%{http_code}' --resolve ${HOST_IP}:${PORT}:127.0.0.1 https://${HOST_IP}:${PORT}/login")
+    if [ "$UI_CODE" != "200" ]; then
+      echo "✗ React UI did not load (got ${UI_CODE})"
+      exit 1
+    fi
+    if ! ssh "$HOST" "curl -kfsS --resolve ${HOST_IP}:${PORT}:127.0.0.1 https://${HOST_IP}:${PORT}/login | grep -q 'id=\"root\"'"; then
+      echo "✗ React UI index is missing the root mount"
+      exit 1
+    fi
     if echo "$HEALTH" | grep -q '"backend":"opensandbox"' && ! echo "$HEALTH" | grep -q '"reachable":true'; then
       echo "⚠ sandbox backend is configured but unreachable; React builds will fail"
     fi

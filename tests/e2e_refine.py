@@ -43,10 +43,10 @@ class MockLLM(BaseHTTPRequestHandler):
             )
         elif "源码编辑" in system:
             source = user.split("当前源码：", 1)[-1].split("用户的修改要求：", 1)[0]
-            match = re.search(r"const tagline = .*?;", source)
+            match = re.search(r"const tagline(?:\s*:\s*string)?\s*=\s*.*?;", source)
             find = match.group(0) if match else ""
             patches = (
-                [{"find": find, "replace": 'const tagline = "REFINED TAGLINE";', "note": "更新标语"}]
+                [{"find": find, "replace": 'const tagline: string = "REFINED TAGLINE";', "note": "更新标语"}]
                 if find
                 else []
             )
@@ -168,7 +168,7 @@ def main() -> int:
         react_id = created.json()["task"]["id"]
         project_ids.append(react_id)
         wait_task(client, react_id)
-        source = WORK / "data" / "users" / client.get("/api/auth/me").json()["user"]["id"] / "projects" / react_id / "workspace" / "src" / "App.jsx"
+        source = WORK / "data" / "users" / client.get("/api/auth/me").json()["user"]["id"] / "projects" / react_id / "workspace" / "src" / "App.tsx"
         check("MOCK TAGLINE" in source.read_text(encoding="utf-8"), "initial source uses mock brief")
         refined = client.post(f"/api/projects/{react_id}/refine", json={"instruction": "把标语改掉"})
         check(refined.status_code == 200, "react refine accepted")

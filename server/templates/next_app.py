@@ -31,16 +31,60 @@ def build_files(brief: dict[str, Any], prompt: str, project_id: str) -> dict[str
             "name": "vibeforge-next-site",
             "private": True,
             "version": "1.0.0",
-            "scripts": {"dev": "next dev", "build": "next build", "start": "next start"},
+            "scripts": {
+                "dev": "next dev",
+                "typecheck": "tsc --noEmit",
+                "build": "next build",
+                "start": "next start",
+            },
             "dependencies": {
                 "next": "15.5.28",
                 "react": "19.1.0",
                 "react-dom": "19.1.0",
             },
+            "devDependencies": {
+                "@types/node": "22.15.3",
+                "@types/react": "19.1.2",
+                "@types/react-dom": "19.1.2",
+                "typescript": "~5.8.3",
+            },
         },
         ensure_ascii=False,
         indent=2,
     )
+
+    tsconfig = json.dumps(
+        {
+            "compilerOptions": {
+                "target": "ES2022",
+                "lib": ["dom", "dom.iterable", "esnext"],
+                "allowJs": False,
+                "skipLibCheck": True,
+                "strict": True,
+                "noEmit": True,
+                "esModuleInterop": True,
+                "module": "esnext",
+                "moduleResolution": "bundler",
+                "resolveJsonModule": True,
+                "isolatedModules": True,
+                "jsx": "preserve",
+                "incremental": True,
+                "plugins": [{"name": "next"}],
+                "paths": {"@/*": ["./*"]},
+            },
+            "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+            "exclude": ["node_modules"],
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
+
+    next_env = """/// <reference types="next" />
+/// <reference types="next/image-types/global" />
+
+// NOTE: This file should not be edited
+// see https://nextjs.org/docs/app/api-reference/config/typescript for more information.
+"""
 
     next_config = f"""const nextConfig = {{
   output: "standalone",
@@ -51,14 +95,15 @@ def build_files(brief: dict[str, Any], prompt: str, project_id: str) -> dict[str
 export default nextConfig;
 """
 
-    layout = f"""import "./globals.css";
+    layout = f"""import type {{ ReactNode }} from "react";
+import "./globals.css";
 
 export const metadata = {{
   title: {_js(title)},
   description: {_js(tagline)},
 }};
 
-export default function RootLayout({{ children }}) {{
+export default function RootLayout({{ children }}: {{ children: ReactNode }}) {{
   return (
     <html lang="zh-CN">
       <body>{{children}}</body>
@@ -73,7 +118,6 @@ const title = {_js(title)};
 const tagline = {_js(tagline)};
 const paragraph = {_js(paragraph)};
 const highlights = {json.dumps(highlights, ensure_ascii=False)};
-const basePath = {_js(base_path)};
 
 const steps = [
   {{ label: "01", title: "听见方向", text: "先确定语气、信息层级和第一屏要让人记住什么。" }},
@@ -156,7 +200,7 @@ export default function Home() {{
             <h2>一个真的<br />服务端接口。</h2>
             <p>下面的留言通过 App Router 的 Route Handler 写入当前运行时进程。</p>
           </div>
-          <NoteBoard basePath={{basePath}} />
+          <NoteBoard />
         </section>
 
         <section className="cta">
@@ -178,30 +222,32 @@ export default function Home() {{
 
     note_board = f""""use client";
 
-import {{ useEffect, useState }} from "react";
+import {{ useEffect, useState, type FormEvent }} from "react";
 
 const basePath = {_js(base_path)};
 
+type Note = {{ id: number; text: string; at: string }};
+
 export default function NoteBoard() {{
-  const [notes, setNotes] = useState([]);
+  const [notes, setNotes] = useState<Note[]>([]);
   const [text, setText] = useState("");
   const [error, setError] = useState("");
 
-  async function load() {{
+  async function load(): Promise<void> {{
     try {{
       const response = await fetch(`${{basePath}}/api/notes`, {{ cache: "no-store" }});
-      const data = await response.json();
-      setNotes(data.notes || []);
+      const data = (await response.json()) as {{ notes?: Note[] }};
+      setNotes(data.notes ?? []);
     }} catch (_) {{
       setError("暂时读不到留言");
     }}
   }}
 
   useEffect(() => {{
-    load();
+    void load();
   }}, []);
 
-  async function submit(event) {{
+  async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {{
     event.preventDefault();
     const value = text.trim();
     if (!value) return;
@@ -212,8 +258,8 @@ export default function NoteBoard() {{
         headers: {{ "Content-Type": "application/json" }},
         body: JSON.stringify({{ text: value }}),
       }});
-      const data = await response.json();
-      setNotes(data.notes || []);
+      const data = (await response.json()) as {{ notes?: Note[] }};
+      setNotes(data.notes ?? []);
       setText("");
     }} catch (_) {{
       setError("提交失败，请重试");
@@ -251,16 +297,22 @@ import path from "node:path";
 
 export const dynamic = "force-dynamic";
 
+interface Note {
+  id: number;
+  text: string;
+  at: string;
+}
+
 const DATA_DIR = process.env.DATA_DIR || "/data";
 const NOTES_FILE = path.join(DATA_DIR, "notes.json");
-let cache = null;
+let cache: Note[] | null = null;
 
-async function loadNotes() {
+async function loadNotes(): Promise<Note[]> {
   if (cache) return cache;
   await mkdir(DATA_DIR, { recursive: true });
   try {
-    cache = JSON.parse(await readFile(NOTES_FILE, "utf8"));
-    if (!Array.isArray(cache)) cache = [];
+    const parsed: unknown = JSON.parse(await readFile(NOTES_FILE, "utf8"));
+    cache = Array.isArray(parsed) ? (parsed as Note[]) : [];
   } catch (_) {
     cache = [{ id: 1, text: "这条留言保存在服务端数据卷中。", at: new Date().toISOString() }];
     await saveNotes(cache);
@@ -268,20 +320,20 @@ async function loadNotes() {
   return cache;
 }
 
-async function saveNotes(notes) {
+async function saveNotes(notes: Note[]): Promise<void> {
   cache = notes;
   await mkdir(DATA_DIR, { recursive: true });
   await writeFile(NOTES_FILE, JSON.stringify(notes), "utf8");
 }
 
-export async function GET() {
+export async function GET(): Promise<Response> {
   return Response.json({ notes: await loadNotes() });
 }
 
-export async function POST(request) {
-  let body;
+export async function POST(request: Request): Promise<Response> {
+  let body: { text?: unknown };
   try {
-    body = await request.json();
+    body = (await request.json()) as { text?: unknown };
   } catch (_) {
     return Response.json({ error: "invalid json" }, { status: 400 });
   }
@@ -291,7 +343,7 @@ export async function POST(request) {
   }
   const notes = await loadNotes();
   const nextId = notes.reduce((max, note) => Math.max(max, Number(note.id) || 0), 0) + 1;
-  const updated = [...notes, { id: nextId, text, at: new Date().toISOString() }].slice(-20);
+  const updated: Note[] = [...notes, { id: nextId, text, at: new Date().toISOString() }].slice(-20);
   await saveNotes(updated);
   return Response.json({ notes: updated });
 }
@@ -316,11 +368,12 @@ export async function POST(request) {
 
     readme = f"""# {title}
 
-由 VibeForge 生成的 Next.js App Router 全栈项目。
+由 VibeForge 生成的 Next.js App Router + TypeScript 全栈项目。
 
 - 服务端渲染页面
 - `/api/notes` Route Handler，数据保存在当前运行时进程内
 - standalone 构建，在 OpenSandbox 中启动
+- `next build` 会执行 TypeScript 类型检查
 
 ## 本地开发
 
@@ -332,6 +385,7 @@ npm run dev
 ## 生产构建
 
 ```bash
+npm run typecheck
 npm run build
 ```
 
@@ -344,10 +398,12 @@ npm run build
         "package.json": package_json,
         "package-lock.json": _lockfile(),
         "next.config.mjs": next_config,
-        "app/layout.jsx": layout,
-        "app/page.jsx": page,
-        "app/NoteBoard.jsx": note_board,
-        "app/api/notes/route.js": api_route,
+        "tsconfig.json": tsconfig,
+        "next-env.d.ts": next_env,
+        "app/layout.tsx": layout,
+        "app/page.tsx": page,
+        "app/NoteBoard.tsx": note_board,
+        "app/api/notes/route.ts": api_route,
         "app/globals.css": styles,
         "README.md": readme,
     }

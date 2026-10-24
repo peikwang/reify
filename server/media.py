@@ -14,6 +14,7 @@ from .config import (
     LLM_API_KEY,
     LLM_BASE_URL,
     MEDIA_API_BASE,
+    MEDIA_API_KEY,
     MEDIA_TIMEOUT,
     VIDEO_DURATION,
     VIDEO_MODEL,
@@ -36,8 +37,8 @@ def api_root() -> str:
 
 def _headers(async_video: bool = False) -> dict[str, str]:
     headers = {"Content-Type": "application/json"}
-    if LLM_API_KEY:
-        headers["Authorization"] = f"Bearer {LLM_API_KEY}"
+    if MEDIA_API_KEY:
+        headers["Authorization"] = f"Bearer {MEDIA_API_KEY}"
     if async_video:
         headers["X-DashScope-Async"] = "enable"
     return headers

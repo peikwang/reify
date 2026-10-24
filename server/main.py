@@ -15,7 +15,6 @@ import httpx
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from . import auth
@@ -35,11 +34,12 @@ from .config import (
     MAX_ACTIVE_REACT_PER_USER,
     MAX_ACTIVE_TASKS_PER_USER,
     MAX_PROJECTS_PER_USER,
+    MAX_RUNTIME_PER_USER,
     MAX_STORAGE_PER_USER,
     PORT,
+    REACT_DIST_DIR,
     SSR_PORT,
     SSR_PREVIEW_ENABLED,
-    WEB_DIR,
 )
 from .db import User, db
 from .events import Task, store
@@ -47,6 +47,7 @@ from .llm import enabled as llm_enabled
 from .migrate import migrate_legacy
 from .runtime import runtime_manager
 from .sandbox import SandboxError, sandbox_runner
+from .stacks import SOURCE_STACKS, STACKS, resolve_stack
 from .templates.library import CAPABILITIES, classify, defaults
 from .tools import Workspace
 
@@ -54,7 +55,6 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 logger = logging.getLogger("vibeforge")
 
 app = FastAPI(title=APP_NAME, version=APP_VERSION)
-app.mount("/static", StaticFiles(directory=str(WEB_DIR)), name="static")
 
 _background: set[asyncio.Task] = set()
 MEDIA_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".mp4", ".webm"}
@@ -72,7 +72,7 @@ PUBLIC_PATHS = {
 class CreateTaskRequest(BaseModel):
     prompt: str = Field(min_length=1, max_length=2000)
     capability: str | None = None
-    stack: str = "static"
+    stack: str | None = None
 
 class RegisterRequest(BaseModel):
     username: str = Field(min_length=3, max_length=32)
@@ -201,6 +201,16 @@ def _enforce_user_quota(user: User, *, exclude_project_id: str | None = None) ->
         raise HTTPException(status_code=429, detail="当前运行中的任务过多，请稍后再试")
 
 
+def _running_runtime_count(user_id: str) -> int:
+    project_ids = {item["id"] for item in store.list(user_id)}
+    return sum(
+        1
+        for record in db.list_runtimes()
+        if record["project_id"] in project_ids
+        and record.get("status") in {"starting", "running"}
+    )
+
+
 def _set_session_cookie(response, token: str) -> None:
     response.set_cookie(
         key=AUTH_COOKIE_NAME,
@@ -236,11 +246,33 @@ def _safe_file(root: Path, relative: str) -> Path | None:
     return target if target.is_file() else None
 
 
+def _ui_index() -> Response:
+    index = REACT_DIST_DIR / "index.html"
+    if not index.is_file():
+        raise HTTPException(
+            status_code=503,
+            detail="React UI build is missing; run npm ci && npm run build in frontend/",
+        )
+    response: Response = FileResponse(index)
+    response.headers["Cache-Control"] = "no-store, max-age=0"
+    return response
+
+
+def _ui_asset(filename: str) -> FileResponse:
+    target = _safe_file(REACT_DIST_DIR / "assets", filename)
+    if not target:
+        raise HTTPException(status_code=404, detail="asset not found")
+    return FileResponse(
+        target,
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )
+
+
 @app.middleware("http")
 async def auth_guard(request: Request, call_next):
     path = request.url.path
-    asset_request = path.startswith(("/static/", "/media/"))
-    user = None if asset_request else auth.resolve_session(request.cookies.get(AUTH_COOKIE_NAME))
+    asset_request = path.startswith(("/media/", "/assets/"))
+    user = None if path.startswith("/assets/") else auth.resolve_session(request.cookies.get(AUTH_COOKIE_NAME))
     request.state.user = user
     public = (
         path in PUBLIC_PATHS
@@ -269,7 +301,7 @@ async def auth_guard(request: Request, call_next):
         response.headers["Content-Security-Policy"] = (
             "sandbox allow-scripts allow-forms allow-popups allow-modals allow-downloads"
         )
-    if path == "/p" or path.startswith("/p/"):
+    if path == "/p" or path.startswith(("/p/", "/s/")):
         # Vite emits module scripts with crossorigin; the CSP sandbox gives the page
         # an opaque origin, so its own assets need a CORS-permitted response.
         response.headers["Access-Control-Allow-Origin"] = "*"
@@ -285,8 +317,8 @@ async def auth_guard(request: Request, call_next):
 
 
 @app.get("/login")
-async def login_page() -> FileResponse:
-    return FileResponse(WEB_DIR / "login.html")
+async def login_page() -> Response:
+    return _ui_index()
 
 
 @app.post("/api/auth/register")
@@ -360,23 +392,28 @@ async def change_password(payload: PasswordRequest, request: Request) -> JSONRes
 
 
 @app.get("/")
-async def index() -> FileResponse:
-    return FileResponse(WEB_DIR / "index.html")
+async def index() -> Response:
+    return _ui_index()
 
 
 @app.get("/projects")
-async def projects_index() -> FileResponse:
-    return FileResponse(WEB_DIR / "index.html")
+async def projects_index() -> Response:
+    return _ui_index()
 
 
 @app.get("/projects/{project_id}")
-async def project_page(project_id: str) -> FileResponse:
-    return FileResponse(WEB_DIR / "index.html")
+async def project_page(project_id: str) -> Response:
+    return _ui_index()
 
 
 @app.get("/admin")
-async def admin_page() -> FileResponse:
-    return FileResponse(WEB_DIR / "index.html")
+async def admin_page() -> Response:
+    return _ui_index()
+
+
+@app.get("/assets/{filename:path}")
+async def ui_asset(filename: str) -> FileResponse:
+    return _ui_asset(filename)
 
 
 @app.get("/p/{project_id}")
@@ -403,6 +440,8 @@ async def project_preview_file(
     user = _current_user(request)
     allowed = bool(user and user.id == task.owner_id)
     if not allowed:
+        if task.visibility != "share":
+            raise HTTPException(status_code=404, detail="project file not found")
         if not task.asset_key or not k:
             raise HTTPException(status_code=404, detail="project file not found")
         if not hmac.compare_digest(k.encode("utf-8"), task.asset_key.encode("utf-8")):
@@ -414,9 +453,14 @@ async def project_preview_file(
 
 
 @app.get("/media/{project_id}/{filename:path}")
-async def media_asset(project_id: str, filename: str, k: str = "") -> FileResponse:
+async def media_asset(
+    project_id: str, request: Request, filename: str, k: str = ""
+) -> FileResponse:
     task = store.get_any(project_id)
     if not task or not task.asset_key or not k:
+        raise HTTPException(status_code=404, detail="asset not found")
+    user = _current_user(request)
+    if not (user and user.id == task.owner_id) and task.visibility != "share":
         raise HTTPException(status_code=404, detail="asset not found")
     if not hmac.compare_digest(k.encode("utf-8"), task.asset_key.encode("utf-8")):
         raise HTTPException(status_code=404, detail="asset not found")
@@ -454,7 +498,6 @@ async def capabilities() -> dict[str, Any]:
         "sandbox": sandbox_runner.status(),
         "ssr_preview": SSR_PREVIEW_ENABLED,
         "ssr_port": SSR_PORT if SSR_PREVIEW_ENABLED else None,
-        "stacks": ["static", "react", "next"],
     }
 
 
@@ -473,16 +516,16 @@ async def create_project(payload: CreateTaskRequest, request: Request) -> dict[s
     capability = payload.capability or classify(prompt)
     if capability not in CAPABILITIES:
         capability = classify(prompt)
-    stack = payload.stack if payload.stack in {"static", "react", "next"} else "static"
-    if stack in {"react", "next"}:
-        if not sandbox_runner.enabled:
-            raise HTTPException(status_code=503, detail="构建沙箱未启用")
-        if not await sandbox_runner.reachable():
-            raise HTTPException(status_code=503, detail="构建沙箱暂不可达")
-        if capability != "website":
-            raise HTTPException(status_code=400, detail="源码工程当前只支持网站能力")
+    requested_stack = payload.stack if payload.stack in STACKS else None
+    stack = resolve_stack(capability, prompt, requested_stack)
+    if stack in SOURCE_STACKS:
+        unavailable = not sandbox_runner.enabled or not await sandbox_runner.reachable()
+        if unavailable and requested_stack in SOURCE_STACKS:
+            raise HTTPException(status_code=503, detail="构建沙箱暂不可用")
+        if unavailable:
+            stack = "static"
     _enforce_user_quota(user)
-    if stack in {"react", "next"}:
+    if stack in SOURCE_STACKS:
         _enforce_react_quota(user)
     if not auth.limiter.hit(f"create:{user.id}", 10, 60):
         raise HTTPException(status_code=429, detail="创建过于频繁，请稍后再试")
@@ -498,7 +541,13 @@ async def create_project(payload: CreateTaskRequest, request: Request) -> dict[s
     _background.add(background)
     background.add_done_callback(_background.discard)
     _audit(request, "project.create", user=user, project_id=task.id, detail=capability)
-    logger.info("project created id=%s owner=%s capability=%s", task.id, user.id, capability)
+    logger.info(
+        "project created id=%s owner=%s capability=%s stack=%s",
+        task.id,
+        user.id,
+        capability,
+        stack,
+    )
     return {"task": task.meta(), "events": []}
 
 
@@ -574,9 +623,11 @@ async def refine_project(project_id: str, payload: RefineRequest, request: Reque
         if task.status in {"queued", "running", "deploying"}:
             raise HTTPException(status_code=409, detail="task is still running")
         if task.stack == "next":
-            required = task.workspace / "app" / "page.jsx"
+            candidates = [task.workspace / "app" / "page.tsx", task.workspace / "app" / "page.jsx"]
+            required = next((path for path in candidates if path.exists()), candidates[0])
         elif task.stack == "react":
-            required = task.workspace / "src" / "App.jsx"
+            candidates = [task.workspace / "src" / "App.tsx", task.workspace / "src" / "App.jsx"]
+            required = next((path for path in candidates if path.exists()), candidates[0])
         else:
             required = task.workspace / "index.html"
         if not required.exists():
@@ -640,11 +691,15 @@ async def start_runtime(project_id: str, request: Request) -> dict[str, Any]:
     task = _project_for(request, project_id)
     if task.stack != "next":
         raise HTTPException(status_code=400, detail="该项目不是 SSR 运行时项目")
+    user = _require_user(request)
+    current = runtime_manager.status(task).get("status")
+    if current not in {"starting", "running"} and _running_runtime_count(user.id) >= MAX_RUNTIME_PER_USER:
+        raise HTTPException(status_code=429, detail="运行中的应用数量已达上限，请先停止其他应用")
     try:
         state = await runtime_manager.start(task)
     except SandboxError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-    _audit(request, "runtime.start", user=_require_user(request), project_id=task.id)
+    _audit(request, "runtime.start", user=user, project_id=task.id)
     return {"ok": True, "runtime": state}
 
 
@@ -771,6 +826,8 @@ async def share_index(token: str) -> FileResponse:
 @app.get("/s/{token}/{filename:path}")
 async def share_file(token: str, filename: str) -> FileResponse:
     task = _shared_project(token)
+    if filename != "index.html" and not filename.startswith("assets/"):
+        raise HTTPException(status_code=404, detail="share not found")
     target = _safe_file(task.artifact_dir, filename)
     if not target:
         raise HTTPException(status_code=404, detail="share not found")
@@ -836,6 +893,16 @@ async def admin_audit(request: Request, limit: int = 100) -> dict[str, Any]:
     return {"items": db.list_audit(limit)}
 
 
+@app.get("/{path:path}")
+async def spa_fallback(path: str) -> Response:
+    first = path.split("/", 1)[0]
+    if first in {"api", "p", "s", "media", "apps", "static", "assets"}:
+        raise HTTPException(status_code=404, detail="not found")
+    if "." in path.rsplit("/", 1)[-1]:
+        raise HTTPException(status_code=404, detail="not found")
+    return _ui_index()
+
+
 @app.exception_handler(HTTPException)
 async def http_error(request: Request, exc: HTTPException):
     return _json_error(exc.status_code, str(exc.detail))
@@ -843,8 +910,8 @@ async def http_error(request: Request, exc: HTTPException):
 
 @app.on_event("startup")
 async def startup() -> None:
-    admin = auth.bootstrap_admin()
-    if AUTH_PASSWORD_GENERATED:
+    admin, admin_created = auth.bootstrap_admin()
+    if AUTH_PASSWORD_GENERATED and admin_created:
         logger.warning("VIBEFORGE_ADMIN_PASSWORD is not set; generated admin password: %s", ADMIN_PASSWORD)
     if AUTO_MIGRATE_LEGACY:
         report = migrate_legacy(admin.id)
