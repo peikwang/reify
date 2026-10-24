@@ -91,13 +91,13 @@ ssh "$HOST" '
     umask 077
     {
       echo "REIFY_SANDBOX=opensandbox"
+      echo "REIFY_PROJECTS=/opt/reify/data/projects"
       echo "REIFY_SANDBOX_DOMAIN=reify-sandbox:8080"
       echo "REIFY_SANDBOX_API_KEY=$(openssl rand -hex 24)"
       echo "REIFY_SANDBOX_SERVER_PROXY=1"
       echo "REIFY_SANDBOX_IMAGE=node:24-bookworm-slim"
       # This Docker host cannot start the egress sidecar; use open until supported.
       echo "REIFY_SANDBOX_EGRESS=open"
-      echo "REIFY_SANDBOX_DOMAIN=reify-sandbox:8080"
       echo "REIFY_SANDBOX_BUILD_MEMORY=4Gi"
       echo "REIFY_SANDBOX_HOST_DATA_ROOT=/opt/reify/data/users"
       echo "REIFY_SANDBOX_REQUEST_TIMEOUT=900"
@@ -109,6 +109,7 @@ ssh "$HOST" '
   fi
   chmod 600 /opt/reify/.sandbox.env
   for line in \
+    "REIFY_PROJECTS=/opt/reify/data/projects" \
     "REIFY_SANDBOX_DOMAIN=reify-sandbox:8080" \
     "REIFY_SANDBOX_BUILD_MEMORY=4Gi" \
     "REIFY_SANDBOX_HOST_DATA_ROOT=/opt/reify/data/users" \
@@ -121,7 +122,7 @@ ssh "$HOST" '
     sed -i "/^${key}=/d" /opt/reify/.sandbox.env
     echo "$line" >> /opt/reify/.sandbox.env
   done
-  mkdir -p /opt/reify/data/users
+  mkdir -p /opt/reify/data/users /opt/reify/data/projects
 
   {
     cat /opt/reify/.auth.env

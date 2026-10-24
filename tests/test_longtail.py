@@ -63,6 +63,11 @@ def test_base_validator_accepts_complete_page():
         assert validate_page_html(capability, VALID_PAGE) == [], capability
 
 
+def test_validator_allows_plain_hyperlinks():
+    linked = VALID_PAGE.replace("<h1>", '<a href="https://orcid.org/0000-0000">ORCID</a><h1>')
+    assert validate_page_html("resume", linked) == []
+
+
 def test_validator_rejects_external_network_and_placeholders():
     external = VALID_PAGE.replace("</head>", '<script src="https://cdn.example/x.js"></script></head>')
     assert any("外部资源" in item for item in validate_page_html("website", external))
@@ -81,7 +86,7 @@ def test_capability_specific_validation():
     travel = VALID_PAGE.replace("DAY 02", "SECOND STOP")
     assert any("两天" in item for item in validate_page_html("travel", travel))
 
-    code = VALID_PAGE.replace("<pre><code>", "<div>")
+    code = VALID_PAGE.replace("<pre><code>", "<div>").replace("def solve():", "algorithm")
     assert any("代码展示" in item for item in validate_page_html("code", code))
 
 
