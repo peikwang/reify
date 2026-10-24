@@ -1,6 +1,10 @@
 ARG BASE_IMAGE=vllm/vllm-openai:latest
 
 FROM node:24-bookworm-slim AS frontend
+ARG NPM_REGISTRY=https://registry.npmmirror.com
+ENV NPM_CONFIG_REGISTRY=${NPM_REGISTRY} \
+    NPM_CONFIG_FETCH_RETRIES=2 \
+    NPM_CONFIG_FETCH_TIMEOUT=60000
 WORKDIR /frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci --no-audit --no-fund
