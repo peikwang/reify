@@ -389,7 +389,7 @@ vibeforge-react-ts/
 - 平台容器空闲约 **55 MiB**，Caddy 约 **35 MiB**，OpenSandbox Server 约 **140 MiB**；应用容器限制 2 vCPU / 4 GiB / 512 PIDs，并 cap-drop ALL
 - React/Next 构建沙箱：1 vCPU / 4 GiB（部署脚本覆盖为 4 GiB），并发上限 2
 - Next 运行时：1 vCPU / 1 GiB，TTL 1 小时，空闲 10 分钟停止
-- 当前 55：96 vCPU / 251 GiB RAM / 30 GB 磁盘，部署后约剩 8.4 GB；**磁盘是瓶颈**，建议清理悬空镜像或扩到 60 GB
+- 当前 55：96 vCPU / 251 GiB RAM / 30 GB 磁盘，部署后约剩 8 GB；**磁盘是瓶颈**，建议清理悬空镜像或扩到 60 GB
 - 平台镜像已切到 `python:3.12-slim`，约 150 MB；沙箱 Node 镜像约 220 MB；用户数据配额默认 1 GB/人
 
 ### 关键环境变量
