@@ -299,7 +299,13 @@ h1 {
 .back-btn:hover { color: var(--ink); border-color: var(--ink); }
 .task-eyebrow { font: 8px/1 var(--mono); letter-spacing: 0.16em; color: var(--muted-2); margin-bottom: 5px; text-transform: uppercase; }
 .task-identity h2 { margin: 0; font-size: 15px; letter-spacing: -0.02em; font-weight: 650; max-width: 60vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.workspace-actions { display: flex; align-items: center; gap: 7px; flex: none; }
+.workspace-actions { display: flex; align-items: center; justify-content: flex-end; gap: 7px; flex: none; flex-wrap: wrap; }
+.runtime-state { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 999px; padding: 7px 9px; font: 8px/1 var(--mono); letter-spacing: 0.1em; color: var(--muted); background: var(--panel); }
+.runtime-state i { width: 5px; height: 5px; border-radius: 50%; background: var(--muted-2); }
+.runtime-state.on { color: var(--green); border-color: rgba(47, 125, 79, 0.24); }
+.runtime-state.on i { background: var(--green); animation: pulse 1.4s infinite; }
+.runtime-state.error { color: var(--red); border-color: rgba(180, 70, 63, 0.24); }
+.runtime-state.error i { background: var(--red); }
 .status-pill { display: flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 999px; padding: 7px 9px; font: 8px/1 var(--mono); letter-spacing: 0.1em; color: var(--muted); background: var(--panel); }
 .status-pill i { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
 .status-pill.running i { animation: pulse 1.1s infinite; }
@@ -561,6 +567,8 @@ h1 {
 .audit-list { display: grid; gap: 6px; margin-top: 12px; }
 .audit-row { display: grid; grid-template-columns: 150px 1fr 150px; gap: 12px; padding: 10px 13px; border-bottom: 1px solid var(--line); color: var(--muted); font: 9px/1.5 var(--mono); }
 .audit-row b { color: var(--ink); font-weight: 700; }
+.admin-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 26px; color: var(--muted); font: 9px/1 var(--mono); }
+.admin-foot a { color: var(--accent); }
 @media (max-width: 760px) {
   .admin-row { grid-template-columns: 1fr auto; gap: 8px; }
   .admin-row .admin-meta { grid-column: 1 / -1; }

@@ -27,6 +27,8 @@ import {
   type ProjectViewState,
   type TimelineItem,
 } from "../features/workspace/eventView";
+import { RefineBar } from "../features/workspace/RefineBar";
+import { WorkspaceActions } from "../features/workspace/WorkspaceActions";
 import { useCapabilities } from "../hooks/useCapabilities";
 import { useTaskStream, type StreamConnection } from "../hooks/useTaskStream";
 import { useToast } from "../layout/ToastProvider";
@@ -194,6 +196,22 @@ export function ProjectPage() {
     if (task?.stack === "next") void refreshRuntime();
   }, [task?.stack, refreshRuntime]);
 
+  useEffect(() => {
+    if (!id || !view.terminal) return;
+    if (!task || !["queued", "running", "deploying"].includes(task.status)) return;
+    let active = true;
+    api<ProjectDetailResponse>("/api/projects/" + encodeURIComponent(id))
+      .then((data) => {
+        if (active) setTask(data.task);
+      })
+      .catch(() => {
+        // The terminal event already carries the outcome; keep the local task.
+      });
+    return () => {
+      active = false;
+    };
+  }, [id, view.terminal, task?.status]);
+
   const handleEvent = useCallback(
     (event: TaskEvent) => {
       if (!eventsRef.current.some((item) => item.seq === event.seq)) {
@@ -248,10 +266,6 @@ export function ProjectPage() {
   const info = capabilityInfo(task.capability, capabilities);
   const status = projectPageStatus(task, view, runtime);
   const connectionView = connectionLabel(connection);
-  const publicUrl =
-    task.share_url && (task.status === "done" || view.terminal === "done")
-      ? task.share_url
-      : null;
   const staticReady =
     task.stack !== "next" &&
     (view.previewReady || task.status === "done" || task.status === "deploying");
@@ -267,7 +281,7 @@ export function ProjectPage() {
   const previewMessage = previewUrl
     ? ""
     : task.stack === "next" && (task.status === "done" || view.terminal === "done")
-      ? "应用运行时未启动；启动/停止将在后续阶段提供。"
+      ? "应用运行时未启动；点击顶部「启动应用」。"
       : view.terminal === "error" || task.status === "error"
         ? "生成失败，暂无预览。"
         : "AGENT IS BUILDING";
@@ -287,21 +301,6 @@ export function ProjectPage() {
       ? "Agent 正在规划、写文件并验证结果。"
       : "等待 Agent 输出…");
 
-  async function copyPublicLink() {
-    if (!publicUrl) return;
-    const absolute = new URL(publicUrl, window.location.origin).toString();
-    try {
-      await navigator.clipboard.writeText(absolute);
-      showToast("公开链接已复制");
-    } catch {
-      showToast("复制失败，请手动复制链接");
-    }
-  }
-
-  function openPreview() {
-    if (previewUrl) window.open(previewUrl, "_blank", "noopener,noreferrer");
-  }
-
   async function copyCode() {
     if (!activeFile) return;
     try {
@@ -310,6 +309,27 @@ export function ProjectPage() {
     } catch {
       showToast("复制失败，请手动复制");
     }
+  }
+
+  function openPreview() {
+    if (previewUrl) window.open(previewUrl, "_blank", "noopener,noreferrer");
+  }
+
+  function handleRefineStarted(updated: Task) {
+    const lastSeq = eventsRef.current.reduce(
+      (max, event) => Math.max(max, event.seq),
+      0,
+    );
+    if (replayTimerRef.current !== null) {
+      window.clearTimeout(replayTimerRef.current);
+      replayTimerRef.current = null;
+    }
+    eventsRef.current = [];
+    setReplaying(false);
+    dispatch({ type: "reset" });
+    setInitialSeq(lastSeq);
+    setSelectedFile(null);
+    setTask(updated);
   }
 
   function changeMode(next: ViewMode) {
@@ -403,25 +423,13 @@ export function ProjectPage() {
             <i />
             <span>{connectionView.text}</span>
           </div>
-          {publicUrl ? (
-            <>
-              <a
-                className="ghost-btn"
-                href={publicUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                公开页 ↗
-              </a>
-              <button
-                className="ghost-btn"
-                type="button"
-                onClick={() => void copyPublicLink()}
-              >
-                复制链接
-              </button>
-            </>
-          ) : null}
+          <WorkspaceActions
+            task={task}
+            running={running}
+            runtime={runtime}
+            onTaskChange={setTask}
+            onRuntimeChange={setRuntime}
+          />
           <span className={"status-pill " + status.tone}>
             <i />
             <span>{status.label}</span>
@@ -481,6 +489,13 @@ export function ProjectPage() {
             <b>YOUR PROMPT</b>
             {task.prompt}
           </div>
+          {task.status === "done" ? (
+            <RefineBar
+              task={task}
+              running={running}
+              onStarted={handleRefineStarted}
+            />
+          ) : null}
         </aside>
 
         <section className="stage-panel">

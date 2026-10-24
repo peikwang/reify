@@ -19,6 +19,31 @@ export interface MeResponse {
   user: User | null;
 }
 
+export interface AdminUser extends User {
+  disabled: boolean;
+  last_login_at: string | null;
+  projects: number;
+  storage_bytes: number;
+}
+
+export interface AdminUsersResponse {
+  items: AdminUser[];
+}
+
+export interface AuditEntry {
+  id: number;
+  ts: string;
+  user_id: string | null;
+  action: string;
+  project_id: string | null;
+  ip: string | null;
+  detail: string | null;
+}
+
+export interface AuditResponse {
+  items: AuditEntry[];
+}
+
 export type Stack = "static" | "react" | "next";
 
 export type TaskStatus =

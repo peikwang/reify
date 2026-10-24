@@ -120,6 +120,13 @@ describe("ProjectPage", () => {
       "href",
       "/s/public-token/",
     );
+    expect(screen.getByLabelText("修改指令")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "重新部署" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "取消分享" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "导出源码" })).toHaveAttribute(
+      "href",
+      "/api/projects/p1/bundle",
+    );
     const iframe = document.querySelector("iframe");
     expect(iframe).not.toBeNull();
     expect(iframe?.getAttribute("src")).toBe("/p/p1/");
