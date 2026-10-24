@@ -177,6 +177,11 @@ def _project_for(request: Request, project_id: str) -> Task:
     return task
 
 
+def _ensure_project_alive(task: Task) -> None:
+    if store.get_any(task.id) is None or db.get_project(task.id) is None:
+        raise HTTPException(status_code=404, detail="project not found")
+
+
 def _enforce_react_quota(user: User) -> None:
     active = [
         item
@@ -677,17 +682,26 @@ async def delete_project(project_id: str, request: Request) -> dict[str, Any]:
             try:
                 if runtime_manager.status(task).get("status") in {"running", "starting"}:
                     await runtime_manager.stop(task)
-            except Exception:  # noqa: BLE001 - still remove the project data
+            except Exception as exc:  # noqa: BLE001 - never hide a leaked sandbox
                 logger.warning("runtime stop failed while deleting %s", task.id, exc_info=True)
-        project_dir = task.dir.resolve()
-        users_root = (DATA_DIR / "users").resolve()
-        if project_dir.is_relative_to(users_root):
-            removed = await asyncio.to_thread(_remove_project_dir, project_dir)
-            if not removed:
-                raise HTTPException(status_code=500, detail="项目文件删除失败，请重试")
+                raise HTTPException(
+                    status_code=503,
+                    detail="运行时停止失败，项目暂未删除，请稍后重试",
+                ) from exc
+        project_dir = task.dir
+        expected_dir = DATA_DIR / "users" / task.owner_id / "projects" / task.id
+        if project_dir != expected_dir or project_dir.is_symlink():
+            logger.error("refusing unsafe project path %s (expected %s)", project_dir, expected_dir)
+            raise HTTPException(status_code=500, detail="项目目录异常，已拒绝删除")
+        removed = await asyncio.to_thread(_remove_project_dir, project_dir)
+        if not removed:
+            raise HTTPException(status_code=500, detail="项目文件删除失败，请重试")
         db.delete_project(task.id)
         store.remove(task.id)
-    _audit(request, "project.delete", user=user, project_id=task.id)
+    try:
+        _audit(request, "project.delete", user=user, project_id=task.id)
+    except Exception:  # noqa: BLE001 - deletion already committed
+        logger.exception("failed to audit project deletion %s", task.id)
     logger.info("project deleted id=%s user=%s", task.id, user.id)
     return {"ok": True}
 
@@ -730,13 +744,15 @@ async def start_runtime(project_id: str, request: Request) -> dict[str, Any]:
     if task.stack != "next":
         raise HTTPException(status_code=400, detail="该项目不是 SSR 运行时项目")
     user = _require_user(request)
-    current = runtime_manager.status(task).get("status")
-    if current not in {"starting", "running"} and _running_runtime_count(user.id) >= MAX_RUNTIME_PER_USER:
-        raise HTTPException(status_code=429, detail="运行中的应用数量已达上限，请先停止其他应用")
-    try:
-        state = await runtime_manager.start(task)
-    except SandboxError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    async with task.refine_lock:
+        _ensure_project_alive(task)
+        current = runtime_manager.status(task).get("status")
+        if current not in {"starting", "running"} and _running_runtime_count(user.id) >= MAX_RUNTIME_PER_USER:
+            raise HTTPException(status_code=429, detail="运行中的应用数量已达上限，请先停止其他应用")
+        try:
+            state = await runtime_manager.start(task)
+        except SandboxError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
     _audit(request, "runtime.start", user=user, project_id=task.id)
     return {"ok": True, "runtime": state}
 
@@ -746,7 +762,9 @@ async def stop_runtime(project_id: str, request: Request) -> dict[str, Any]:
     task = _project_for(request, project_id)
     if task.stack != "next":
         raise HTTPException(status_code=400, detail="该项目不是 SSR 运行时项目")
-    state = await runtime_manager.stop(task)
+    async with task.refine_lock:
+        _ensure_project_alive(task)
+        state = await runtime_manager.stop(task)
     _audit(request, "runtime.stop", user=_require_user(request), project_id=task.id)
     return {"ok": True, "runtime": state}
 
@@ -818,10 +836,12 @@ async def share_project(project_id: str, request: Request) -> dict[str, Any]:
     user = _require_user(request)
     if task.stack == "next":
         raise HTTPException(status_code=400, detail="SSR 项目的分享入口暂未开放")
-    token = task.share_token or secrets.token_urlsafe(24)
-    task.share_token = token
-    task.visibility = "share"
-    task.save_meta()
+    async with task.refine_lock:
+        _ensure_project_alive(task)
+        token = task.share_token or secrets.token_urlsafe(24)
+        task.share_token = token
+        task.visibility = "share"
+        task.save_meta()
     _audit(request, "project.share", user=user, project_id=task.id)
     return {"ok": True, "share_token": token, "url": f"/s/{token}/"}
 
@@ -830,9 +850,11 @@ async def share_project(project_id: str, request: Request) -> dict[str, Any]:
 async def unshare_project(project_id: str, request: Request) -> dict[str, Any]:
     task = _project_for(request, project_id)
     user = _require_user(request)
-    task.share_token = None
-    task.visibility = "private"
-    task.save_meta()
+    async with task.refine_lock:
+        _ensure_project_alive(task)
+        task.share_token = None
+        task.visibility = "private"
+        task.save_meta()
     _audit(request, "project.unshare", user=user, project_id=task.id)
     return {"ok": True}
 

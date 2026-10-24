@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
-import { api } from "../api/client";
+import { ApiError, api } from "../api/client";
 import type { Task } from "../api/types";
 import { absolutePublicUrl } from "../features/project-library/publicLink";
 import { ProjectGrid } from "../features/project-library/ProjectGrid";
@@ -65,9 +65,14 @@ export function ProjectsPage() {
       showToast("项目已删除");
       await reload();
     } catch (reason) {
-      showToast(
-        "删除失败：" + (reason instanceof Error ? reason.message : "未知错误"),
-      );
+      if (reason instanceof ApiError && reason.status === 404) {
+        showToast("项目已删除");
+        await reload();
+      } else {
+        showToast(
+          "删除失败：" + (reason instanceof Error ? reason.message : "未知错误"),
+        );
+      }
     } finally {
       setDeletingId(null);
     }

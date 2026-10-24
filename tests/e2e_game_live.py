@@ -109,6 +109,8 @@ def main() -> int:
         print(f"  info canvas frame changed: {before != after}")
         check(not errors, f"no page errors ({errors[:2]})")
         page.screenshot(path=str(ARTIFACTS / "live-game.png"), full_page=True)
+        removed = request.delete(BASE + f"/api/projects/{project_id}")
+        check(removed.status == 200, "throwaway game project deleted")
         browser.close()
 
     print(f"\nLIVE GAME E2E PASSED\nartifacts: {ARTIFACTS}")

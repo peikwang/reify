@@ -73,6 +73,7 @@ def main() -> int:
             ("travel", "做一份海岛露营攻略，两天一夜", ("海岛", "露营", "camp")),
             ("code", "写一个二分查找并做一个可视化页面", ("二分", "binary")),
         ]
+        project_ids: list[str] = []
         for capability, prompt, markers in cases:
             if only and capability not in only:
                 continue
@@ -84,6 +85,7 @@ def main() -> int:
             )
             check(created.status == 200, f"create {capability}")
             project_id = created.json()["task"]["id"]
+            project_ids.append(project_id)
             task = wait_project(request, project_id)
             check(task["status"] == "done", f"{capability} completed")
             html = request.get(BASE + f"/p/{project_id}/").text()
@@ -106,6 +108,11 @@ def main() -> int:
             page.screenshot(path=str(ARTIFACTS / f"{capability}.png"), full_page=True)
             page.close()
 
+        for project_id in project_ids:
+            check(
+                request.delete(BASE + f"/api/projects/{project_id}").status == 200,
+                "throwaway generic project deleted",
+            )
         browser.close()
 
     print(f"\nLONGTAIL LIVE E2E PASSED\nartifacts: {ARTIFACTS}")

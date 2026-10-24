@@ -455,3 +455,71 @@ def test_delete_stops_next_runtime(client: TestClient, monkeypatch):
     assert stopped == [task.id]
     assert db.get_runtime(task.id) is None
     assert not task.dir.exists()
+
+
+def test_delete_fails_closed_when_runtime_stop_fails(client: TestClient, monkeypatch):
+    user = db.get_user_by_key("webuiuser")
+    assert user
+    task = store.create("SSR 运行时失败", "website", "Runtime fail", owner_id=user.id, stack="next")
+    task.status = "done"
+    (task.workspace / "runtime").mkdir(parents=True, exist_ok=True)
+    (task.workspace / "runtime" / "server.js").write_text("", encoding="utf-8")
+    task.save_meta()
+    db.save_runtime({"project_id": task.id, "status": "running", "revision": 0})
+
+    async def failing_stop(_task):
+        raise RuntimeError("sandbox down")
+
+    monkeypatch.setattr(main_module.runtime_manager, "stop", failing_stop)
+    response = client.delete(f"/api/projects/{task.id}")
+    assert response.status_code == 503
+    assert task.dir.exists()
+    assert db.get_runtime(task.id) is not None
+    task.status = "done"
+    task.save_meta()
+    db.delete_project(task.id)
+    store.remove(task.id)
+    import shutil
+    shutil.rmtree(task.dir, ignore_errors=True)
+
+
+def test_delete_rejects_a_symlinked_project_directory(client: TestClient):
+    user = db.get_user_by_key("webuiuser")
+    assert user
+    victim = store.create("目标项目", "website", "Victim", owner_id=user.id, stack="static")
+    victim.status = "done"
+    victim.save_meta()
+    task = store.create("链接项目", "website", "Link", owner_id=user.id, stack="static")
+    task.status = "done"
+    task.save_meta()
+    import shutil
+    shutil.rmtree(task.dir)
+    task.dir.symlink_to(victim.dir, target_is_directory=True)
+
+    response = client.delete(f"/api/projects/{task.id}")
+    assert response.status_code == 500
+    assert victim.dir.exists()
+    assert db.get_project(task.id) is not None
+
+    task.dir.unlink()
+    db.delete_project(task.id)
+    db.delete_project(victim.id)
+    store.remove(task.id)
+    store.remove(victim.id)
+    shutil.rmtree(victim.dir, ignore_errors=True)
+
+
+def test_delete_keeps_other_projects(client: TestClient):
+    user = db.get_user_by_key("webuiuser")
+    assert user
+    keep = store.create("保留项目", "website", "Keep", owner_id=user.id, stack="static")
+    keep.status = "done"
+    keep.save_meta()
+    drop = store.create("删除项目", "website", "Drop", owner_id=user.id, stack="static")
+    drop.status = "done"
+    drop.save_meta()
+
+    assert client.delete(f"/api/projects/{drop.id}").status_code == 200
+    assert keep.dir.exists()
+    assert db.get_project(keep.id) is not None
+    assert client.get(f"/api/projects/{keep.id}").status_code == 200
