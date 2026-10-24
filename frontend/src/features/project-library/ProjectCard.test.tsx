@@ -1,6 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { Capability, Task } from "../../api/types";
 import { ProjectCard } from "./ProjectCard";
@@ -38,10 +38,16 @@ function task(overrides: Partial<Task>): Task {
   };
 }
 
-function renderCard(item: Task) {
+function renderCard(item: Task, onDelete?: (task: Task) => void, deleting = false) {
   render(
     <MemoryRouter>
-      <ProjectCard task={item} index={0} capabilities={capabilities} />
+      <ProjectCard
+        task={item}
+        index={0}
+        capabilities={capabilities}
+        onDelete={onDelete}
+        deleting={deleting}
+      />
     </MemoryRouter>,
   );
 }
@@ -59,6 +65,21 @@ describe("ProjectCard", () => {
   it("hides the public link while the project is still running", () => {
     renderCard(task({ status: "running", share_url: "/s/public-token/" }));
     expect(screen.queryByRole("link", { name: /公开页/ })).not.toBeInTheDocument();
+  });
+
+  it("offers an owner-only delete action with an explicit label", () => {
+    const onDelete = vi.fn();
+    const item = task({ status: "done" });
+    renderCard(item, onDelete);
+
+    fireEvent.click(screen.getByRole("button", { name: "删除项目 Lumen Studio" }));
+    expect(onDelete).toHaveBeenCalledWith(item);
+  });
+
+  it("disables the delete action while the deletion is in flight", () => {
+    renderCard(task({ status: "done" }), vi.fn(), true);
+    expect(screen.getByRole("button", { name: "删除项目 Lumen Studio" })).toBeDisabled();
+    expect(screen.getByText("删除中…")).toBeInTheDocument();
   });
 
   it("keeps capability labels without exposing implementation stacks", () => {

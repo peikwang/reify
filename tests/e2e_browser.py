@@ -541,6 +541,43 @@ def main() -> int:
                 checks = (result.get("result") or {}).get("checks") or []
                 check(bool(checks) and all(item["ok"] for item in checks), f"{capability} checks passed")
 
+            print("14. delete projects from card and detail")
+            card_prompt = "为一家设计工作室做一个待删除卡片项目"
+            card_created = page.request.post(
+                BASE + "/api/projects",
+                data=json.dumps({"prompt": card_prompt, "capability": "website"}),
+                headers={"Content-Type": "application/json"},
+            )
+            card_id = card_created.json()["task"]["id"]
+            wait_project(page, card_id)
+            page.goto(BASE + "/projects", wait_until="networkidle")
+            card = page.locator(".project-card").filter(has_text="待删除卡片项目")
+            expect(card).to_be_visible()
+            page.once("dialog", lambda dialog: dialog.accept())
+            card.get_by_role("button", name=re.compile("删除项目")).click()
+            card.wait_for(state="detached")
+            check(
+                page.request.get(BASE + f"/api/projects/{card_id}").status == 404,
+                "card deletion removes the project",
+            )
+
+            detail_prompt = "为一家设计工作室做一个待删除详情项目"
+            detail_created = page.request.post(
+                BASE + "/api/projects",
+                data=json.dumps({"prompt": detail_prompt, "capability": "website"}),
+                headers={"Content-Type": "application/json"},
+            )
+            detail_id = detail_created.json()["task"]["id"]
+            wait_project(page, detail_id)
+            page.goto(BASE + f"/projects/{detail_id}", wait_until="networkidle")
+            page.once("dialog", lambda dialog: dialog.accept())
+            page.get_by_role("button", name="删除项目").click()
+            page.wait_for_url(BASE + "/projects")
+            check(
+                page.request.get(BASE + f"/api/projects/{detail_id}").status == 404,
+                "detail deletion removes the project",
+            )
+
             browser.close()
 
         print(f"\nBROWSER E2E PASSED\nartifacts: {ARTIFACTS}")

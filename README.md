@@ -63,6 +63,7 @@ Reify 是一个单机优先的个人设计 Agent：把一句自然语言需求�
 - Next standalone 运行时启动/停止/蓝绿切换；每用户运行时数量上限。
 - 管理员用户表、禁用/启用、撤销会话、审计日志。
 - 项目库筛选、统计、最近项目，以及 390px 移动端适配。
+- 项目删除：项目卡片和详情页都可删除，二次确认后清理源码、产物、事件、运行时和公开链接。
 
 ## 总体架构
 
@@ -230,17 +231,17 @@ REIFY_SSR_PORT=12889 \
 ```
 
 ```bash
-# 后端单测（75 项）
+# 后端单测（79 项）
 .venv/bin/python -m pytest -q
 
-# 前端组件/Reducer/SSE 测试（57 项）+ 类型检查 + 构建
+# 前端组件/Reducer/SSE 测试（59 项）+ 类型检查 + 构建
 cd frontend && npm ci && npm test && npm run typecheck && npm run build && cd ..
 
 # 生成工程的 TypeScript 真实构建（npm ci + tsc + vite/next build）
 .venv/bin/python tests/e2e_typescript_scaffolds.py
 
 # 平台 UI 全链路（真实 uvicorn + Chrome + mock LLM；注册、模板、生成、Refine、
-# 编程模式、部署、分享、导出、项目库、管理员、移动端、通用生成）
+# 编程模式、部署、分享、导出、项目库、管理员、移动端、通用生成、项目删除）
 .venv/bin/python tests/e2e_browser.py
 
 # 已部署环境 UI 回归（需要一个可访问的 BASE）
@@ -416,6 +417,7 @@ reify/
 - `GET /api/auth/me` → 当前登录用户
 - `POST /api/projects` `{prompt, capability?}` → 创建项目；后端自动选择静态/React/Next，前端不暴露技术栈（`stack` 仅保留给内部测试）
 - `POST /api/projects/{id}/refine` `{instruction}` → 基于当前成果对话修改（图片/视频会重新生成素材）
+- `DELETE /api/projects/{id}` → 删除自己的项目及其文件/运行时/公开链接；运行中的任务返回 409
 - `GET /api/projects/{id}` → 元信息 + 事件历史
 - `GET /api/projects/{id}/events` → SSE 事件流
 - `POST /api/projects/{id}/deploy` → 重新部署（静态/React）

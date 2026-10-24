@@ -248,6 +248,10 @@ class TaskStore:
         self.ensure_loaded()
         return self.tasks.get(task_id)
 
+    def remove(self, task_id: str) -> None:
+        self.ensure_loaded()
+        self.tasks.pop(task_id, None)
+
     def list(self, owner_id: str) -> list[dict[str, Any]]:
         self.ensure_loaded()
         tasks = sorted(
