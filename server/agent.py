@@ -524,7 +524,13 @@ async def _run_source_refine(task: Task, instruction: str, revision: int) -> Non
             checks = next_checks_files(build.files)
             for name, ok, detail in checks:
                 await task.emit("verify", name=name, ok=ok, detail=detail)
-            await runtime_manager.deploy(task)
+            old_revision = task.revision
+            task.revision = revision
+            try:
+                await runtime_manager.deploy(task)
+            except Exception:
+                task.revision = old_revision
+                raise
             event_url = None
         else:
             build = await sandbox_runner.build(task, source_files, validate=react_checks_files)

@@ -16,6 +16,7 @@ from .config import (
     RUNTIME_READY_TIMEOUT,
     RUNTIME_TTL_SECONDS,
     SANDBOX_CPU,
+    SANDBOX_EGRESS,
     SANDBOX_HOST_DATA_ROOT,
     SANDBOX_IMAGE,
     SANDBOX_MEMORY,
@@ -115,6 +116,9 @@ class RuntimeManager:
                 f"{SANDBOX_HOST_DATA_ROOT.rstrip('/')}/{task.owner_id}/projects/{task.id}/runtime-data"
             )
             volumes = [Volume(name="data", host=Host(path=host_path), mountPath="/data")]
+        network_policy = None
+        if SANDBOX_EGRESS != "open":
+            network_policy = NetworkPolicy(defaultAction="deny", egress=[])
         try:
             sandbox = await Sandbox.create(
                 SANDBOX_IMAGE,
@@ -129,7 +133,7 @@ class RuntimeManager:
                     "DATA_DIR": "/data",
                 },
                 metadata={"project": task.id, "stack": "next"},
-                network_policy=NetworkPolicy(defaultAction="deny", egress=[]),
+                network_policy=network_policy,
                 volumes=volumes,
             )
             archive = _tar_dir(task.runtime_dir)

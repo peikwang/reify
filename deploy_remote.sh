@@ -55,7 +55,9 @@ ssh "$HOST" '
       echo "VIBEFORGE_SANDBOX_API_KEY=$(openssl rand -hex 24)"
       echo "VIBEFORGE_SANDBOX_SERVER_PROXY=1"
       echo "VIBEFORGE_SANDBOX_IMAGE=node:24-bookworm-slim"
-      echo "VIBEFORGE_SANDBOX_EGRESS=allowlist"
+      # This Docker host cannot start the egress sidecar; use open until supported.
+      echo "VIBEFORGE_SANDBOX_EGRESS=open"
+      echo "VIBEFORGE_SANDBOX_BUILD_MEMORY=4Gi"
       echo "VIBEFORGE_SANDBOX_HOST_DATA_ROOT=/opt/vibeforge/data/users"
       echo "VIBEFORGE_SSR_PREVIEW=1"
       echo "VIBEFORGE_SSR_PORT=12889"
@@ -63,6 +65,7 @@ ssh "$HOST" '
   fi
   chmod 600 /opt/vibeforge/.sandbox.env
   for line in \
+    "VIBEFORGE_SANDBOX_BUILD_MEMORY=4Gi" \
     "VIBEFORGE_SANDBOX_HOST_DATA_ROOT=/opt/vibeforge/data/users" \
     "VIBEFORGE_SSR_PREVIEW=1" \
     "VIBEFORGE_SSR_PORT=12889"; do
@@ -112,7 +115,7 @@ max_sandbox_timeout_seconds = 3600
 api_key = "$KEY"
 
 [proxy]
-resolve_internal = false
+resolve_internal = true
 
 [log]
 level = "INFO"
@@ -135,14 +138,14 @@ port_range_max = 42000
 publish_host = "$GATEWAY"
 drop_capabilities = ["AUDIT_WRITE", "MKNOD", "NET_ADMIN", "NET_RAW", "SYS_ADMIN", "SYS_MODULE", "SYS_PTRACE", "SYS_TIME", "SYS_TTY_CONFIG"]
 no_new_privileges = true
-pids_limit = 2048
+pids_limit = 4096
 
 [ingress]
 mode = "direct"
 
 [egress]
 image = "opensandbox/egress:v1.1.7"
-mode = "dns+nft"
+mode = "dns"
 readiness_timeout_seconds = 30.0
 EOF
   chmod 600 /opt/vibeforge/sandbox/config.toml
@@ -155,6 +158,13 @@ ssh "$HOST" "docker run -d --name ${SANDBOX_NAME} --restart unless-stopped \
   -v /opt/vibeforge/sandbox:/opt/opensandbox \
   --add-host=host.docker.internal:host-gateway \
   ${SANDBOX_SERVER_IMAGE} --config /opt/opensandbox/config.toml"
+
+i=0
+while [ "$i" -lt 10 ]; do
+  docker network connect bridge ${SANDBOX_NAME} 2>/dev/null && break
+  i=$((i + 1))
+  /bin/sleep 1
+done
 
 i=0
 while [ "$i" -lt 20 ]; do
