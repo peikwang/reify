@@ -179,6 +179,15 @@ h1 {
 .cap-chip:hover { background: #f1efe8; color: var(--ink); }
 .cap-chip.active { background: var(--ink); border-color: var(--ink); color: #fff; }
 .auto-pill { font: 7px/1 var(--mono); letter-spacing: 0.12em; color: var(--muted-2); border: 1px solid var(--line); border-radius: 999px; padding: 6px 8px; white-space: nowrap; }
+.composer-meta { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.stack-toggle { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--line); border-radius: 999px; padding: 6px 10px; font: 7px/1 var(--mono); letter-spacing: 0.08em; color: var(--muted); cursor: pointer; white-space: nowrap; background: var(--panel-soft); }
+.stack-toggle select { appearance: none; border: 0; background: transparent; color: var(--ink); font: 700 9px/1 var(--mono); outline: none; cursor: pointer; }
+.stack-toggle option { color: var(--ink); background: #fff; }
+.stack-toggle input { appearance: none; -webkit-appearance: none; width: 13px; height: 13px; border: 1px solid var(--line-strong); border-radius: 4px; margin: 0; position: relative; background: #fff; }
+.stack-toggle input:checked { background: var(--accent); border-color: var(--accent); }
+.stack-toggle input:checked::after { content: "✓"; position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font-size: 8px; line-height: 1; }
+.stack-toggle.disabled { opacity: 0.45; cursor: not-allowed; }
+.stack-toggle.disabled input { cursor: not-allowed; }
 .composer textarea {
   width: 100%;
   min-height: 104px;
@@ -267,6 +276,11 @@ h1 {
 .cover-adapt { background: linear-gradient(120deg, #7187b7, #c3cce2); color: #f7f7f2; }
 .cover-code { background: linear-gradient(145deg, #e4edf2, #f4f8f8); color: #22535a; }
 .cover-code .cover-glyph { font-family: var(--mono); font-size: 26px; }
+.cover-image { background: radial-gradient(circle at 78% 22%, #f0cba4 0 14%, transparent 15%), linear-gradient(145deg, #4f6a5b, #a9b7a2); color: #f8f3e8; }
+.cover-image .cover-glyph { font-family: var(--mono); font-size: 25px; letter-spacing: -0.06em; }
+.cover-video { background: radial-gradient(circle at 70% 28%, rgba(240, 143, 105, 0.55), transparent 30%), linear-gradient(145deg, #201b19, #5e3a30); color: #f9eee6; }
+.cover-video .cover-glyph { font-family: var(--mono); font-size: 23px; letter-spacing: -0.06em; }
+.cover-video::after { background: rgba(240, 143, 105, 0.25); }
 .project-card-body { padding: 14px 15px 13px; display: flex; flex-direction: column; gap: 7px; flex: 1; }
 .project-card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; font: 8px/1 var(--mono); letter-spacing: 0.1em; color: var(--muted-2); text-transform: uppercase; }
 .project-status { display: flex; align-items: center; gap: 4px; }
@@ -543,4 +557,33 @@ h1 {
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
+}
+
+/* ---------- admin ---------- */
+.admin-table { display: grid; gap: 8px; margin-top: 20px; }
+.admin-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 1.4fr) .7fr .7fr .9fr auto;
+  gap: 14px;
+  align-items: center;
+  padding: 13px 16px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--panel);
+}
+.admin-row b { font-size: 13px; letter-spacing: -0.02em; }
+.admin-row small { display: block; color: var(--muted-2); font: 8px/1.5 var(--mono); letter-spacing: .05em; margin-top: 3px; }
+.admin-row .admin-meta { color: var(--muted); font: 9px/1.5 var(--mono); }
+.admin-actions { display: flex; gap: 5px; justify-content: flex-end; }
+.admin-actions button { border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 7px; padding: 6px 8px; font: 8px/1 var(--mono); }
+.admin-actions button:hover { color: var(--ink); border-color: var(--line-strong); }
+.admin-actions button.danger { color: var(--red); border-color: rgba(180, 70, 63, .28); }
+.audit-list { display: grid; gap: 6px; margin-top: 12px; }
+.audit-row { display: grid; grid-template-columns: 150px 1fr 150px; gap: 12px; padding: 10px 13px; border-bottom: 1px solid var(--line); color: var(--muted); font: 9px/1.5 var(--mono); }
+.audit-row b { color: var(--ink); font-weight: 700; }
+@media (max-width: 760px) {
+  .admin-row { grid-template-columns: 1fr auto; gap: 8px; }
+  .admin-row .admin-meta { grid-column: 1 / -1; }
+  .audit-row { grid-template-columns: 1fr; gap: 3px; }
+  .workspace-actions #shareBtn { display: inline-flex; }
 }
