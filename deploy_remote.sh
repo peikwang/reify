@@ -21,7 +21,7 @@ echo "→ migrating /opt/reify to /data/reify-deploy (one time)"
 ssh "$HOST" 'set -e
 OLD=/opt/reify
 NEW=/data/reify-deploy
-if [ -d "$OLD" ] && [ ! -d "$NEW/data" ]; then
+if [ -d "$OLD" ] && [ ! -f "$NEW/.migrated" ]; then
   AVAIL=$(df -Pk /data | sed -n "2p" | tr -s " " | cut -d" " -f4)
   NEED=$(du -sk "$OLD" | cut -f1)
   if [ "$AVAIL" -lt "$NEED" ]; then
@@ -36,6 +36,7 @@ if [ -d "$OLD" ] && [ ! -d "$NEW/data" ]; then
     exit 1
   fi
   [ "$WAS_RUNNING" = "true" ] && docker start reify >/dev/null 2>&1 || true
+  touch "$NEW/.migrated"
   echo "migrated /opt/reify -> $NEW"
 fi'
 
