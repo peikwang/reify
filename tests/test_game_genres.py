@@ -22,7 +22,8 @@ BRIEF = {
         ("做一个飞机大战射击游戏", "shooter"),
         ("做一个打砖块小游戏", "breakout"),
         ("做一个弹球游戏", "breakout"),
-        ("做一个小游戏", "snake"),
+        ("做一个小游戏", "custom"),
+        ("做一个2048数字合并小游戏", "custom"),
     ],
 )
 def test_detect_genre(prompt: str, genre: str):
