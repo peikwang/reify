@@ -316,6 +316,9 @@ h1 {
 .ghost-btn, .primary-btn, .mini-btn { border-radius: 8px; font-size: 10px; font-weight: 600; transition: 0.18s; }
 .ghost-btn { border: 1px solid var(--line); background: var(--panel); color: var(--muted); padding: 8px 10px; }
 .ghost-btn:hover { color: var(--ink); border-color: var(--line-strong); }
+.danger-btn { color: var(--red); border-color: rgba(180, 70, 63, 0.24); }
+.danger-btn:hover { color: #fff; background: var(--red); border-color: var(--red); }
+.danger-btn:disabled { opacity: 0.5; }
 .primary-btn { border: 1px solid var(--ink); background: var(--ink); color: #fff; padding: 8px 13px; font-weight: 700; }
 .primary-btn:hover { background: var(--accent); border-color: var(--accent); }
 .mini-btn { border: 1px solid var(--line); background: var(--panel); color: var(--muted); padding: 5px 8px; font: 8px/1 var(--mono); letter-spacing: 0.04em; }
@@ -796,6 +799,17 @@ h1 {
 .project-public-link:hover {
   text-decoration: underline;
 }
+
+.project-delete {
+  border: 0;
+  background: transparent;
+  color: var(--muted-2);
+  padding: 0;
+  font: 7px/1 var(--mono);
+  letter-spacing: 0.06em;
+}
+.project-delete:hover { color: var(--red); text-decoration: underline; }
+.project-delete:disabled { opacity: 0.5; }
 
 .public-link-banner {
   display: flex;

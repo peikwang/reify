@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
+import { api } from "../api/client";
+import type { Task } from "../api/types";
 import { absolutePublicUrl } from "../features/project-library/publicLink";
 import { ProjectGrid } from "../features/project-library/ProjectGrid";
 import {
@@ -20,6 +22,7 @@ export function ProjectsPage() {
   const { capabilities } = useCapabilities();
   const { items, loading, error, reload } = useProjects();
   const [filter, setFilter] = useState("all");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
   const { showToast } = useToast();
@@ -45,6 +48,29 @@ export function ProjectsPage() {
 
   function dismissCreated() {
     navigate(location.pathname, { replace: true, state: null });
+  }
+
+  async function deleteProject(task: Task) {
+    const title = task.title || task.prompt || "未命名项目";
+    if (["queued", "running", "deploying"].includes(task.status)) {
+      showToast("任务运行中，完成后再删除");
+      return;
+    }
+    if (!window.confirm(`删除项目「${title}」？项目源码、产物和公开链接都会被永久删除。`)) {
+      return;
+    }
+    setDeletingId(task.id);
+    try {
+      await api("/api/projects/" + encodeURIComponent(task.id), { method: "DELETE" });
+      showToast("项目已删除");
+      await reload();
+    } catch (reason) {
+      showToast(
+        "删除失败：" + (reason instanceof Error ? reason.message : "未知错误"),
+      );
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   async function copyCreatedLink() {
@@ -173,6 +199,8 @@ export function ProjectsPage() {
           capabilities={capabilities}
           empty={loading ? "正在加载项目…" : "还没有项目。回到工作台开始第一个。"}
           className="full"
+          onDelete={(task) => void deleteProject(task)}
+          deletingId={deletingId}
         />
       )}
 

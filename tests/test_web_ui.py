@@ -383,3 +383,75 @@ def test_runtime_start_respects_per_user_cap(client: TestClient, monkeypatch):
 
     for project in [*running, target]:
         db.save_runtime({"project_id": project.id, "status": "stopped", "revision": 0})
+
+
+def test_owner_can_delete_project(client: TestClient):
+    user = db.get_user_by_key("webuiuser")
+    assert user
+    task = store.create("待删除项目", "website", "Delete me", owner_id=user.id, stack="static")
+    (task.workspace / "index.html").write_text("<html><body>delete-me</body></html>", encoding="utf-8")
+    task.status = "done"
+    task.save_meta()
+    project_dir = task.dir
+    share_url = task.meta()["share_url"]
+    assert project_dir.exists()
+
+    response = client.delete(f"/api/projects/{task.id}")
+    assert response.status_code == 200
+    assert not project_dir.exists()
+    assert db.get_project(task.id) is None
+    assert store.get_any(task.id) is None
+    assert client.get(f"/api/projects/{task.id}").status_code == 404
+    assert TestClient(main_module.app).get(share_url).status_code == 404
+    assert any(item["action"] == "project.delete" for item in db.list_audit(200))
+
+
+def test_delete_is_owner_only(client: TestClient):
+    admin = db.get_user_by_key("admin")
+    assert admin
+    other = store.create("别人的项目", "website", "Other", owner_id=admin.id, stack="static")
+    other.status = "done"
+    other.save_meta()
+    response = client.delete(f"/api/projects/{other.id}")
+    assert response.status_code == 404
+    assert other.dir.exists()
+    db.delete_project(other.id)
+    store.remove(other.id)
+    import shutil
+    shutil.rmtree(other.dir, ignore_errors=True)
+
+
+def test_delete_rejects_running_project(client: TestClient):
+    user = db.get_user_by_key("webuiuser")
+    assert user
+    task = store.create("运行中的项目", "website", "Running", owner_id=user.id, stack="static")
+    task.status = "running"
+    task.save_meta()
+    assert client.delete(f"/api/projects/{task.id}").status_code == 409
+    assert task.dir.exists()
+    task.status = "done"
+    task.save_meta()
+    assert client.delete(f"/api/projects/{task.id}").status_code == 200
+
+
+def test_delete_stops_next_runtime(client: TestClient, monkeypatch):
+    user = db.get_user_by_key("webuiuser")
+    assert user
+    task = store.create("SSR 待删除", "website", "Runtime delete", owner_id=user.id, stack="next")
+    task.status = "done"
+    (task.workspace / "runtime").mkdir(parents=True, exist_ok=True)
+    (task.workspace / "runtime" / "server.js").write_text("", encoding="utf-8")
+    task.save_meta()
+    db.save_runtime({"project_id": task.id, "status": "running", "revision": 0})
+    stopped = []
+
+    async def fake_stop(item):
+        stopped.append(item.id)
+        return {"status": "stopped"}
+
+    monkeypatch.setattr(main_module.runtime_manager, "stop", fake_stop)
+    response = client.delete(f"/api/projects/{task.id}")
+    assert response.status_code == 200
+    assert stopped == [task.id]
+    assert db.get_runtime(task.id) is None
+    assert not task.dir.exists()

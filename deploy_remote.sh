@@ -17,7 +17,29 @@ if [ "$PORT" != "12888" ]; then
   exit 1
 fi
 
-echo "→ syncing source to ${HOST}:/opt/reify"
+echo "→ migrating /opt/reify to /data/reify-deploy (one time)"
+ssh "$HOST" 'set -e
+OLD=/opt/reify
+NEW=/data/reify-deploy
+if [ -d "$OLD" ] && [ ! -d "$NEW/data" ]; then
+  AVAIL=$(df -Pk /data | sed -n "2p" | tr -s " " | cut -d" " -f4)
+  NEED=$(du -sk "$OLD" | cut -f1)
+  if [ "$AVAIL" -lt "$NEED" ]; then
+    echo "✗ not enough space on /data: avail=${AVAIL}KB need=${NEED}KB" >&2
+    exit 1
+  fi
+  mkdir -p "$NEW"
+  WAS_RUNNING=$(docker inspect -f '{{.State.Running}}' reify 2>/dev/null || echo false)
+  docker stop reify >/dev/null 2>&1 || true
+  if ! rsync -aHAX "$OLD/" "$NEW/"; then
+    [ "$WAS_RUNNING" = "true" ] && docker start reify >/dev/null 2>&1 || true
+    exit 1
+  fi
+  [ "$WAS_RUNNING" = "true" ] && docker start reify >/dev/null 2>&1 || true
+  echo "migrated /opt/reify -> $NEW"
+fi'
+
+echo "→ syncing source to ${HOST}:/data/reify-deploy"
 COPYFILE_DISABLE=1 tar czf - \
   --exclude='.venv' \
   --exclude='__pycache__' \
@@ -35,25 +57,25 @@ COPYFILE_DISABLE=1 tar czf - \
   --exclude='.llm.env' \
   --exclude='.runtime.env' \
   --exclude='tests/*.png' \
-  . | ssh "$HOST" 'mkdir -p /opt/reify && tar xzf - -C /opt/reify'
+  . | ssh "$HOST" 'mkdir -p /data/reify-deploy && tar xzf - -C /data/reify-deploy'
 
 echo "→ building app image ${APP_IMAGE}"
-ssh "$HOST" "cd /opt/reify && docker build -q -t ${APP_IMAGE} --build-arg BASE_IMAGE=${IMAGE} -f Dockerfile.app ."
+ssh "$HOST" "cd /data/reify-deploy && docker build -q -t ${APP_IMAGE} --build-arg BASE_IMAGE=${IMAGE} -f Dockerfile.app ."
 
 echo "→ publishing frontend build from image"
 ssh "$HOST" "set -e
-mkdir -p /opt/reify/web/dist
+mkdir -p /data/reify-deploy/web/dist
 cid=\$(docker create ${APP_IMAGE})
-docker cp \$cid:/app/web/dist/. /opt/reify/web/dist/
+docker cp \$cid:/app/web/dist/. /data/reify-deploy/web/dist/
 docker rm \$cid >/dev/null
-chmod -R a+rX /opt/reify/web/dist
-test -f /opt/reify/web/dist/index.html
-grep -q 'id=\"root\"' /opt/reify/web/dist/index.html"
+chmod -R a+rX /data/reify-deploy/web/dist
+test -f /data/reify-deploy/web/dist/index.html
+grep -q 'id=\"root\"' /data/reify-deploy/web/dist/index.html"
 
 echo "→ migrating legacy /opt/vibeforge (one time)"
 ssh "$HOST" 'set -e
 OLD=/opt/vibeforge
-NEW=/opt/reify
+NEW=/data/reify-deploy
 if [ -d "$OLD" ] && [ ! -d "$NEW/data" ]; then
   mkdir -p "$NEW/data"
   if docker inspect vibeforge >/dev/null 2>&1; then
@@ -76,22 +98,22 @@ fi'
 
 echo "→ ensuring access credentials"
 ssh "$HOST" '
-  if [ ! -s /opt/reify/.auth.env ]; then
+  if [ ! -s /data/reify-deploy/.auth.env ]; then
     umask 077
     {
       echo "REIFY_ADMIN_USER=admin"
       echo "REIFY_ADMIN_PASSWORD=$(openssl rand -hex 12)"
       echo "REIFY_COOKIE_SECURE=1"
       echo "REIFY_REGISTRATION=open"
-    } > /opt/reify/.auth.env
+    } > /data/reify-deploy/.auth.env
   fi
-  chmod 600 /opt/reify/.auth.env
+  chmod 600 /data/reify-deploy/.auth.env
 
-  if [ ! -s /opt/reify/.sandbox.env ]; then
+  if [ ! -s /data/reify-deploy/.sandbox.env ]; then
     umask 077
     {
       echo "REIFY_SANDBOX=opensandbox"
-      echo "REIFY_PROJECTS=/opt/reify/data/projects"
+      echo "REIFY_PROJECTS=/data/reify-deploy/data/projects"
       echo "REIFY_SANDBOX_DOMAIN=reify-sandbox:8080"
       echo "REIFY_SANDBOX_API_KEY=$(openssl rand -hex 24)"
       echo "REIFY_SANDBOX_SERVER_PROXY=1"
@@ -99,49 +121,49 @@ ssh "$HOST" '
       # This Docker host cannot start the egress sidecar; use open until supported.
       echo "REIFY_SANDBOX_EGRESS=open"
       echo "REIFY_SANDBOX_BUILD_MEMORY=4Gi"
-      echo "REIFY_SANDBOX_HOST_DATA_ROOT=/opt/reify/data/users"
+      echo "REIFY_SANDBOX_HOST_DATA_ROOT=/data/reify-deploy/data/users"
       echo "REIFY_SANDBOX_REQUEST_TIMEOUT=900"
       echo "REIFY_NPM_INSTALL_TIMEOUT=600"
       echo "REIFY_NPM_BUILD_TIMEOUT=600"
       echo "REIFY_SSR_PREVIEW=1"
       echo "REIFY_SSR_PORT=12889"
-    } > /opt/reify/.sandbox.env
+    } > /data/reify-deploy/.sandbox.env
   fi
-  chmod 600 /opt/reify/.sandbox.env
+  chmod 600 /data/reify-deploy/.sandbox.env
   for line in \
-    "REIFY_PROJECTS=/opt/reify/data/projects" \
+    "REIFY_PROJECTS=/data/reify-deploy/data/projects" \
     "REIFY_SANDBOX_DOMAIN=reify-sandbox:8080" \
     "REIFY_SANDBOX_BUILD_MEMORY=4Gi" \
-    "REIFY_SANDBOX_HOST_DATA_ROOT=/opt/reify/data/users" \
+    "REIFY_SANDBOX_HOST_DATA_ROOT=/data/reify-deploy/data/users" \
     "REIFY_SANDBOX_REQUEST_TIMEOUT=900" \
     "REIFY_NPM_INSTALL_TIMEOUT=600" \
     "REIFY_NPM_BUILD_TIMEOUT=600" \
     "REIFY_SSR_PREVIEW=1" \
     "REIFY_SSR_PORT=12889"; do
     key=${line%%=*}
-    sed -i "/^${key}=/d" /opt/reify/.sandbox.env
-    echo "$line" >> /opt/reify/.sandbox.env
+    sed -i "/^${key}=/d" /data/reify-deploy/.sandbox.env
+    echo "$line" >> /data/reify-deploy/.sandbox.env
   done
-  mkdir -p /opt/reify/data/users /opt/reify/data/projects
+  mkdir -p /data/reify-deploy/data/users /data/reify-deploy/data/projects
 
   {
-    cat /opt/reify/.auth.env
-    if [ -s /opt/reify/.llm.env ]; then cat /opt/reify/.llm.env; fi
-    cat /opt/reify/.sandbox.env
-  } > /opt/reify/.runtime.env
-  chmod 600 /opt/reify/.runtime.env
+    cat /data/reify-deploy/.auth.env
+    if [ -s /data/reify-deploy/.llm.env ]; then cat /data/reify-deploy/.llm.env; fi
+    cat /data/reify-deploy/.sandbox.env
+  } > /data/reify-deploy/.runtime.env
+  chmod 600 /data/reify-deploy/.runtime.env
 '
 
 echo "→ backing up local database"
 ssh "$HOST" 'umask 077
-if [ -f /opt/reify/data/reify.db ]; then
-  mkdir -p /opt/reify/backups
-  chmod 700 /opt/reify/backups
+if [ -f /data/reify-deploy/data/reify.db ]; then
+  mkdir -p /data/reify-deploy/backups
+  chmod 700 /data/reify-deploy/backups
   stamp=$(date +%Y%m%d-%H%M%S)
-  cp /opt/reify/data/reify.db "/opt/reify/backups/reify-$stamp.db"
-  [ -f /opt/reify/data/reify.db-wal ] && cp /opt/reify/data/reify.db-wal "/opt/reify/backups/reify-$stamp.db-wal"
-  [ -f /opt/reify/data/reify.db-shm ] && cp /opt/reify/data/reify.db-shm "/opt/reify/backups/reify-$stamp.db-shm"
-  chmod 600 /opt/reify/backups/reify-$stamp.*
+  cp /data/reify-deploy/data/reify.db "/data/reify-deploy/backups/reify-$stamp.db"
+  [ -f /data/reify-deploy/data/reify.db-wal ] && cp /data/reify-deploy/data/reify.db-wal "/data/reify-deploy/backups/reify-$stamp.db-wal"
+  [ -f /data/reify-deploy/data/reify.db-shm ] && cp /data/reify-deploy/data/reify.db-shm "/data/reify-deploy/backups/reify-$stamp.db-shm"
+  chmod 600 /data/reify-deploy/backups/reify-$stamp.*
 fi'
 
 echo "→ replacing platform containers (sandbox is kept)"
@@ -153,12 +175,12 @@ docker network inspect reify-net >/dev/null 2>&1 || docker network create reify-
 
 echo "→ configuring OpenSandbox"
 ssh "$HOST" '
-  mkdir -p /opt/reify/sandbox
-  chmod 700 /opt/reify/sandbox
-  KEY=$(grep "^REIFY_SANDBOX_API_KEY=" /opt/reify/.sandbox.env | cut -d= -f2-)
+  mkdir -p /data/reify-deploy/sandbox
+  chmod 700 /data/reify-deploy/sandbox
+  KEY=$(grep "^REIFY_SANDBOX_API_KEY=" /data/reify-deploy/.sandbox.env | cut -d= -f2-)
   GATEWAY=$(docker network inspect bridge -f "{{(index .IPAM.Config 0).Gateway}}" 2>/dev/null || true)
   [ -n "$GATEWAY" ] || GATEWAY=172.17.0.1
-  cat > /opt/reify/sandbox/config.toml <<EOF
+  cat > /data/reify-deploy/sandbox/config.toml <<EOF
 [server]
 host = "0.0.0.0"
 port = 8080
@@ -176,7 +198,7 @@ type = "docker"
 execd_image = "opensandbox/execd:v1.1.0"
 
 [storage]
-allowed_host_paths = ["/opt/reify/data/users"]
+allowed_host_paths = ["/data/reify-deploy/data/users"]
 
 [store]
 type = "sqlite"
@@ -199,20 +221,17 @@ image = "opensandbox/egress:v1.1.7"
 mode = "dns"
 readiness_timeout_seconds = 30.0
 EOF
-  chmod 600 /opt/reify/sandbox/config.toml
+  chmod 600 /data/reify-deploy/sandbox/config.toml
 '
 
 echo "→ ensuring ${SANDBOX_NAME}"
 ssh "$HOST" "
-if docker inspect ${SANDBOX_NAME} >/dev/null 2>&1; then
-  echo 'sandbox container exists; keeping it'
-  docker start ${SANDBOX_NAME} >/dev/null 2>&1 || true
-fi
+docker rm -f ${SANDBOX_NAME} >/dev/null 2>&1 || true
 if ! docker inspect ${SANDBOX_NAME} >/dev/null 2>&1; then
   docker run -d --name ${SANDBOX_NAME} --restart unless-stopped \
     --network reify-net --network-alias reify-sandbox \
     -v /var/run/docker.sock:/var/run/docker.sock \
-    -v /opt/reify/sandbox:/opt/opensandbox \
+    -v /data/reify-deploy/sandbox:/opt/opensandbox \
     --add-host=host.docker.internal:host-gateway \
     ${SANDBOX_SERVER_IMAGE} --config /opt/opensandbox/config.toml
 fi"
@@ -236,11 +255,11 @@ fi
 echo "→ starting ${NAME} (internal only)"
 ssh "$HOST" "docker run -d --name ${NAME} --restart unless-stopped \
   --network reify-net --network-alias reify \
-  -v /opt/reify:/app -w /app \
+  -v /data/reify-deploy:/app -w /app \
   --add-host=host.docker.internal:host-gateway \
   --cpus 2 --memory 4g --pids-limit 512 \
   --cap-drop ALL --security-opt no-new-privileges \
-  --env-file /opt/reify/.runtime.env \
+  --env-file /data/reify-deploy/.runtime.env \
   --entrypoint python3 \
   ${APP_IMAGE} \
   -m uvicorn server.main:app --host 0.0.0.0 --port ${PORT}"
@@ -251,7 +270,7 @@ ssh "$HOST" "docker run -d --name ${NAME}-caddy --restart unless-stopped \
   -p ${PORT}:${PORT} -p 12889:12889 -p 80:80 \
   -e REIFY_HOST_IP=${HOST_IP} \
   -e REIFY_SSR_PORT=12889 \
-  -v /opt/reify/Caddyfile:/etc/caddy/Caddyfile:ro \
+  -v /data/reify-deploy/Caddyfile:/etc/caddy/Caddyfile:ro \
   -v ${NAME}-caddy-data:/data \
   -v ${NAME}-caddy-config:/config \
   ${CADDY_IMAGE}"
@@ -281,8 +300,8 @@ while [ "$i" -lt 60 ]; do
     fi
     echo
     echo "✓ https://${HOST_IP}:${PORT}/"
-    echo "  credentials: ${HOST}:/opt/reify/.auth.env"
-    echo "  sandbox:     ${HOST}:/opt/reify/.sandbox.env"
+    echo "  credentials: ${HOST}:/data/reify-deploy/.auth.env"
+    echo "  sandbox:     ${HOST}:/data/reify-deploy/.sandbox.env"
     echo "  SSR apps:    https://${HOST_IP}:12889/apps/<project>/ (open 12889 in the firewall)"
     if [ "${REIFY_REMOVE_LEGACY:-1}" = "1" ]; then
       ssh "$HOST" "docker rm -f vibeforge-sandbox 2>/dev/null || true
