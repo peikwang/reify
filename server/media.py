@@ -22,7 +22,7 @@ from .config import (
     VIDEO_RESOLUTION,
 )
 
-logger = logging.getLogger("vibeforge.media")
+logger = logging.getLogger("reify.media")
 
 ProgressCallback = Callable[[dict[str, Any]], Awaitable[None]]
 

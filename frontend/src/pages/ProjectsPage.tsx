@@ -177,7 +177,7 @@ export function ProjectsPage() {
       )}
 
       <footer className="home-footer">
-        <span>VIBEFORGE / PROJECT LIBRARY</span>
+        <span>REIFY / PROJECT LIBRARY</span>
         <span>EACH PROJECT HAS ITS OWN PAGE</span>
       </footer>
     </section>

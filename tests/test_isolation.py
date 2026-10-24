@@ -9,14 +9,14 @@ from pathlib import Path
 
 import pytest
 
-ROOT = Path(tempfile.mkdtemp(prefix="vibeforge-test-"))
-os.environ["VIBEFORGE_DATA"] = str(ROOT / "data")
-os.environ["VIBEFORGE_PROJECTS"] = str(ROOT / "legacy-projects")
-os.environ["VIBEFORGE_DB"] = str(ROOT / "data" / "vibeforge.db")
-os.environ["VIBEFORGE_ADMIN_PASSWORD"] = "admin-test-password"
-os.environ["VIBEFORGE_COOKIE_SECURE"] = "0"
-os.environ["VIBEFORGE_REGISTRATION"] = "open"
-os.environ["VIBEFORGE_AUTO_MIGRATE"] = "0"
+ROOT = Path(tempfile.mkdtemp(prefix="reify-test-"))
+os.environ["REIFY_DATA"] = str(ROOT / "data")
+os.environ["REIFY_PROJECTS"] = str(ROOT / "legacy-projects")
+os.environ["REIFY_DB"] = str(ROOT / "data" / "reify.db")
+os.environ["REIFY_ADMIN_PASSWORD"] = "admin-test-password"
+os.environ["REIFY_COOKIE_SECURE"] = "0"
+os.environ["REIFY_REGISTRATION"] = "open"
+os.environ["REIFY_AUTO_MIGRATE"] = "0"
 
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -137,18 +137,18 @@ def test_session_is_server_side_and_revocable(client: TestClient):
     alice = db.get_user_by_key("alice")
     assert alice
     task = _make_project(alice.id, "Session project")
-    token = client.cookies.get("vibeforge_session")
+    token = client.cookies.get("reify_session")
     assert token
 
     # A brand-new client with the same cookie is authenticated: state lives in SQLite.
     second = TestClient(app)
-    second.cookies.set("vibeforge_session", token)
+    second.cookies.set("reify_session", token)
     assert second.get("/api/auth/me").json()["authenticated"] is True
     assert second.get(f"/api/projects/{task.id}").status_code == 200
 
     assert client.post("/api/auth/logout").status_code == 200
     third = TestClient(app)
-    third.cookies.set("vibeforge_session", token)
+    third.cookies.set("reify_session", token)
     assert third.get("/api/auth/me").json()["authenticated"] is False
     assert third.get(f"/api/projects/{task.id}").status_code == 401
 

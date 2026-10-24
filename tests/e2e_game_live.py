@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Live long-tail game E2E against a deployed VibeForge instance.
+"""Live long-tail game E2E against a deployed Reify instance.
 
 Usage:
-    VIBEFORGE_E2E_BASE=https://117.148.166.55:12888 .venv/bin/python tests/e2e_game_live.py
+    REIFY_E2E_BASE=https://117.148.166.55:12888 .venv/bin/python tests/e2e_game_live.py
 """
 from __future__ import annotations
 
@@ -14,10 +14,10 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
-BASE = os.environ.get("VIBEFORGE_E2E_BASE", "").rstrip("/")
+BASE = os.environ.get("REIFY_E2E_BASE", "").rstrip("/")
 if not BASE:
-    raise SystemExit("VIBEFORGE_E2E_BASE is required")
-ARTIFACTS = Path(tempfile.mkdtemp(prefix="vibeforge-game-live-"))
+    raise SystemExit("REIFY_E2E_BASE is required")
+ARTIFACTS = Path(tempfile.mkdtemp(prefix="reify-game-live-"))
 
 
 def check(condition: bool, message: str) -> None:
@@ -76,8 +76,8 @@ def main() -> int:
         check(task.get("status") == "done", "game project completed")
 
         html = request.get(BASE + f"/p/{project_id}/").text()
-        custom = 'name="vibeforge-game"' in html
-        fallback = "vibeforge-snake-best" in html
+        custom = 'name="reify-game"' in html
+        fallback = "reify-snake-best" in html
         check("<canvas" in html, "generated page has a canvas")
         check("<script" in html, "generated page has an inline script")
         check(custom or fallback, f"game path resolved (custom={custom}, fallback={fallback})")

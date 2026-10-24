@@ -9,7 +9,7 @@ const keys = { left: false, right: false };
 const COLS = 8, ROWS = 5, BRICK_W = 52, BRICK_H = 16, GAP = 4, OFFSET_X = 16, OFFSET_Y = 66;
 const ROW_COLORS = ['#ff8a65', '#f5d76e', '#7ee787', '#5ee0ff', '#c792ea'];
 let paddle, ball, bricks, score, lives, level, best, running, paused, raf, lastTime;
-best = readBest('vibeforge-breakout-best');
+best = readBest('reify-breakout-best');
 bestEl.textContent = best;
 
 function resetBall() {
@@ -88,7 +88,7 @@ function update(dt) {
       brick.alive = false;
       ball.vy = -ball.vy;
       score += 10;
-      if (score > best) { best = score; saveBest('vibeforge-breakout-best', best); }
+      if (score > best) { best = score; saveBest('reify-breakout-best', best); }
       updateStats();
       break;
     }
@@ -107,7 +107,7 @@ function update(dt) {
 }
 function gameOver() {
   running = false; cancelAnimationFrame(raf); setStatus('GAME OVER');
-  best = Math.max(best, score); saveBest('vibeforge-breakout-best', best); bestEl.textContent = best;
+  best = Math.max(best, score); saveBest('reify-breakout-best', best); bestEl.textContent = best;
   showOverlay('RUN COMPLETE', '本局得分 ' + score, '到达第 ' + level + ' 关，最高分 ' + best + '。再来一局，清空所有砖块。', '再来一局');
   draw();
 }

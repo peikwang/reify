@@ -1,4 +1,4 @@
-# VibeForge 隔离方案：用户、项目、SSR 运行时与沙箱
+# Reify 隔离方案：用户、项目、SSR 运行时与沙箱
 
 > 状态：设计稿 v3；Phase 1-3 已实施并通过本地 E2E（IP-only 模式：平台 12888 / SSR 应用 12889）；Phase 4 已落地管理员、分享、审计、存储配额；ACS/MicroVM 与 Next SSR 分享仍待后续
 > 分支：`feature/isolation`
@@ -9,7 +9,7 @@
 ## 0. 结论先行
 
 1. **用户隔离**：开放自助注册 + 本地 SQLite 用户/会话表 + 每用户目录 + 所有 API/预览/下载强制 owner 校验。移除当前 `/tasks` 静态直挂。
-2. **本地持久化**：用户资料、密码哈希、登录会话、项目归属、运行时记录都写入 `data/vibeforge.db`（WAL），项目文件与事件写入 `data/users/{uid}/projects/{pid}/`；服务重启后账号、登录态、项目和修订全部可恢复。
+2. **本地持久化**：用户资料、密码哈希、登录会话、项目归属、运行时记录都写入 `data/reify.db`（WAL），项目文件与事件写入 `data/users/{uid}/projects/{pid}/`；服务重启后账号、登录态、项目和修订全部可恢复。
 3. **项目隔离**：静态项目按目录隔离；全栈项目每个都有独立沙箱、独立网络命名空间、独立 origin（子域名）、独立存储卷。
 4. **SSR/全栈**：Next.js App Router + `output: 'standalone'`，构建与运行都在沙箱内完成；构建成功后蓝绿切换运行时。
 5. **阿里云 ACS Agent Sandbox**：隔离能力强（MicroVM、休眠唤醒、Checkpoint），但依赖 ACK/ACS 集群与 Ingress/域名，**无法在现有单台 ECS + 纯 Docker 上直接部署**。它兼容 E2B SDK，适合作为第二阶段的托管后端。
@@ -57,7 +57,7 @@
 如果把 Next.js 应用挂在平台同源的 `/apps/{id}/`：
 
 - 应用 JS 可以 `fetch('/api/projects')`，带着用户 Cookie 读取全部项目。
-- 应用可以 `document.cookie = 'vibeforge_session=...; path=/'` 覆盖平台会话。
+- 应用可以 `document.cookie = 'reify_session=...; path=/'` 覆盖平台会话。
 - CSP `sandbox` 不能用于 SSR：会变成不透明源，应用自身的同源 API 路由和 Cookie 全部失效。
 
 因此全栈项目必须使用**每项目子域名**：
@@ -136,7 +136,7 @@ Browser ──HTTPS──►  │ Caddy                                   │
                     └───────┬─────────────────────┬───────────┘
                             │                     │
                     ┌───────▼────────┐   ┌────────▼─────────────┐
-                    │ VibeForge App  │   │ Runtime Gateway      │
+                    │ Reify App  │   │ Runtime Gateway      │
                     │ auth/owner     │   │ token 校验 + 反代     │
                     │ project store  │   │ (HTTP/SSE)           │
                     │ agent pipeline │   └────────┬─────────────┘
@@ -162,10 +162,10 @@ Browser ──HTTPS──►  │ Caddy                                   │
 - 用户名 3~32 字符，允许中英文、数字、`_`、`-`；按 `username_key = casefold(username)` 做唯一约束，避免大小写重复账号。
 - 密码 8~128 字符；使用标准库 `hashlib.scrypt`（每用户随机盐，参数随哈希一起存储），不存明文、不引入新依赖。
 - 邮箱可选；填写时按小写做唯一约束。本期不做邮件验证与找回密码。
-- 注册默认开放；需要封闭运行时设置 `VIBEFORGE_REGISTRATION=closed`，注册接口返回 403。
+- 注册默认开放；需要封闭运行时设置 `REIFY_REGISTRATION=closed`，注册接口返回 403。
 - 限流：同 IP 每小时最多 5 次注册、每分钟最多 10 次登录；同用户名失败次数单独计数。
 - 管理员引导：
-  - 启动时确保至少有一个管理员：优先使用 `VIBEFORGE_ADMIN_USER` / `VIBEFORGE_ADMIN_PASSWORD`；未配置密码时生成随机密码并打印到启动日志（沿用现有行为）。
+  - 启动时确保至少有一个管理员：优先使用 `REIFY_ADMIN_USER` / `REIFY_ADMIN_PASSWORD`；未配置密码时生成随机密码并打印到启动日志（沿用现有行为）。
   - 自助注册的用户一律为 `user`，不会因为“第一个注册”自动获得管理员权限，避免服务先暴露后被抢注管理员。
 - 注册信息（用户名、哈希、显示名、邮箱、角色、注册 IP、注册时间、最近登录时间）全部写入本地 `users` 表。
 
@@ -174,7 +174,7 @@ Browser ──HTTPS──►  │ Caddy                                   │
 Cookie 只携带随机会话令牌，会话本体存 SQLite，服务重启后登录态不丢失：
 
 ```text
-vibeforge_session = <32 字节随机令牌 base64url>
+reify_session = <32 字节随机令牌 base64url>
 ```
 
 - `sessions` 表存 `sha256(token)`，不存明文令牌；查到会话后联表校验用户是否禁用。
@@ -270,13 +270,13 @@ runtimes(
 - 用户禁用不删除项目；项目删除才级联删除运行时记录。用户删除默认不提供，先做禁用。
 - 项目 `meta.json` 同步写入 `owner_id`，作为文件层的第二道校验。
 - `events.jsonl`、构建/运行日志仍在项目目录，DB 只保存索引与状态。
-- `data/vibeforge.db` 及其 WAL 文件权限设为 `0600`；部署脚本在升级前做一次 SQLite 备份（`VACUUM INTO` 或文件复制），避免迁移失败丢账号。
+- `data/reify.db` 及其 WAL 文件权限设为 `0600`；部署脚本在升级前做一次 SQLite 备份（`VACUUM INTO` 或文件复制），避免迁移失败丢账号。
 
 ### 7.6 存储布局
 
 ```text
 data/
-  vibeforge.db
+  reify.db
   users/{uid}/projects/{pid}/
     meta.json
     events.jsonl
@@ -431,7 +431,7 @@ lib/db.js             # 可选：node:sqlite 封装
 
 **实施记录（Phase 2）**：
 
-- 已接入 OpenSandbox Server 1.1.x + Docker runtime；app 容器不挂 docker.sock，只有独立的 `vibeforge-sandbox` 容器持有。
+- 已接入 OpenSandbox Server 1.1.x + Docker runtime；app 容器不挂 docker.sock，只有独立的 `reify-sandbox` 容器持有。
 - 新增 `stack=react`：生成 Vite + React 源码，沙箱内执行 `npm install --ignore-scripts` 与 `npm run build`，流式回传 `build_started/build_log/build_done/build_failed`。
 - 构建产物通过 tar + base64 回传，原子安装到 `workspace/dist/`；`/p/{id}/` 发布 `dist/`。
 - Vite 模块 JS/CSS 在 CSP sandbox 下不带 Cookie，构建时给 asset URL 追加项目 `asset_key`，`/p/` 资源路由支持 capability key。
@@ -450,7 +450,7 @@ lib/db.js             # 可选：node:sqlite 封装
 
 - 已新增 `stack=next`：生成 Next.js App Router 源码，包含 `/api/notes` Route Handler；沙箱内 `npm ci` + `next build`，打包 `.next/standalone`。
 - 新增 `server/runtime.py`：为项目创建独立运行时沙箱，上传 standalone 产物，后台启动 `node server.js`，健康检查通过后记录 `running`；支持 start/stop 和空闲 10 分钟自动停止。
-- 新增 `/apps/{id}/` 预览代理，但由 `VIBEFORGE_SSR_PREVIEW` 控制，默认关闭；当前没有域名，路径预览与平台同源，不能作为公网方案。
+- 新增 `/apps/{id}/` 预览代理，但由 `REIFY_SSR_PREVIEW` 控制，默认关闭；当前没有域名，路径预览与平台同源，不能作为公网方案。
 - 当前 Docker runtime 的“休眠”是冷停止 + 冷启动，不是 MicroVM pause/resume。
 
 **实施记录（Phase 3 收口）**：
@@ -464,8 +464,8 @@ lib/db.js             # 可选：node:sqlite 封装
 
 - 平台已升级到多用户版本，旧项目自动迁移到管理员；HTTPS 12888 与 SSR 12889 同时可用。
 - 真实 LLM 生成 React 与 Next 均通过；Next standalone 构建需要 4 GiB 沙箱内存，1~2 GiB 会被内核 OOM kill。
-- 该宿主的 OpenSandbox egress sidecar 无法就绪（`dns`/`dns+nft` 均失败），当前 `VIBEFORGE_SANDBOX_EGRESS=open` 运行；沙箱仍无平台密钥、构建后销毁，但没有网络白名单。
-- sandbox server 需要同时接入 `vibeforge-net` 和默认 `bridge`，并使用 `resolve_internal=true` 代理到沙箱 execd；否则健康检查 502。
+- 该宿主的 OpenSandbox egress sidecar 无法就绪（`dns`/`dns+nft` 均失败），当前 `REIFY_SANDBOX_EGRESS=open` 运行；沙箱仍无平台密钥、构建后销毁，但没有网络白名单。
+- sandbox server 需要同时接入 `reify-net` 和默认 `bridge`，并使用 `resolve_internal=true` 代理到沙箱 execd；否则健康检查 502。
 
 ### Phase 4 — 托管沙箱与运营
 
@@ -485,7 +485,7 @@ lib/db.js             # 可选：node:sqlite 封装
 
 已确认（2026-10-23）：
 
-1. 账号：任意用户可自助注册；默认开放，可用 `VIBEFORGE_REGISTRATION=closed` 关闭。
+1. 账号：任意用户可自助注册；默认开放，可用 `REIFY_REGISTRATION=closed` 关闭。
 2. 持久化：用户资料、密码哈希、登录会话、项目归属、运行时记录全部存本地 SQLite；项目文件与事件存本地用户目录。
 3. 旧数据：全部归首个管理员。
 4. SSR：Next.js 全栈运行时，构建/运行都在沙箱内。

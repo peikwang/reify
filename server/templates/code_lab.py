@@ -49,7 +49,7 @@ pre{margin:0;padding:18px;font:11px/1.75 ui-monospace,SFMono-Regular,Menlo,monos
 
 BODY = """
 <div class="shell">
-  <nav><div class="brand"><i></i> VibeForge / Code Lab</div><div class="right">TOOLACT RUNTIME · LOCAL</div></nav>
+  <nav><div class="brand"><i></i> Reify / Code Lab</div><div class="right">TOOLACT RUNTIME · LOCAL</div></nav>
   <section class="hero"><div><div class="kicker">ALGORITHM / INTERACTIVE EXPLAINER</div><h1>{{HEADLINE}}</h1></div><p>{{TAGLINE}} {{PARAGRAPH}}</p></section>
   <section class="workspace">
     <div class="panel"><div class="panel-head"><div class="dots"><i></i><i></i><i></i></div><span>main.py</span><span>PYTHON 3.12</span></div><pre><code><span class="kw">def</span> <span class="fn">quick_sort</span>(items):

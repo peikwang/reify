@@ -17,18 +17,18 @@ import httpx
 ROOT = Path(__file__).resolve().parent.parent
 PORT = 18100
 BASE = f"http://127.0.0.1:{PORT}"
-WORK = Path(tempfile.mkdtemp(prefix="vibeforge-e2e-"))
+WORK = Path(tempfile.mkdtemp(prefix="reify-e2e-"))
 
 
 def env() -> dict[str, str]:
     return {
         **os.environ,
-        "VIBEFORGE_DATA": str(WORK / "data"),
-        "VIBEFORGE_PROJECTS": str(WORK / "legacy"),
-        "VIBEFORGE_COOKIE_SECURE": "0",
-        "VIBEFORGE_LLM_ENABLED": "0",
-        "VIBEFORGE_STEP_DELAY": "0.02",
-        "VIBEFORGE_ADMIN_PASSWORD": "e2e-admin-password",
+        "REIFY_DATA": str(WORK / "data"),
+        "REIFY_PROJECTS": str(WORK / "legacy"),
+        "REIFY_COOKIE_SECURE": "0",
+        "REIFY_LLM_ENABLED": "0",
+        "REIFY_STEP_DELAY": "0.02",
+        "REIFY_ADMIN_PASSWORD": "e2e-admin-password",
     }
 
 
@@ -145,11 +145,11 @@ def main() -> int:
         )
 
         print("5. restart persistence")
-        alice_cookie = alice.cookies.get("vibeforge_session")
+        alice_cookie = alice.cookies.get("reify_session")
         stop_server(process)
         process = start_server(log_path)
         restarted = httpx.Client(base_url=BASE, follow_redirects=False, timeout=30)
-        restarted.cookies.set("vibeforge_session", alice_cookie)
+        restarted.cookies.set("reify_session", alice_cookie)
         me = restarted.get("/api/auth/me").json()
         check(me["authenticated"] is True and me["user"]["username"] == "e2e_alice", "session survives restart")
         items = restarted.get("/api/projects").json()["items"]
@@ -160,7 +160,7 @@ def main() -> int:
         print("6. logout revokes the server-side session")
         check(restarted.post("/api/auth/logout").status_code == 200, "logout")
         stale = httpx.Client(base_url=BASE, follow_redirects=False, timeout=30)
-        stale.cookies.set("vibeforge_session", alice_cookie)
+        stale.cookies.set("reify_session", alice_cookie)
         check(stale.get("/api/auth/me").json()["authenticated"] is False, "old session rejected")
 
         print("\nE2E PASSED")

@@ -46,10 +46,10 @@ def test_genre_defaults(prompt: str, title: str):
 @pytest.mark.parametrize(
     ("prompt", "marker"),
     [
-        ("做一个贪吃蛇小游戏", "vibeforge-snake-best"),
-        ("做一个俄罗斯方块小游戏", "vibeforge-tetris-best"),
-        ("做一个飞机大战小游戏", "vibeforge-shooter-best"),
-        ("做一个打砖块小游戏", "vibeforge-breakout-best"),
+        ("做一个贪吃蛇小游戏", "reify-snake-best"),
+        ("做一个俄罗斯方块小游戏", "reify-tetris-best"),
+        ("做一个飞机大战小游戏", "reify-shooter-best"),
+        ("做一个打砖块小游戏", "reify-breakout-best"),
     ],
 )
 def test_each_genre_renders_a_self_contained_game(prompt: str, marker: str):

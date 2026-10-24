@@ -115,7 +115,7 @@ def verify_password(password: str, stored: str) -> bool:
     return hmac.compare_digest(actual, expected)
 
 
-_DUMMY_HASH = hash_password("vibeforge-dummy-password")
+_DUMMY_HASH = hash_password("reify-dummy-password")
 
 
 def _hash_token(token: str) -> str:
@@ -287,7 +287,7 @@ def bootstrap_admin() -> tuple[User, bool]:
     if existing:
         raise RuntimeError(
             f"user '{ADMIN_USERNAME}' already exists but is not an active admin; "
-            "set VIBEFORGE_ADMIN_USER to a different name"
+            "set REIFY_ADMIN_USER to a different name"
         )
     admin = db.db.create_user(
         username=ADMIN_USERNAME,

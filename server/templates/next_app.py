@@ -28,7 +28,7 @@ def build_files(brief: dict[str, Any], prompt: str, project_id: str) -> dict[str
 
     package_json = json.dumps(
         {
-            "name": "vibeforge-next-site",
+            "name": "reify-next-site",
             "private": True,
             "version": "1.0.0",
             "scripts": {
@@ -130,7 +130,7 @@ export default function Home() {{
     <div className="page">
       <header className="nav">
         <a className="brand" href="#top" aria-label="回到顶部">
-          <span className="brand-mark">V</span>
+          <span className="brand-mark">R</span>
           <span>{{title}}</span>
         </a>
         <nav className="nav-links">
@@ -206,7 +206,7 @@ export default function Home() {{
         <section className="cta">
           <p className="kicker">START SOMETHING</p>
           <h2>让下一个想法，<br />今天就能打开。</h2>
-          <p>{{title}} · 由 VibeForge 生成并在沙箱中运行</p>
+          <p>{{title}} · 由 Reify 生成并在沙箱中运行</p>
           <a className="button primary" href="#board">说说你的想法</a>
         </section>
       </main>
@@ -368,7 +368,7 @@ export async function POST(request: Request): Promise<Response> {
 
     readme = f"""# {title}
 
-由 VibeForge 生成的 Next.js App Router + TypeScript 全栈项目。
+由 Reify 生成的 Next.js App Router + TypeScript 全栈项目。
 
 - 服务端渲染页面
 - `/api/notes` Route Handler，数据保存在当前运行时进程内
