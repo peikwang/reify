@@ -1,6 +1,6 @@
 # VibeForge 产品与架构设计（2026-10-24）
 
-> 状态：当前分支 `feature/isolation`，代码基线 `0b935d3`。本文描述的是**当前已落地**的单机多用户版本，以及下一步和更远期的演进设想。
+> 状态：主干 `main` 已合并 `feature/isolation`（多用户隔离、沙箱、Next SSR）与 `feature/react-ts`（React + TypeScript 工作台、stack 自动路由）。本文描述的是**当前已落地**的单机多用户版本，以及下一步和更远期的演进设想。
 
 ---
 
@@ -28,13 +28,15 @@ VibeForge 是一个单机优先的个人设计 Agent，目标是把 Vibe Coding 
 
 ```text
 一句话描述
-  → 意图路由（选择能力 / 技术栈）
+  → 意图路由（能力 + 技术栈，显式选择或自动识别）
   → 创意 brief（模型给方向）
   → 模板 / 脚手架（生成可运行骨架）
   → 构建（静态直出 / React Vite / Next standalone）
   → 发布（/p/ 静态、/apps/ SSR、/s/ 分享）
   → 对话式二次修改
 ```
+
+技术栈可以由用户显式指定，也可以由 `server/stacks.py` 根据 prompt 自动识别 React/Next 意图；非网站能力或沙箱不可用时回退 `static`。
 
 ### 1.3 双模式
 
@@ -57,15 +59,21 @@ VibeForge 是一个单机优先的个人设计 Agent，目标是把 Vibe Coding 
 
 这样做的收益是**交付稳定、成本低、坏页面不会直接交给用户**；代价是**生成自由度有限**，目前 React/Next 只支持“网站”能力，非网站能力仍以固定模板为主。
 
-### 1.5 三种技术栈
+### 1.5 平台 UI 与三种生成栈
+
+平台自己的工作台 UI 是固定的 **React + TypeScript + Vite** 应用：源码在 `frontend/`，构建到 `web/dist`，由 FastAPI 同源托管；它不是按项目生成的产物。
+
+用户生成项目支持三种 stack：
 
 | Stack | 源码 | 构建 | 产物 | 访问方式 | 常驻 Node 运行时 |
 |---|---|---|---|---|---|
 | `static` | 模板直接渲染 | 无 | `index.html` + 资源 | `/p/{id}/` | 无 |
-| `react` | Vite + React 源码 | 沙箱内 `npm run build` | `dist/` 静态文件 | `/p/{id}/` | 无，Node 只参与构建 |
-| `next` | Next.js App Router 源码 | 沙箱内 `next build` | `.next/standalone` | `/apps/{id}/`（12889） | 有，独立 Node 沙箱 |
+| `react` | Vite + React + TypeScript | 沙箱内 `npm run build` | `dist/` 静态文件 | `/p/{id}/` | 无，Node 只参与构建 |
+| `next` | Next.js App Router + TypeScript | 沙箱内 `next build` | `.next/standalone` | `/apps/{id}/`（12889） | 有，独立 Node 沙箱 |
 
-> **关键区分**：React 的 Node 只参与构建，产物是静态 `dist/`；真正常驻的 Node 运行时只有 Next SSR 的 standalone 沙箱。两者不要混为一谈。
+技术栈可以显式指定，也可以由 `server/stacks.py` 自动识别 React/Next 意图；非网站能力或沙箱不可用时回退 `static`。
+
+> **关键区分**：平台 UI 的 React、用户生成项目的 React、Next 的 Node 运行时是三件不同的事。平台 UI 是固定的 Vite 应用；生成项目的 React 只做静态构建；只有 Next SSR 有常驻 Node 运行时。
 
 ---
 
@@ -83,12 +91,12 @@ VibeForge 是一个单机优先的个人设计 Agent，目标是把 Vibe Coding 
 
 | 维度 | 当前做法 | 说明 |
 |---|---|---|
-| 代码层 | `web/` 是前端，`server/` 是后端 | 目录边界清晰，前端只依赖 API |
-| 部署层 | 同一个 FastAPI 容器 | 没有独立前端服务，也没有 Node 前端构建 |
-| 通信 | REST `/api/*` + SSE 事件流 | 前端消费 JSON 和事件，不直接碰数据库 |
+| 代码层 | `frontend/` 是前端，`server/` 是后端 | 前端只依赖 REST/SSE，不直接碰数据库 |
+| 部署层 | 同一个 FastAPI 容器 | 没有独立前端服务；`web/dist` 由 FastAPI 托管 |
+| 通信 | REST `/api/*` + SSE 事件流 | 前端消费 JSON 和事件 |
 | 鉴权 | 服务端 Session + HttpOnly Cookie | 写请求做 Origin 校验，跨用户统一 404 |
-| 前端构建 | 原生 HTML/CSS/JS，无构建步骤 | FastAPI 直接托管 `web/` 静态文件 |
-| 发布 | 前后端随同一个应用发布 | 没有独立的前端版本和 CDN 链路 |
+| 前端构建 | React + TypeScript + Vite | `frontend/` 构建到 `web/dist`，随应用发布 |
+| 发布 | 前后端随同一个应用发布 | 没有独立前端版本和 CDN 链路 |
 
 为什么这样设计：
 
@@ -96,7 +104,7 @@ VibeForge 是一个单机优先的个人设计 Agent，目标是把 Vibe Coding 
 - 同源 Cookie、SSE 不需要处理 CORS；
 - 调试链路短，前端改动可以随应用一起验证。
 
-代价是前后端一起伸缩，前端没有独立发布能力。如果以后要“真分离”，第一步是把 `web/` 抽到 Caddy/CDN 或独立静态站点，API 保持 REST + SSE，而不是先拆微服务。
+代价是前后端一起伸缩，前端没有独立发布能力。如果以后要“真分离”，第一步是把 `frontend/` 的构建产物 `web/dist` 抽到 Caddy/CDN 或独立静态站点，API 保持 REST + SSE，而不是先拆微服务。
 
 ### 2.3 请求与发布拓扑
 
@@ -110,6 +118,15 @@ VibeForge 是一个单机优先的个人设计 Agent，目标是把 Vibe Coding 
   → Caddy :12889（只暴露 /apps/*）
   → FastAPI /apps/*（owner 校验 + 反向代理）
   → Next 运行时沙箱 :3000
+```
+
+平台 UI 的构建链路：
+
+```text
+frontend/ (React + TypeScript)
+  → vite build
+  → web/dist
+  → FastAPI 同源托管
 ```
 
 关键约束：
@@ -191,6 +208,8 @@ data/
 | 访问 | `/p/{id}/` 静态路由 | `/apps/{id}/` 反代到 Node |
 | 适用 | 纯前端站点 | 需要服务端接口/SSR 的全栈应用 |
 
+> 平台 UI 的 React 与生成项目的 React 是两套代码：前者是 `frontend/` 固定工作台，后者是 `workspace/` 里按模板生成的项目。不要把两者混为一谈。
+
 ### 2.6 隔离模型
 
 | 层 | 目标 | 当前手段 |
@@ -232,7 +251,7 @@ data/
 | 生成自由度 | 模板/脚手架固定 | React/Next 只支持网站能力，非网站能力仍是固定模板 |
 | 修复闭环 | 自检失败即终止 | 没有 Inspector → Builder 自动修复 |
 | 分享 | 静态/React 可用 | Next SSR 分享入口未开放 |
-| 55 Git | 部署目录无 `.git`；裸仓库只有 main/develop | 当前 `feature/isolation` 历史不在 55，直接改没有版本回滚 |
+| 55 Git | 部署目录 `/opt/vibeforge` 本身无 `.git`；完整仓库在 `/opt/vibeforge/repo` | 直接改运行目录仍无回滚；应优先在 repo 目录修改 |
 
 ---
 
@@ -250,7 +269,7 @@ data/
    强制每用户/全局活跃运行时配额；补齐空闲回收、存储清理、构建失败重试和运行时崩溃恢复。
 
 4. **55 的 Git 基线（已完成）**
-   `feature/isolation` 已合并到 `main` 并推送到 `/opt/git/vibeforge.git`；完整仓库（含 `.git`）已同步到 `/opt/vibeforge/repo`（容器 `/app/repo`），55 上的 Agent 可以直接改、可以回滚。
+   `feature/isolation` 与 `feature/react-ts` 已合并到 `main` 并推送到 `/opt/git/vibeforge.git`；完整仓库（含 `.git`）已同步到 `/opt/vibeforge/repo`（容器 `/app/repo`），55 上的 Agent 可以直接改、可以回滚。
 
 ### P1：把“生成—构建—运行—分享”闭环做顺
 
@@ -379,21 +398,24 @@ cost_per_project
 | `server/db.py` | SQLite schema、用户/会话/项目/运行时/审计 |
 | `server/events.py` | Task/Project 对象、事件流、用户工作区 |
 | `server/agent.py` | 五段式生成、React/Next 构建、二次修改、蓝绿切换 |
+| `server/stacks.py` | stack 解析、React/Next 意图识别与 static 回退 |
 | `server/sandbox.py` | OpenSandbox 客户端、构建、产物打包与校验 |
 | `server/runtime.py` | Next standalone 运行时、健康检查、空闲停止 |
 | `server/tools.py` | 文件快照、产物安装、静态部署 |
-| `server/templates/` | 八类能力模板 + Vite/React + Next 脚手架 |
-| `web/` | 原生 HTML/CSS/JS 工作台 |
+| `server/templates/` | 八类能力模板 + Vite/React + Next TypeScript 脚手架 |
+| `frontend/` | 平台工作台：React + TypeScript + Vite |
+| `web/dist/` | 平台 UI 构建产物，由 FastAPI 托管 |
 
 ## 附录 B：55 部署与直接编辑
 
 截至 2026-10-24：
 
-- `/opt/vibeforge` 是部署工作树，代码与 `feature/isolation` 的 `0b935d3` 一致（`main` 是 `5b79b31` 的合并提交）；
+- `/opt/vibeforge` 是部署工作树，运行的是 `feature/react-ts` 的 React + TypeScript 版本；`main` 已合并 `feature/isolation` 与 `feature/react-ts`；
 - 完整仓库（含 `.git`）同步在 `/opt/vibeforge/repo`，容器内路径是 `/app/repo`；`/opt/vibeforge` 本身仍不包含 `.git`；
-- `/opt/git/vibeforge.git` 是裸仓库；`main` 已合并 `feature/isolation`，包含最新部署；
-- `docs/isolation-design.md` 与仓库一致；`README.md` 在 55 上有一个由并行工作更新的更大版本，本次未覆盖，以仓库 `main` 中的 README 为准；`架构设计文档.md` 一致；
-- 直接在 55 上改代码是可行的：优先在 `/opt/vibeforge/repo` 里用 Git 修改；部署工作树 `/opt/vibeforge` 仍按原方式更新。静态文件通常立即生效，Python/模板改动需要 `docker restart vibeforge`，依赖变更需要重建镜像，`.runtime.env` 变更需要重建容器；
+- `/opt/git/vibeforge.git` 是裸仓库；`main` 已包含最新合并；
+- 仓库里有 `frontend/`（React + TypeScript 源码）、`docs/frontend-react-ts-design.md`、`docs/isolation-design.md` 和本设计文档；线上 `/opt/vibeforge/web/dist` 是前端构建产物；
+- 线上 `README.md` 比仓库 `main` 略旧，本次未覆盖；`docs/isolation-design.md` 与仓库一致；`架构设计文档.md` 一致；
+- 直接在 55 上改代码是可行的：优先在 `/opt/vibeforge/repo` 里用 Git 修改；部署工作树 `/opt/vibeforge` 按下面的方式更新。静态文件通常立即生效，Python/模板改动需要 `docker restart vibeforge`，依赖变更需要重建镜像，`.runtime.env` 变更需要重建容器；
 - 如果只想快速改运行中的代码，也可以直接改 `/opt/vibeforge`，但建议先在 `/opt/vibeforge/repo` 留一个可回滚的提交。
 
 ### B.1 推荐工作流
@@ -406,10 +428,19 @@ git pull
 git diff
 git add <files>
 git commit -m "..."
-# 同步到部署工作树（本地 rsync，不走远端）
-rsync -a --delete \
-  --exclude 'data/' --exclude '.venv/' --exclude '__pycache__/' \
-  /opt/vibeforge/repo/ /opt/vibeforge/
-# Python/模板改动
+
+# 后端 / 模板 / 文档
+rsync -a /opt/vibeforge/repo/server/ /opt/vibeforge/server/
+rsync -a /opt/vibeforge/repo/docs/ /opt/vibeforge/docs/
+
+# 前端：先同步源码，再在部署树里构建，输出到 /opt/vibeforge/web/dist
+rsync -a /opt/vibeforge/repo/frontend/ /opt/vibeforge/frontend/
+cd /opt/vibeforge/frontend
+npm ci
+npm run build
+
+# Python/模板改动后
 docker restart vibeforge
 ```
+
+> 不要用 `rsync --delete` 把仓库根目录直接覆盖 `/opt/vibeforge`，否则会删除 `web/dist`、`data/` 和密钥文件。完整发布仍建议走 `deploy_remote.sh` 或镜像构建。

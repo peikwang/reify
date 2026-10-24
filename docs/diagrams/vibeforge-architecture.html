@@ -75,12 +75,12 @@
   <main class="frame">
     <p class="eyebrow">SYSTEM ARCHITECTURE · 2026-10-24</p>
     <h1>VibeForge 多用户隔离架构</h1>
-    <p class="subtitle">前后端逻辑分离、物理同源；构建与运行时进入 OpenSandbox，平台与 SSR 分 origin。React 走 Vite 静态产物，Next 走 standalone Node 运行时。</p>
+    <p class="subtitle">前后端逻辑分离、物理同源；平台 UI 是 React + TypeScript + Vite，构建到 web/dist。生成项目分 static / React Vite / Next SSR，构建与运行时进入 OpenSandbox。</p>
 
     <figure class="diagram">
       <svg viewBox="0 0 1280 760" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="vibeforge-arch-title vibeforge-arch-desc">
         <title id="vibeforge-arch-title">VibeForge 多用户隔离架构</title>
-        <desc id="vibeforge-arch-desc">展示浏览器、Caddy、FastAPI 前后端、SQLite、OpenSandbox 构建与 Node 运行时沙箱，以及平台与 SSR 两个 origin 的关系。</desc>
+        <desc id="vibeforge-arch-desc">展示浏览器、Caddy、React TypeScript 前端、FastAPI 后端、SQLite、OpenSandbox 构建与 Node 运行时沙箱，以及平台与 SSR 两个 origin 的关系。</desc>
 
         <defs>
           <marker id="vf-arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
@@ -194,8 +194,8 @@
         <rect x="792" y="136" width="180" height="96" rx="6" fill="#ffffff" stroke="#151713" stroke-width="1"/>
         <rect x="800" y="144" width="28" height="12" rx="2" fill="transparent" stroke="rgba(21,23,19,0.40)" stroke-width="0.8"/>
         <text x="814" y="153" fill="rgba(21,23,19,0.70)" font-size="7" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em">WEB</text>
-        <text x="880" y="176" fill="#151713" font-size="12" font-weight="600" font-family="'Geist', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="middle">前端 web/</text>
-        <text x="880" y="194" fill="#66705f" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">HTML/CSS/JS · no build</text>
+        <text x="880" y="176" fill="#151713" font-size="12" font-weight="600" font-family="'Geist', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif" text-anchor="middle">前端 React UI</text>
+        <text x="880" y="194" fill="#66705f" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">Vite + TS → web/dist</text>
         <text x="880" y="210" fill="#66705f" font-size="9" font-family="'Geist Mono', monospace" text-anchor="middle">served by FastAPI</text>
 
         <!-- Data -->
@@ -270,7 +270,7 @@
       </svg>
     </figure>
 
-    <footer>Source: vibeforge-isolation @ 0b935d3 · Diagram Design / VibeForge profile · 2026-10-24</footer>
+    <footer>Source: vibeforge main · Diagram Design / VibeForge profile · 2026-10-24</footer>
   </main>
 </body>
 </html>
