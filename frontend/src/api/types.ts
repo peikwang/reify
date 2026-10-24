@@ -29,6 +29,44 @@ export type TaskStatus =
   | "error"
   | "interrupted";
 
+export interface TaskCheck {
+  name: string;
+  ok: boolean;
+  detail: string;
+}
+
+export interface TaskBuild {
+  files: number;
+  bytes: number;
+  duration_ms: number;
+  sandbox_id?: string;
+}
+
+export interface RuntimeState {
+  status: string;
+  revision?: number | null;
+  started_at?: string | null;
+  last_active_at?: string | null;
+  preview?: boolean;
+  url?: string | null;
+  error?: string | null;
+}
+
+export interface TaskResult {
+  url?: string | null;
+  title?: string;
+  capability?: string;
+  source?: string;
+  elapsed_ms?: number;
+  revision?: number;
+  stack?: Stack;
+  runtime?: RuntimeState | null;
+  build?: TaskBuild;
+  checks?: TaskCheck[];
+  assets?: number;
+  media?: Record<string, unknown>;
+}
+
 export interface Task {
   id: string;
   prompt: string;
@@ -36,7 +74,7 @@ export interface Task {
   status: TaskStatus;
   created_at: string;
   updated_at: string;
-  result: Record<string, unknown> | null;
+  result: TaskResult | null;
   error: string | null;
   source: string;
   title: string;
@@ -61,6 +99,46 @@ export interface TaskEvent {
   seq: number;
   type: string;
   ts: string;
+  message?: string;
+  prompt?: string;
+  capability?: string;
+  label?: string;
+  description?: string;
+  mode_hint?: string;
+  summary?: string;
+  title?: string;
+  detail?: string;
+  index?: number;
+  steps?: string[];
+  name?: string;
+  ok?: boolean;
+  url?: string | null;
+  revision?: number;
+  source?: string;
+  instruction?: string;
+  checks?: TaskCheck[];
+  line?: string;
+  files?: number;
+  bytes?: number;
+  duration_ms?: number;
+  path?: string;
+  before?: string;
+  after?: string;
+  created?: boolean;
+  reason?: string;
+  language?: string;
+  args?: Record<string, unknown>;
+  status?: string;
+  progress?: number;
+  total?: number;
+  elapsed?: number;
+  image?: string;
+  port?: number;
+  mime?: string;
+}
+
+export interface RuntimeResponse {
+  runtime: RuntimeState;
 }
 
 export interface Capability {
