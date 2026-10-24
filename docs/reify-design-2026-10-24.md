@@ -1,8 +1,8 @@
 # Reify 产品与架构设计（2026-10-24）
 
 > 品牌：Reify（原 VibeForge）。
-> 当前线上：55 使用 `/opt/reify`、`reify` / `reify-caddy` / `reify-sandbox`、`reify-net`、`REIFY_*`、`data/reify.db`；旧 VibeForge 容器/网络已清理。
-> 代码：`reify` 分支已完成品牌、7 模板与通用生成；本次合并到 `main`，并把完整仓库同步到 `/opt/reify/repo`。
+> 当前线上：55 使用 `/data/reify-deploy`、`reify` / `reify-caddy` / `reify-sandbox`、`reify-net`、`REIFY_*`、`data/reify.db`；旧 VibeForge 容器/网络已清理。
+> 代码：`reify` 分支已完成品牌、7 模板与通用生成；本次合并到 `main`，并把完整仓库同步到 `/data/reify-deploy/repo`。
 > 本文描述当前 Reify 架构、产品方向和后续演进；历史 `vibeforge` 路径只用于回溯。
 
 ---
@@ -272,9 +272,9 @@ data/
 | 生成自由度 | 内置模板 + 通用生成 | 长尾生成受 spec/自检约束；Next 仍是高级旁路 |
 | 修复闭环 | 通用生成有一轮修复 + 回退 | 跨阶段 Inspector → Builder 自动修复仍未做 |
 | 分享 | 静态/React 自动签发 `/s/<token>/` | Next 公开链接仍待 12889 token 方案 |
-| 品牌/部署命名 | Reify：`/opt/reify` + `reify` / `reify-caddy` / `reify-sandbox` + `reify-net` + `REIFY_*` | 旧 VibeForge 容器/网络已清理 |
+| 品牌/部署命名 | Reify：`/data/reify-deploy` + `reify` / `reify-caddy` / `reify-sandbox` + `reify-net` + `REIFY_*` | 旧 VibeForge 容器/网络已清理 |
 | 线上版本 | 55 已迁移到 Reify（7 模板 + 通用生成） | 本文与 repo 同步 |
-| 55 Git | 部署目录 `/opt/reify` 本身无 `.git`；完整仓库同步到 `/opt/reify/repo` | 直接改运行目录仍无回滚；应优先在 repo 目录修改 |
+| 55 Git | 部署目录 `/data/reify-deploy` 本身无 `.git`；完整仓库同步到 `/data/reify-deploy/repo` | 直接改运行目录仍无回滚；应优先在 repo 目录修改 |
 
 ---
 
@@ -292,10 +292,10 @@ data/
    强制每用户/全局活跃运行时配额；补齐空闲回收、存储清理、构建失败重试和运行时崩溃恢复。
 
 4. **55 的 Git 基线（已完成）**
-   `feature/isolation`、`feature/react-ts` 与 `reify` 已合并到 `main`；完整仓库（含 `.git`）同步到 `/opt/reify/repo`（容器 `/app/repo`），55 上的 Agent 可以直接改、可以回滚。
+   `feature/isolation`、`feature/react-ts` 与 `reify` 已合并到 `main`；完整仓库（含 `.git`）同步到 `/data/reify-deploy/repo`（容器 `/app/repo`），55 上的 Agent 可以直接改、可以回滚。
 
 5. **Reify 部署迁移（已完成 2026-10-24 20:30）**
-   已完成 `REIFY_*`、`/opt/reify`、`reify` / `reify-caddy` / `reify-sandbox`、`reify-net`、`data/reify.db` 迁移；旧 VibeForge 容器/网络已清理。剩余：公网域名/子域名网关、egress allowlist、运行时配额。
+   已完成 `REIFY_*`、`/data/reify-deploy`、`reify` / `reify-caddy` / `reify-sandbox`、`reify-net`、`data/reify.db` 迁移；旧 VibeForge 容器/网络已清理。剩余：公网域名/子域名网关、egress allowlist、运行时配额。
 
 ### P1：把“生成—构建—运行—分享”闭环做顺
 
@@ -442,19 +442,19 @@ cost_per_project
 
 截至 2026-10-24：
 
-- 线上 `/opt/reify` 运行 Reify（React + TypeScript + 7 模板 + 通用生成），容器为 `reify` / `reify-caddy` / `reify-sandbox`，环境变量为 `REIFY_*`，数据库为 `data/reify.db`；
-- 完整仓库（含 `.git`）同步在 `/opt/reify/repo`，容器内路径是 `/app/repo`；`/opt/reify` 本身仍不包含 `.git`；
+- 线上 `/data/reify-deploy` 运行 Reify（React + TypeScript + 7 模板 + 通用生成），容器为 `reify` / `reify-caddy` / `reify-sandbox`，环境变量为 `REIFY_*`，数据库为 `data/reify.db`；
+- 完整仓库（含 `.git`）同步在 `/data/reify-deploy/repo`，容器内路径是 `/app/repo`；`/data/reify-deploy` 本身仍不包含 `.git`；
 - `/opt/git/vibeforge.git` 是历史裸仓库名；`main` 已合并 `reify`，包含最新部署；
-- 仓库里有 `frontend/`（React + TypeScript 源码）、`docs/frontend-react-ts-design.md`、`docs/isolation-design.md`、`docs/reify-design-2026-10-24.md`；线上 `/opt/reify/web/dist` 是前端构建产物；
+- 仓库里有 `frontend/`（React + TypeScript 源码）、`docs/frontend-react-ts-design.md`、`docs/isolation-design.md`、`docs/reify-design-2026-10-24.md`；线上 `/data/reify-deploy/web/dist` 是前端构建产物；
 - 线上 `README.md` 是 Reify 版本；`docs/` 同步后与仓库一致；
-- 直接在 55 上改代码是可行的：优先在 `/opt/reify/repo` 里用 Git 修改；线上部署树 `/opt/reify` 按下面的方式更新。静态文件通常立即生效，Python/模板改动需要 `docker restart reify`，依赖变更需要重建镜像，`.runtime.env` 变更需要重建容器；
-- 如果只想快速改运行中的代码，也可以直接改 `/opt/reify`，但建议先在 `/opt/reify/repo` 留一个可回滚的提交。
+- 直接在 55 上改代码是可行的：优先在 `/data/reify-deploy/repo` 里用 Git 修改；线上部署树 `/data/reify-deploy` 按下面的方式更新。静态文件通常立即生效，Python/模板改动需要 `docker restart reify`，依赖变更需要重建镜像，`.runtime.env` 变更需要重建容器；
+- 如果只想快速改运行中的代码，也可以直接改 `/data/reify-deploy`，但建议先在 `/data/reify-deploy/repo` 留一个可回滚的提交。
 
 ### B.1 推荐工作流
 
 ```bash
 # 在容器内或宿主机上
-cd /opt/reify/repo
+cd /data/reify-deploy/repo
 git pull
 # 修改代码
 git diff
@@ -462,12 +462,12 @@ git add <files>
 git commit -m "..."
 
 # 后端 / 模板 / 文档
-rsync -a /opt/reify/repo/server/ /opt/reify/server/
-rsync -a /opt/reify/repo/docs/ /opt/reify/docs/
+rsync -a /data/reify-deploy/repo/server/ /data/reify-deploy/server/
+rsync -a /data/reify-deploy/repo/docs/ /data/reify-deploy/docs/
 
-# 前端：先同步源码，再在部署树里构建，输出到 /opt/reify/web/dist
-rsync -a /opt/reify/repo/frontend/ /opt/reify/frontend/
-cd /opt/reify/frontend
+# 前端：先同步源码，再在部署树里构建，输出到 /data/reify-deploy/web/dist
+rsync -a /data/reify-deploy/repo/frontend/ /data/reify-deploy/frontend/
+cd /data/reify-deploy/frontend
 npm ci
 npm run build
 
@@ -475,8 +475,8 @@ npm run build
 docker restart reify
 ```
 
-> 不要用 `rsync --delete` 把仓库根目录直接覆盖 `/opt/reify`，否则会删除 `web/dist`、`data/` 和密钥文件。完整发布仍建议走 `deploy_remote.sh` 或镜像构建。
+> 不要用 `rsync --delete` 把仓库根目录直接覆盖 `/data/reify-deploy`，否则会删除 `web/dist`、`data/` 和密钥文件。完整发布仍建议走 `deploy_remote.sh` 或镜像构建。
 
 ### B.2 历史 VibeForge 目录
 
-历史 `/opt/vibeforge` 仅用于回溯，旧容器/网络已清理。需要回滚时使用 `/opt/reify/backups` 或旧镜像，不要重新启动旧 VibeForge 容器。
+历史 `/opt/vibeforge` 仅用于回溯，旧容器/网络已清理。需要回滚时使用 `/data/reify-deploy/backups` 或旧镜像，不要重新启动旧 VibeForge 容器。

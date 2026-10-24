@@ -268,20 +268,20 @@ REIFY_E2E_BASE=https://117.148.166.55:12888 \
 ssh root@117.148.166.55
 
 docker run --rm --network reify-net \
-  -v /opt/reify:/app -w /app \
-  --env-file /opt/reify/.runtime.env \
+  -v /data/reify-deploy:/app -w /app \
+  --env-file /data/reify-deploy/.runtime.env \
   --entrypoint python3 reify-app:latest \
   tests/e2e_react_sandbox.py
 
 docker run --rm --network reify-net \
-  -v /opt/reify:/app -w /app \
-  --env-file /opt/reify/.runtime.env \
+  -v /data/reify-deploy:/app -w /app \
+  --env-file /data/reify-deploy/.runtime.env \
   --entrypoint python3 reify-app:latest \
   tests/e2e_next_ssr.py
 
 docker run --rm --network reify-net \
-  -v /opt/reify:/app -w /app \
-  --env-file /opt/reify/.runtime.env \
+  -v /data/reify-deploy:/app -w /app \
+  --env-file /data/reify-deploy/.runtime.env \
   --entrypoint python3 reify-app:latest \
   tests/e2e_refine.py
 ```
@@ -329,8 +329,8 @@ REIFY_LLM_API_KEY=sk-your-key
 REIFY_LLM_ENABLED=1
 EOF
 
-scp ~/.reify_llm.env root@117.148.166.55:/opt/reify/.llm.env
-ssh root@117.148.166.55 'chmod 600 /opt/reify/.llm.env'
+scp ~/.reify_llm.env root@117.148.166.55:/data/reify-deploy/.llm.env
+ssh root@117.148.166.55 'chmod 600 /data/reify-deploy/.llm.env'
 cd reify && ./deploy_remote.sh root@117.148.166.55 12888
 ```
 
@@ -339,7 +339,7 @@ cd reify && ./deploy_remote.sh root@117.148.166.55 12888
 如果只想用一次，测完后删除凭据并重建容器：
 
 ```bash
-ssh root@117.148.166.55 'shred -u /opt/reify/.llm.env /opt/reify/.runtime.env'
+ssh root@117.148.166.55 'shred -u /data/reify-deploy/.llm.env /data/reify-deploy/.runtime.env'
 rm -f ~/.reify_llm.env
 cd reify && ./deploy_remote.sh root@117.148.166.55 12888
 ```
@@ -504,7 +504,7 @@ reify/
 | `REIFY_MEDIA_API_BASE/KEY` | 继承 LLM | 图片/视频接口 |
 | `REIFY_MAX_STORAGE_PER_USER` | `1073741824` | 每用户存储上限（1 GB） |
 
-完整列表见 [.env.example](.env.example)。部署时敏感变量写入 `/opt/reify/.auth.env`、`.sandbox.env`、`.llm.env`，由脚本合并为 600 权限的 `.runtime.env`。
+完整列表见 [.env.example](.env.example)。部署时敏感变量写入 `/data/reify-deploy/.auth.env`、`.sandbox.env`、`.llm.env`，由脚本合并为 600 权限的 `.runtime.env`。
 
 ## 远程部署（HTTPS / Caddy）
 
@@ -522,14 +522,14 @@ cd reify
 ./deploy_remote.sh root@117.148.166.55 12888
 ```
 
-如果目标机器上已有旧的 `/opt/vibeforge` 部署，脚本会自动做一次迁移：复制数据到 `/opt/reify`、把 `vibeforge.db` 复制为 `reify.db`、把环境变量前缀改为 `REIFY_`、将旧运行时标记为 stopped；新栈健康后再删除旧 app/Caddy/sandbox 容器。旧目录会保留作为回滚备份。由于 Cookie 名从 `vibeforge_session` 改为 `reify_session`，所有用户需要重新登录。迁移只在 `/opt/reify/data` 不存在时执行；不需要删除旧容器时可设置 `REIFY_REMOVE_LEGACY=0`。
+如果目标机器上已有旧的 `/opt/vibeforge` 部署，脚本会自动做一次迁移：复制数据到 `/data/reify-deploy`、把 `vibeforge.db` 复制为 `reify.db`、把环境变量前缀改为 `REIFY_`、将旧运行时标记为 stopped；新栈健康后再删除旧 app/Caddy/sandbox 容器。旧目录会保留作为回滚备份。由于 Cookie 名从 `vibeforge_session` 改为 `reify_session`，所有用户需要重新登录。迁移只在 `/data/reify-deploy/data` 不存在时执行；不需要删除旧容器时可设置 `REIFY_REMOVE_LEGACY=0`。
 
 脚本会：
 
-1. 同步源码到 `/opt/reify`
+1. 同步源码到 `/data/reify-deploy`
 2. 用 `python:3.12-slim` 构建 `reify-app:latest`（内部多阶段用 Node 构建 `web/dist`）
-3. 把镜像里的前端产物复制到宿主 `/opt/reify/web/dist`（应用容器把 `/opt/reify` 挂载为 `/app`）
-4. 备份 `/opt/reify/data/reify.db` 到 `/opt/reify/backups/`
+3. 把镜像里的前端产物复制到宿主 `/data/reify-deploy/web/dist`（应用容器把 `/data/reify-deploy` 挂载为 `/app`）
+4. 备份 `/data/reify-deploy/data/reify.db` 到 `/data/reify-deploy/backups/`
 5. 生成/复用 `.auth.env`、`.sandbox.env`，启动或复用 `reify-sandbox`
 6. 替换 `reify` 与 `reify-caddy`，保留沙箱容器
 7. 校验 `/api/health`、未登录 `/api/projects` 返回 401、`/login` 返回 React 入口
@@ -537,13 +537,13 @@ cd reify
 首次启动的管理员密码在：
 
 ```text
-root@<host>:/opt/reify/.auth.env
+root@<host>:/data/reify-deploy/.auth.env
 ```
 
 ### 数据、备份与回滚
 
-- 数据全部在宿主 `/opt/reify/data/`，容器重建不会丢失
-- 每次部署前自动备份 SQLite 到 `/opt/reify/backups/`；建议保留 7 天并定期复制到宿主机之外
+- 数据全部在宿主 `/data/reify-deploy/data/`，容器重建不会丢失
+- 每次部署前自动备份 SQLite 到 `/data/reify-deploy/backups/`；建议保留 7 天并定期复制到宿主机之外
 - 项目产物体积受 `REIFY_MAX_STORAGE_PER_USER` 限制（默认 1 GB/用户）
 - 回滚：切回上一个 Git 版本重新执行部署脚本；数据库备份在 `backups/`，恢复时先停 `reify` 再替换 `data/reify.db`
 
@@ -575,9 +575,9 @@ curl -kfsS https://<host>:12888/api/health
 docker exec reify python3 -c "import sqlite3; c=sqlite3.connect('/app/data/reify.db'); print(c.execute('select count(*) from users').fetchone(), c.execute('select count(*) from projects').fetchone())"
 
 # 备份与恢复（停服务后替换）
-ls -lt /opt/reify/backups | head
+ls -lt /data/reify-deploy/backups | head
 docker stop reify
-cp /opt/reify/backups/reify-<stamp>.db /opt/reify/data/reify.db
+cp /data/reify-deploy/backups/reify-<stamp>.db /data/reify-deploy/data/reify.db
 docker start reify
 ```
 
