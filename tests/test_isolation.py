@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import json
 import os
 import tarfile
 import tempfile
@@ -185,6 +186,15 @@ def test_react_artifact_validation_and_tar_escape():
     )
     assert "package.json" in source
     assert "package-lock.json" in source and source["package-lock.json"]
+    assert "src/main.tsx" in source
+    assert "src/App.tsx" in source
+    assert "tsconfig.json" in source
+    assert "vite.config.ts" in source
+    assert not any(path.endswith((".jsx", ".ts.jsx")) for path in source)
+    package = json.loads(source["package.json"])
+    assert "tsc --noEmit" in package["scripts"]["build"]
+    assert "typescript" in package["devDependencies"]
+    assert '"jsx": "react-jsx"' in source["tsconfig.json"]
     checks = react_checks_files(
         {"index.html": b'<div id="root"></div>', "assets/app.js": b"bundle"}
     )
@@ -212,9 +222,16 @@ def test_next_scaffold_and_artifact_checks():
         "prompt",
         "abc123",
     )
-    assert "app/page.jsx" in source
-    assert "app/api/notes/route.js" in source
+    assert "app/page.tsx" in source
+    assert "app/layout.tsx" in source
+    assert "app/NoteBoard.tsx" in source
+    assert "app/api/notes/route.ts" in source
+    assert "tsconfig.json" in source
+    assert "next-env.d.ts" in source
     assert "next.config.mjs" in source
+    assert not any(path.endswith((".jsx", ".ts.jsx")) for path in source)
+    package = json.loads(source["package.json"])
+    assert "typescript" in package["devDependencies"]
     assert source["package-lock.json"]
     checks = next_checks_files(
         {

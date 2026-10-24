@@ -616,9 +616,9 @@ async def refine_project(project_id: str, payload: RefineRequest, request: Reque
         if task.status in {"queued", "running", "deploying"}:
             raise HTTPException(status_code=409, detail="task is still running")
         if task.stack == "next":
-            required = task.workspace / "app" / "page.jsx"
+            required = task.workspace / "app" / "page.tsx"
         elif task.stack == "react":
-            required = task.workspace / "src" / "App.jsx"
+            required = task.workspace / "src" / "App.tsx"
         else:
             required = task.workspace / "index.html"
         if not required.exists():

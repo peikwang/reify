@@ -486,7 +486,7 @@ async def _refine_failed(task: Task, message: str) -> None:
 async def _run_source_refine(task: Task, instruction: str, revision: int) -> None:
     workspace = Workspace(task)
     is_next = task.stack == "next"
-    page_path = "app/page.jsx" if is_next else "src/App.jsx"
+    page_path = "app/page.tsx" if is_next else "src/App.tsx"
     style_path = "app/globals.css" if is_next else "src/styles.css"
     style_words = ("颜色", "配色", "字体", "字号", "间距", "留白", "样式", "主题", "背景", "css", "style")
     target_path = style_path if any(word in instruction.lower() for word in style_words) else page_path
@@ -502,7 +502,7 @@ async def _run_source_refine(task: Task, instruction: str, revision: int) -> Non
         original,
         instruction,
         task.capability,
-        "Next.js App Router JSX" if is_next else "React JSX",
+        "Next.js App Router TypeScript (TSX/TS)" if is_next else "React TypeScript (TSX)",
     )
     if not result:
         await _refine_failed(task, "模型没有返回可应用的源码修改，已保留原运行时。")
@@ -578,7 +578,7 @@ async def _run_source_refine(task: Task, instruction: str, revision: int) -> Non
 
 def _collect_source_files(task: Task) -> dict[str, str]:
     skip_dirs = {"dist", "runtime", "node_modules", ".next", "assets", ".git", "__pycache__"}
-    suffixes = {".js", ".jsx", ".mjs", ".json", ".css", ".md", ".html"}
+    suffixes = {".js", ".jsx", ".mjs", ".ts", ".tsx", ".json", ".css", ".md", ".html"}
     files: dict[str, str] = {}
     for path in task.workspace.rglob("*"):
         if not path.is_file():
