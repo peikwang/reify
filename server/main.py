@@ -299,7 +299,7 @@ async def auth_guard(request: Request, call_next):
         response.headers["Content-Security-Policy"] = (
             "sandbox allow-scripts allow-forms allow-popups allow-modals allow-downloads"
         )
-    if path == "/p" or path.startswith("/p/"):
+    if path == "/p" or path.startswith(("/p/", "/s/")):
         # Vite emits module scripts with crossorigin; the CSP sandbox gives the page
         # an opaque origin, so its own assets need a CORS-permitted response.
         response.headers["Access-Control-Allow-Origin"] = "*"

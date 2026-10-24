@@ -141,9 +141,12 @@ def test_react_project_public_link_serves_dist_assets(client: TestClient):
     assert task.share_token
     anonymous = TestClient(main_module.app)
     base = f"/s/{task.share_token}/"
-    assert anonymous.get(base).status_code == 200
+    index = anonymous.get(base)
+    assert index.status_code == 200
+    assert index.headers["access-control-allow-origin"] == "*"
     asset = anonymous.get(base + "assets/index.js")
     assert asset.status_code == 200
+    assert asset.headers["access-control-allow-origin"] == "*"
     assert "public" in asset.text
 
 
