@@ -102,9 +102,9 @@ Next 是高级旁路：需要 4Gi 构建沙箱、独立 12889 origin、运行时
 
 ### 2.1 总览
 
-![Reify 当前架构](diagrams/reify-architecture.svg)
+![Reify 前后端分离架构](diagrams/reify-architecture.svg)
 
-> 图 1：Reify 当前架构。可编辑源：[reify-architecture.html](diagrams/reify-architecture.html)；矢量图：[reify-architecture.svg](diagrams/reify-architecture.svg)。
+> 图 1：Reify 前后端分离架构。可编辑源：[reify-architecture.html](diagrams/reify-architecture.html)；矢量图：[reify-architecture.svg](diagrams/reify-architecture.svg)。
 
 ### 2.2 前后端是怎么分离的
 
