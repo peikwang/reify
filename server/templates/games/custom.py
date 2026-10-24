@@ -9,7 +9,7 @@ from .spec import build_spec
 logger = logging.getLogger("reify.games")
 
 _EXTERNAL_RESOURCE = re.compile(
-    r"""(?:(?:src|href)\s*=\s*["']?\s*(?:https?:)?//|url\(\s*["']?https?://|@import\s+["']?https?://|import\s*\(\s*["']https?://)""",
+    r"""(?:src\s*=\s*["']?\s*(?:https?:)?//|url\(\s*["']?https?://|@import\s+["']?https?://|import\s*\(\s*["']https?://|<link[^>]+href\s*=\s*["']?\s*(?:https?:)?//)""",
     re.IGNORECASE,
 )
 _NETWORK_CALL = re.compile(

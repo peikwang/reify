@@ -1,6 +1,6 @@
 # Reify
 
-> 一句话，把想法变成现实。One sentence. Made real. 一句话生成网站、简历、小游戏、旅游攻略、图片、视频制作和编程演示，并把成品直接部署到自己的 Agent Server。
+> One sentence. Made real. 一句话生成网站、简历、小游戏、旅游攻略、图片、视频制作和编程演示，并把成品直接部署到自己的 Agent Server。
 
 Reify 是一个单机优先的个人设计 Agent。它把自然语言拆成计划，逐步写文件，展示代码 Diff 与 Agent 思考流，跑结构/交互/语法自检，最后发布到 `/p/{id}/`。当前版本支持多用户自助注册，账号、会话和项目归属全部持久化在本机 SQLite，每个用户只能访问自己的项目。
 
@@ -162,7 +162,7 @@ REIFY_SSR_PORT=12889 \
 ```
 
 ```bash
-# 后端单测（74 项）
+# 后端单测（75 项）
 .venv/bin/python -m pytest -q
 
 # 前端组件/Reducer/SSE 测试（57 项）+ 类型检查 + 构建
@@ -186,6 +186,11 @@ REIFY_E2E_BASE=https://117.148.166.55:12888 \
 # 已部署环境 Next 运行时 UI：真实构建 -> 启动 -> 12889 iframe -> 服务端留言
 REIFY_E2E_BASE=https://117.148.166.55:12888 \
   .venv/bin/python tests/e2e_next_live.py
+
+# 已部署环境通用模板：网站 / 简历 / 攻略 / 编程（真实 LLM）
+REIFY_E2E_BASE=https://117.148.166.55:12888 \
+  .venv/bin/python tests/e2e_longtail_live.py
+# 只跑其中几类：REIFY_E2E_CASES=resume,code
 ```
 
 `tests/e2e_react_sandbox.py`、`tests/e2e_next_ssr.py`、`tests/e2e_refine.py` 需要可用的 OpenSandbox，最好在 55 机器的内部网络里运行：

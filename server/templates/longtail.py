@@ -196,7 +196,7 @@ def build_spec(capability: str, brief: dict[str, Any], prompt: str) -> PageSpec:
 def _external_resource(html: str) -> bool:
     return bool(
         re.search(
-            r"""(?:(?:src|href)\s*=\s*["']?\s*(?:https?:)?//|url\(\s*["']?https?://|@import\s+["']?https?://|import\s*\(\s*["']https?://)""",
+            r"""(?:src\s*=\s*["']?\s*(?:https?:)?//|url\(\s*["']?https?://|@import\s+["']?https?://|import\s*\(\s*["']https?://|<link[^>]+href\s*=\s*["']?\s*(?:https?:)?//)""",
             html,
             re.IGNORECASE,
         )
@@ -250,7 +250,12 @@ def validate_page_html(capability: str, html: str) -> list[str]:
         if "addeventlistener" not in lowered and "onclick" not in lowered:
             problems.append("缺少每日内容切换交互")
     elif capability == "code":
-        if "<pre" not in lowered and "<code" not in lowered:
+        has_code_panel = any(
+            token in lowered
+            for token in ("<pre", "<code", "<textarea", 'class="code', "class='code", 'id="code', "id='code")
+        )
+        has_code_text = "def " in lowered and "<script" in lowered
+        if not (has_code_panel or has_code_text):
             problems.append("缺少代码展示区")
         if "<script" not in lowered:
             problems.append("缺少交互脚本")
