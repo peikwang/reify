@@ -17,6 +17,12 @@ _REACT_INTENT = re.compile(
     r"|(?:react|vite)\s*的?\s*(?:官网|网站|应用|项目|源码)",
     re.IGNORECASE,
 )
+_PERSONAL_MARKER = re.compile(r"(?:个人|我的|personal|my\b)", re.IGNORECASE)
+_NON_PERSONAL_MARKER = re.compile(
+    r"(?:公司|团队|企业|工作室|机构|品牌方|organization|company|team|studio)",
+    re.IGNORECASE,
+)
+_PORTFOLIO_MARKER = re.compile(r"(?:作品集|portfolio|博客|blog)", re.IGNORECASE)
 
 
 def detect_source_stack(prompt: str) -> str | None:
@@ -27,6 +33,14 @@ def detect_source_stack(prompt: str) -> str | None:
     return None
 
 
+def is_personal_website(prompt: str) -> bool:
+    if _PERSONAL_MARKER.search(prompt):
+        return True
+    if _NON_PERSONAL_MARKER.search(prompt):
+        return False
+    return bool(_PORTFOLIO_MARKER.search(prompt))
+
+
 def resolve_stack(capability: str, prompt: str, requested: str | None = None) -> str:
     if capability not in SOURCE_CAPABILITIES:
         return "static"
@@ -34,4 +48,9 @@ def resolve_stack(capability: str, prompt: str, requested: str | None = None) ->
         return requested
     if requested == "static":
         return "static"
-    return detect_source_stack(prompt) or "static"
+    detected = detect_source_stack(prompt)
+    if detected:
+        return detected
+    if is_personal_website(prompt):
+        return "react"
+    return "static"
