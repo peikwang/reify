@@ -78,18 +78,21 @@ async def render(brief: dict[str, Any], prompt: str) -> str | None:
     if not llm_enabled():
         return None
     spec = build_spec(brief, prompt)
-    html = await generate_game_page(spec.as_dict(), prompt)
-    if html:
+    feedback = ""
+    for attempt in range(2):
+        html = await generate_game_page(spec.as_dict(), prompt, feedback)
+        if not html:
+            feedback = (
+                "上一次没有返回完整 HTML 文档。请直接输出从 <!DOCTYPE html> 开始、"
+                "以 </html> 结束的完整单文件游戏，不要解释，也不要在 HTML 前后输出任何文字。"
+            )
+            continue
         problems = validate_game_html(html)
         if not problems:
             return _stamp(html)
-        logger.info("custom game failed validation: %s", problems)
-        html = await generate_game_page(
-            spec.as_dict(), prompt, feedback="\n".join(f"- {item}" for item in problems)
+        logger.info("custom game validation attempt %s: %s", attempt + 1, problems)
+        feedback = "上一次输出未通过自检，请完整重写并修复：\n" + "\n".join(
+            f"- {item}" for item in problems
         )
-        if html:
-            remaining = validate_game_html(html)
-            if not remaining:
-                return _stamp(html)
-            logger.info("custom game repair failed: %s", remaining)
+    logger.info("custom game generation fell back after two attempts")
     return None

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import html as html_lib
 import json
 import logging
 import re
@@ -253,6 +254,12 @@ def _clean_document(text: str) -> str:
     if text.startswith("```"):
         text = re.sub(r"^```(?:html)?\s*", "", text)
         text = re.sub(r"\s*```$", "", text)
+    if "&lt;" in text and "<html" not in text.lower():
+        text = html_lib.unescape(text)
+    if text.lstrip().startswith("{"):
+        wrapped = _extract_json(text)
+        if wrapped and isinstance(wrapped.get("html"), str):
+            text = str(wrapped["html"])
     lowered = text.lower()
     start = lowered.find("<!doctype")
     if start < 0:
@@ -261,6 +268,22 @@ def _clean_document(text: str) -> str:
     if start < 0 or end < start:
         return ""
     return text[start : end + len("</html>")]
+
+
+def _message_text(message: dict[str, Any]) -> str:
+    content = message.get("content")
+    if isinstance(content, str):
+        text = content
+    elif isinstance(content, list):
+        text = "".join(
+            str(part.get("text", "")) if isinstance(part, dict) else str(part)
+            for part in content
+        )
+    else:
+        text = ""
+    if not text.strip():
+        text = str(message.get("reasoning_content") or "")
+    return text
 
 
 async def generate_game_page(
@@ -307,11 +330,20 @@ async def generate_game_page(
                 f"{LLM_BASE_URL}/chat/completions", json=payload, headers=headers
             )
             response.raise_for_status()
-            message = response.json()["choices"][0]["message"]
-        content = message.get("content") or message.get("reasoning_content") or ""
-        document = _clean_document(content)
+            choice = response.json()["choices"][0]
+            message = choice.get("message") or {}
+        text = _message_text(message)
+        document = _clean_document(text)
+        logger.info(
+            "game generation finish=%s content_len=%s reasoning_len=%s usage=%s document=%s",
+            choice.get("finish_reason"),
+            len(str(message.get("content") or "")),
+            len(str(message.get("reasoning_content") or "")),
+            response.json().get("usage"),
+            len(document),
+        )
         if not document:
-            logger.info("game generation returned no html document")
+            logger.info("game generation returned no html document head=%r", text[:160])
             return None
         return document
     except Exception as exc:  # noqa: BLE001 - fallback to a built-in engine
