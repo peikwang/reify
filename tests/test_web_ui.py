@@ -52,17 +52,14 @@ def react_dist(tmp_path: Path) -> Path:
     return dist
 
 
-def test_legacy_ui_serves_static_app(client: TestClient):
+def test_legacy_ui_is_gone(client: TestClient, react_dist, monkeypatch):
+    monkeypatch.setattr(main_module, "REACT_DIST_DIR", react_dist)
+
     response = client.get("/")
     assert response.status_code == 200
-    assert 'href="/static/app.css' in response.text
-    assert "react-ui" not in response.text
-
-    projects = client.get("/projects/demo123")
-    assert projects.status_code == 200
-    assert 'href="/static/app.css' in projects.text
-
-    assert client.get("/assets/index-abc.js").status_code == 404
+    assert 'data-ui="react"' in response.text
+    assert client.get("/static/app.js").status_code == 404
+    assert client.get("/static/app.css").status_code == 404
 
 
 def test_capabilities_do_not_expose_stack_choice(client: TestClient):
@@ -169,7 +166,6 @@ def test_next_project_waits_for_runtime_public_link(client: TestClient):
 
 
 def test_react_ui_serves_dist_and_spa_fallback(client: TestClient, react_dist, monkeypatch):
-    monkeypatch.setattr(main_module, "UI_MODE", "react")
     monkeypatch.setattr(main_module, "REACT_DIST_DIR", react_dist)
 
     for path in ("/", "/projects", "/projects/demo123", "/admin", "/projects/demo123/refine"):
@@ -193,7 +189,6 @@ def test_react_ui_serves_dist_and_spa_fallback(client: TestClient, react_dist, m
 
 
 def test_react_login_is_public_and_served_by_spa(react_dist, monkeypatch):
-    monkeypatch.setattr(main_module, "UI_MODE", "react")
     monkeypatch.setattr(main_module, "REACT_DIST_DIR", react_dist)
 
     anonymous = TestClient(main_module.app)
@@ -201,15 +196,8 @@ def test_react_login_is_public_and_served_by_spa(react_dist, monkeypatch):
     assert page.status_code == 200
     assert 'data-ui="react"' in page.text
 
-    # The legacy login page remains available when the switch is off.
-    monkeypatch.setattr(main_module, "UI_MODE", "legacy")
-    legacy = TestClient(main_module.app).get("/login")
-    assert legacy.status_code == 200
-    assert "访问保护" in legacy.text
-
 
 def test_react_ui_reports_missing_build(client: TestClient, tmp_path: Path, monkeypatch):
-    monkeypatch.setattr(main_module, "UI_MODE", "react")
     monkeypatch.setattr(main_module, "REACT_DIST_DIR", tmp_path / "missing")
 
     response = client.get("/")

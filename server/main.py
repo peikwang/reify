@@ -15,7 +15,6 @@ import httpx
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from . import auth
@@ -40,8 +39,6 @@ from .config import (
     REACT_DIST_DIR,
     SSR_PORT,
     SSR_PREVIEW_ENABLED,
-    UI_MODE,
-    WEB_DIR,
 )
 from .db import User, db
 from .events import Task, store
@@ -57,7 +54,6 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 logger = logging.getLogger("vibeforge")
 
 app = FastAPI(title=APP_NAME, version=APP_VERSION)
-app.mount("/static", StaticFiles(directory=str(WEB_DIR)), name="static")
 
 _background: set[asyncio.Task] = set()
 MEDIA_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".mp4", ".webm"}
@@ -240,23 +236,18 @@ def _safe_file(root: Path, relative: str) -> Path | None:
 
 
 def _ui_index() -> Response:
-    if UI_MODE == "react":
-        index = REACT_DIST_DIR / "index.html"
-        if not index.is_file():
-            raise HTTPException(
-                status_code=503,
-                detail="React UI build is missing; run npm ci && npm run build in frontend/",
-            )
-        response: Response = FileResponse(index)
-    else:
-        response = FileResponse(WEB_DIR / "index.html")
+    index = REACT_DIST_DIR / "index.html"
+    if not index.is_file():
+        raise HTTPException(
+            status_code=503,
+            detail="React UI build is missing; run npm ci && npm run build in frontend/",
+        )
+    response: Response = FileResponse(index)
     response.headers["Cache-Control"] = "no-store, max-age=0"
     return response
 
 
 def _ui_asset(filename: str) -> FileResponse:
-    if UI_MODE != "react":
-        raise HTTPException(status_code=404, detail="asset not found")
     target = _safe_file(REACT_DIST_DIR / "assets", filename)
     if not target:
         raise HTTPException(status_code=404, detail="asset not found")
@@ -269,7 +260,7 @@ def _ui_asset(filename: str) -> FileResponse:
 @app.middleware("http")
 async def auth_guard(request: Request, call_next):
     path = request.url.path
-    asset_request = path.startswith(("/static/", "/media/", "/assets/"))
+    asset_request = path.startswith(("/media/", "/assets/"))
     user = None if asset_request else auth.resolve_session(request.cookies.get(AUTH_COOKIE_NAME))
     request.state.user = user
     public = (
@@ -316,9 +307,7 @@ async def auth_guard(request: Request, call_next):
 
 @app.get("/login")
 async def login_page() -> Response:
-    if UI_MODE == "react":
-        return _ui_index()
-    return FileResponse(WEB_DIR / "login.html")
+    return _ui_index()
 
 
 @app.post("/api/auth/register")
@@ -880,8 +869,6 @@ async def admin_audit(request: Request, limit: int = 100) -> dict[str, Any]:
 
 @app.get("/{path:path}")
 async def spa_fallback(path: str) -> Response:
-    if UI_MODE != "react":
-        raise HTTPException(status_code=404, detail="not found")
     first = path.split("/", 1)[0]
     if first in {"api", "p", "s", "media", "apps", "static", "assets"}:
         raise HTTPException(status_code=404, detail="not found")

@@ -1,8 +1,8 @@
 # VibeForge 前端 React + TypeScript 化设计方案
 
-> 状态：设计稿，未实施
+> 状态：Phase 0-6 已实施，平台默认使用 React SPA，旧 `web/app.js` 已删除
 > 范围：平台控制台 React 化、生成 React/Next 项目的 TypeScript 化；静态模板是否 React 化单独决策
-> 实施分支建议：`feature/react-ts`，从 `feature/isolation` 当前 HEAD 拉出
+> 实施分支：`feature/react-ts`，从 `feature/isolation` 拉出
 
 ## 1. 背景
 
@@ -253,17 +253,14 @@ Docker：
 - 最终镜像仍然只运行 Python/FastAPI；Node 不进入运行时。
 - 如果新机器不想用 21.5GB 的 `vllm/vllm-openai` 作为 app 基座，可改为 `python:3.12-slim`，前端构建阶段独立。
 
-### 4.9 迁移开关
+### 4.9 迁移开关（已删除）
 
-迁移期间加一个临时配置：
+迁移期曾使用 `VIBEFORGE_UI=legacy | react` 双入口。Phase 6 验收完成后已切流：
 
-```text
-VIBEFORGE_UI=legacy | react
-```
-
-- `legacy` 继续服务旧 `web/index.html`。
-- `react` 服务 `web/dist`。
-- 全部页面验收通过后删除开关和旧文件，不保留兼容分支。
+- 平台只服务 `web/dist`，React SPA 是唯一入口。
+- `VIBEFORGE_UI` 不再被读取；旧 `web/index.html`、`web/app.js`、`web/app.css`、`web/login.html` 已删除。
+- 旧的静态资源 `/static/*` 不再挂载。
+- 如需回滚，回退到 `feature/isolation` 或 revert 切流提交，不保留运行时代码分支。
 
 ## 5. 生成 React 项目改成 Vite + React + TypeScript
 
@@ -391,7 +388,7 @@ app/globals.css
 ### Phase 0 — 脚手架与并行预览
 
 - 新建 `frontend/`，Vite + React + TS + Router。
-- 保留旧 UI；新增 `VIBEFORGE_UI=react` 预览入口。
+- 保留旧 UI；新增 `VIBEFORGE_UI=react` 预览入口（已完成，临时开关已在 Phase 6 删除）。
 - 完成登录、导航、空状态；验收：可在同源下打开 React 页面并登录。
 
 ### Phase 1 — 首页与项目库
@@ -432,7 +429,7 @@ app/globals.css
 
 ### Phase 6 — 切流与清理
 
-- 全量 E2E 通过后默认 `VIBEFORGE_UI=react`。
+- 全量 E2E 通过后切流到 React，删除旧入口与开关（已完成：`tests/e2e_browser.py` 覆盖注册、生成、Refine、编程模式、分享、导出、管理员与移动端）。
 - 删除旧 `web/index.html`、`web/app.js`、`web/app.css`（以及旧登录页，若已迁移）。
 - 更新 README、部署脚本、测试文档。
 - 验收：刷新任意 `/projects/:id` 不 404；旧链接可用；Caddy 配置不变。
@@ -465,9 +462,9 @@ app/globals.css
 | 前端构建拖慢部署 | Docker 多阶段 + npm cache；构建失败不替换旧产物 |
 | TS 类型错误阻断生成 | `tsc --noEmit` 明确报告；LLM refine 失败保留旧版本 |
 | Next 构建 OOM | 4Gi 沙箱；限制并发；2C4G 不启用 Next |
-| 迁移期间双入口混乱 | `VIBEFORGE_UI` 开关；切流后删除旧代码 |
+| 迁移期间双入口混乱 | `VIBEFORGE_UI` 开关；Phase 6 已删除开关和旧代码 |
 
-回滚：保留 `feature/isolation` 的旧 UI 产物和 `VIBEFORGE_UI=legacy`；任何阶段失败可切回旧入口，不改数据库/API。
+回滚：Phase 6 前保留 `feature/isolation` 的旧 UI 产物和 `VIBEFORGE_UI=legacy`；切流后通过 revert 切流提交回滚，不改数据库/API。
 
 ## 14. 文件改动清单（预估）
 

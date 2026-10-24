@@ -71,7 +71,7 @@ OpenSandbox 的配置示例见 [`.env.example`](.env.example) 与 `deploy_remote
 - Cookie 只保存随机令牌，会话本体在 SQLite；支持登出、退出所有设备、改密后失效。
 - 登录/注册按 IP 和用户名限流；默认开放注册，可设置 `VIBEFORGE_REGISTRATION=closed` 关闭。
 - 首个管理员由 `VIBEFORGE_ADMIN_USER` / `VIBEFORGE_ADMIN_PASSWORD` 启动时创建；未配置密码时会生成随机密码并打印到启动日志。
-- 管理员角色已落库，用户管理界面留待后续阶段；普通用户无法读取、修改、下载或预览其他用户的项目。
+- 管理员角色已落库，并在 `/admin` 提供用户表、禁用/启用、撤销会话和审计日志；普通用户无法读取、修改、下载或预览其他用户的项目。
 
 现有单密码部署升级时，旧的 `VIBEFORGE_PASSWORD` 会作为管理员密码继续使用；启动时会自动把旧的扁平项目迁移到首个管理员名下（原目录保留）。部署脚本在升级前会备份 `data/vibeforge.db`。也可以手动执行：
 
@@ -84,15 +84,36 @@ OpenSandbox 的配置示例见 [`.env.example`](.env.example) 与 `deploy_remote
 
 ## 本地启动
 
+平台控制台是 Vite + React + TypeScript SPA，构建产物在 `web/dist/`；FastAPI 只服务该产物，不需要常驻 Node 进程。
+
 ```bash
 cd vibeforge
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
+cd frontend && npm ci && npm run build && cd ..
 VIBEFORGE_ADMIN_PASSWORD=your-admin-password VIBEFORGE_REGISTRATION=open \
   .venv/bin/python -m uvicorn server.main:app --host 127.0.0.1 --port 7801
 ```
 
 打开 <http://127.0.0.1:7801>。管理员用户名默认 `admin`；未设置密码时启动日志会生成一个临时管理员密码。其他用户在登录页切换到“注册”即可创建自己的账号。
+
+## E2E 测试
+
+```bash
+# 后端 / 组件 / 模板 / 路由单测
+.venv/bin/python -m pytest -q
+cd frontend && npm test
+
+# 生成工程的 TypeScript 真实构建（npm ci + tsc + vite/next build）
+.venv/bin/python tests/e2e_typescript_scaffolds.py
+
+# 平台 UI 全链路（真实 uvicorn + Chrome + mock LLM；注册、模板、生成、Refine、
+# 编程模式、部署、分享、导出、项目库、管理员、移动端）
+cd frontend && npm run build && cd ..
+.venv/bin/python tests/e2e_browser.py
+```
+
+`tests/e2e_refine.py`、`tests/e2e_react_sandbox.py`、`tests/e2e_next_ssr.py` 需要可用的 OpenSandbox（远端 55 机器），用于验证真实 npm 构建与 SSR 运行时。
 
 ## 手机访问
 
@@ -217,7 +238,7 @@ cd vibeforge
 ./deploy_remote.sh root@117.148.166.55 12888
 ```
 
-部署脚本会基于 `${VIBEFORGE_IMAGE:-vllm/vllm-openai:latest}` 构建 `vibeforge-app:latest`（安装 `requirements.txt`），生成 `/opt/vibeforge/.sandbox.env`（沙箱 API Key）与 `/opt/vibeforge/sandbox/config.toml`，并启动 `vibeforge-sandbox`。`/api/health` 会返回沙箱 `backend` 与 `reachable`。如果已有预装依赖的镜像，可设置 `VIBEFORGE_APP_IMAGE` 跳过本地构建。Caddy 同时暴露 `12889` 作为 SSR 应用 origin；请确认云安全组已放行该端口。
+部署脚本会基于 `${VIBEFORGE_IMAGE:-vllm/vllm-openai:latest}` 构建 `vibeforge-app:latest`（安装 `requirements.txt`，并在镜像内用 Node 构建 `web/dist`）。由于应用容器把 `/opt/vibeforge` 挂载为 `/app`，脚本会把镜像里的前端产物复制到宿主 `/opt/vibeforge/web/dist` 后再启动应用。部署只替换 `vibeforge` 与 `vibeforge-caddy`，默认保留运行中的 `vibeforge-sandbox` 及其中的 SSR 运行时；如确需重建沙箱，先手动停止或删除该容器。`/api/health` 会返回沙箱 `backend` 与 `reachable`。如果已有预装依赖的镜像，可设置 `VIBEFORGE_APP_IMAGE` 跳过本地构建。Caddy 同时暴露 `12889` 作为 SSR 应用 origin；请确认云安全组已放行该端口。
 
 验证：
 

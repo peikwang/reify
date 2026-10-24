@@ -24,6 +24,8 @@ COPYFILE_DISABLE=1 tar czf - \
   --exclude='.git' \
   --exclude='projects' \
   --exclude='data' \
+  --exclude='frontend/node_modules' \
+  --exclude='web/dist' \
   --exclude='.auth.env' \
   --exclude='.sandbox.env' \
   --exclude='.llm.env' \
@@ -33,6 +35,13 @@ COPYFILE_DISABLE=1 tar czf - \
 
 echo "→ building app image ${APP_IMAGE}"
 ssh "$HOST" "cd /opt/vibeforge && docker build -q -t ${APP_IMAGE} --build-arg BASE_IMAGE=${IMAGE} -f Dockerfile.app ."
+
+echo "→ publishing frontend build from image"
+ssh "$HOST" "mkdir -p /opt/vibeforge/web/dist
+cid=\$(docker create ${APP_IMAGE})
+docker cp \$cid:/app/web/dist/. /opt/vibeforge/web/dist/
+docker rm \$cid >/dev/null
+chmod -R a+rX /opt/vibeforge/web/dist"
 
 echo "→ ensuring access credentials"
 ssh "$HOST" '
@@ -82,9 +91,8 @@ ssh "$HOST" '
   chmod 600 /opt/vibeforge/.runtime.env
 '
 
-echo "→ preparing HTTPS network"
+echo "→ replacing platform containers (sandbox is kept)"
 ssh "$HOST" "docker rm -f ${NAME}-caddy 2>/dev/null || true
-docker rm -f ${SANDBOX_NAME} 2>/dev/null || true
 docker rm -f ${NAME} 2>/dev/null || true
 docker network inspect vibeforge-net >/dev/null 2>&1 || docker network create vibeforge-net"
 
@@ -151,13 +159,20 @@ EOF
   chmod 600 /opt/vibeforge/sandbox/config.toml
 '
 
-echo "→ starting ${SANDBOX_NAME}"
-ssh "$HOST" "docker run -d --name ${SANDBOX_NAME} --restart unless-stopped \
-  --network vibeforge-net --network-alias vibeforge-sandbox \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -v /opt/vibeforge/sandbox:/opt/opensandbox \
-  --add-host=host.docker.internal:host-gateway \
-  ${SANDBOX_SERVER_IMAGE} --config /opt/opensandbox/config.toml"
+echo "→ ensuring ${SANDBOX_NAME}"
+ssh "$HOST" "
+if docker inspect ${SANDBOX_NAME} >/dev/null 2>&1; then
+  echo 'sandbox container exists; keeping it'
+  docker start ${SANDBOX_NAME} >/dev/null 2>&1 || true
+fi
+if ! docker inspect ${SANDBOX_NAME} >/dev/null 2>&1; then
+  docker run -d --name ${SANDBOX_NAME} --restart unless-stopped \
+    --network vibeforge-net --network-alias vibeforge-sandbox \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -v /opt/vibeforge/sandbox:/opt/opensandbox \
+    --add-host=host.docker.internal:host-gateway \
+    ${SANDBOX_SERVER_IMAGE} --config /opt/opensandbox/config.toml
+fi"
 
 i=0
 while [ "$i" -lt 10 ]; do
