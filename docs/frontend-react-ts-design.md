@@ -34,6 +34,8 @@
 - 保持现有视觉、动画、移动端布局和 12888/12889 部署方式。
 - 每个阶段可独立验收、可回滚。
 - 产品约束：技术栈对用户不可见。用户只选择模板或描述需求，Composer 不提供 STACK 选择器；非网站模板固定使用静态实现，网站由后端根据提示词自动选择静态/React/Next，沙箱不可用时自动回退静态。
+- 模板库固定为 7 个模板：小游戏、网站、图片、视频制作、简历、旅游攻略、编程。每个模板有独立插图和提示词，位于聊天框外；点击模板后把提示词填入单一通用 Composer。
+- 新生成的静态/React 项目自动获得不可猜的 `/s/<token>/` 免登录只读公开链接；Next 应用运行时的公开链接需要单独的 12889 token 方案。
 - 用户可见的运行时文案统一使用“应用运行时 / APP RUNNING”，不暴露 SSR、React、Next 等技术栈术语。
 
 ### 非目标
@@ -90,7 +92,7 @@ frontend/
       ProjectPage.tsx
       AdminPage.tsx
     features/
-      composer/          # 模板选择、STACK 选择、提示词
+      composer/          # 模板画廊、插图、通用提示词输入
       projects/          # 项目卡片、筛选、统计（实现目录名 project-library）
       workspace/
         AgentFlow.tsx    # 计划步骤、时间线、重播
@@ -337,7 +339,7 @@ app/globals.css
 
 建议保留：
 
-- 小游戏、简历、旅游攻略、适配制作、编程演示继续走确定性模板，秒级生成，不启动 Node 构建。
+- 小游戏、简历、旅游攻略、编程演示继续走确定性模板，秒级生成，不启动 Node 构建。
 - 图片/视频继续走静态画廊/播放器，不引入 React。
 
 如果后续确实要“所有生成物都是 React”：
@@ -358,6 +360,7 @@ app/globals.css
 - `GET|POST /api/projects/{id}/runtime[/start|/stop]`
 - `GET /api/admin/users|audit`
 - `/p/{id}/`、`/s/{token}/`、`/media/{id}/...?k=`
+- 新生成的静态/React 项目自动签发 `/s/{token}/`，持有链接的人无需登录即可只读访问；Next 暂不签发。
 - `/apps/{id}/`（12889）
 
 ## 9. 安全边界
@@ -367,6 +370,7 @@ app/globals.css
 - 生成页面继续在 iframe + CSP `sandbox` 中运行；不把生成 HTML 插入平台 DOM。
 - `/apps` 仍在 12889 独立 origin；平台 12888 屏蔽 `/apps/*`。
 - 登录 Cookie、CSRF/Origin、项目 owner 校验、分享撤销、管理员权限全部由后端继续兜底。
+- 公开链接使用高熵 token，不对外列举，可撤销；生成页面仍在 CSP `sandbox` 中运行，不与平台共享执行上下文。Next 公开访问需要独立的 12889 token 路由，不在本期复用平台会话。
 - TypeScript 只是开发期约束，不是运行时安全边界。
 
 ## 10. 资源与部署影响
@@ -392,9 +396,16 @@ app/globals.css
 
 ### Phase 1 — 首页与项目库
 
-- Composer、模板选择、最近项目、项目卡片、筛选、统计。
+- 通用 Composer、模板画廊、最近项目、项目卡片、筛选、统计。
 - 创建请求只发送 `{prompt, capability}`；技术栈由后端自动路由，前端不提供选择器。
 - 验收：创建静态项目后项目库正确刷新；提示词驱动的 React/Next 自动路由在后端合并后验收；移动端布局一致。
+
+### Phase 1.5 — 模板画廊与免登录公开链接
+
+- 模板合并为 7 个：移除“适配制作”，把“视频”更名为“视频制作”。
+- 每个模板有独立插图和提示词；模板画廊位于聊天框外，点击后填入单一通用 Composer，Composer 不显示模板 tab 或 STACK。
+- 新生成的静态/React 项目自动获得 `/s/<token>/` 免登录只读公开链接；项目库显示公开页入口、复制链接和创建成功提示。
+- 验收：点击模板正确填入提示词；公开链接在无 Cookie 下返回 200，撤销后 404；Next 公开链接留待应用运行时阶段。
 
 ### Phase 2 — 项目页只读 + SSE
 
@@ -428,6 +439,8 @@ app/globals.css
 ## 12. 测试矩阵
 
 - 单元/组件：Vitest + React Testing Library；Diff 算法、URL 校验、事件 reducer。
+- 模板库：7 个模板、独立插图、点击填入通用输入框。
+- 公开链接：静态/React 新项目自动签发；无 Cookie 200、撤销后 404；Next 不签发。
 - SSE：模拟 EventSource，覆盖 open/message/error/done/interrupted/401。
 - E2E：Playwright 复用现有真实链路：
   - 注册/登录/退出
@@ -478,6 +491,8 @@ app/globals.css
 5. 包管理器：npm + lockfile（与当前 sandbox 一致），不引入 pnpm/yarn。
 6. 分支：`feature/react-ts` 从 `feature/isolation` 拉出；每阶段一个 commit，全部通过后再合并。
 7. 技术栈选择：不暴露给用户；后端 `resolve_stack` 自动路由（在 `feature/isolation` 实现），前端只传 `{prompt, capability}`。
+8. 模板数量：固定 7 个；适配制作不进入模板库，历史数据仍可渲染和筛选。
+9. 公开链接：默认免登录只读，自动签发、可撤销；不做 magic link 自动登录。Next 公开链接另行设计 12889 token。
 
 ## 16. 验收定义
 
@@ -487,5 +502,7 @@ app/globals.css
 - 平台构建产物只有 `web/dist`，运行时无 Node。
 - 生成 React/Next 项目源码为 TSX/TS，构建前类型检查通过。
 - 已有静态模板、图片/视频、分享、管理员、SSR 12889 全部回归通过。
+- 模板库为 7 个且有独立插图；Composer 不暴露模板 tab 或 STACK。
+- 新生成的静态/React 项目有无需登录的公开链接；Next 公开链接待应用运行时阶段。
 - 2C4G 的部署限制在 README 中写明；Next 构建仍要求 4Gi 沙箱。
 - 远端真实 LLM E2E 至少覆盖：React 创建/修改、Next 创建/修改、SSR 运行时与 12889 预览。

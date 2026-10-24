@@ -1,53 +1,53 @@
-import { useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import {
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+  type RefObject,
+} from "react";
 
 import { ApiError, api } from "../../api/client";
 import type { Capability, CreateProjectResponse, Task } from "../../api/types";
 import { useToast } from "../../layout/ToastProvider";
 
 interface ComposerProps {
-  capabilities: Capability[];
+  prompt: string;
+  onPromptChange: (value: string) => void;
+  selectedTemplate: Capability | null;
   onCreated: (task: Task) => void;
+  textareaRef?: RefObject<HTMLTextAreaElement | null>;
 }
 
-export function Composer({ capabilities, onCreated }: ComposerProps) {
+export function Composer({
+  prompt,
+  onPromptChange,
+  selectedTemplate,
+  onCreated,
+  textareaRef,
+}: ComposerProps) {
   const { showToast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
-  const promptRef = useRef<HTMLTextAreaElement>(null);
-  const [capability, setCapability] = useState<string | null>(null);
-  const [templatePrompt, setTemplatePrompt] = useState("");
-  const [prompt, setPrompt] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  const selected = capability
-    ? capabilities.find((item) => item.key === capability) ?? null
-    : null;
-  const templateUnchanged = selected !== null && prompt.trim() === templatePrompt.trim();
+  const templateUnchanged =
+    selectedTemplate !== null && prompt.trim() === selectedTemplate.prompt.trim();
 
-  const note = !selected
-    ? "选择一个模板，专用提示词会自动填入；也可以直接描述你的想法。"
+  const note = !selectedTemplate
+    ? "直接从一句话开始，或从下方模板库选择一个起点。"
     : templateUnchanged
-      ? selected.label + " · 已填入专用提示词，可直接生成或修改"
-      : "已修改模板提示词，提交时会根据内容自动识别能力。";
-
-  function chooseTemplate(item: Capability) {
-    setCapability(item.key);
-    setTemplatePrompt(item.prompt);
-    setPrompt(item.prompt);
-    setError("");
-  }
+      ? selectedTemplate.label + " · 已填入专用提示词，可直接发送或修改。"
+      : "提示词已修改，提交时会根据内容自动识别模板。";
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const text = prompt.trim();
     if (!text) {
       showToast("先写一句你想做的东西");
-      promptRef.current?.focus();
+      textareaRef?.current?.focus();
       return;
     }
     if (submitting) return;
-
-    const requestedCapability = templateUnchanged ? capability : null;
 
     setSubmitting(true);
     setError("");
@@ -56,7 +56,7 @@ export function Composer({ capabilities, onCreated }: ComposerProps) {
         method: "POST",
         body: JSON.stringify({
           prompt: text,
-          capability: requestedCapability,
+          capability: templateUnchanged ? selectedTemplate.key : null,
         }),
       });
       onCreated(data.task);
@@ -78,36 +78,15 @@ export function Composer({ capabilities, onCreated }: ComposerProps) {
 
   return (
     <>
-      <form className="composer" ref={formRef} onSubmit={handleSubmit}>
-        <div className="composer-head">
-          <div className="picker-wrap">
-            <span className="picker-label">模板</span>
-            <div className="cap-picker" role="group" aria-label="模板选择">
-              {capabilities.map((item) => (
-                <button
-                  key={item.key}
-                  type="button"
-                  className={item.key === capability ? "cap-chip active" : "cap-chip"}
-                  aria-pressed={item.key === capability}
-                  onClick={() => chooseTemplate(item)}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="composer-meta">
-            <span className="auto-pill">可直接修改</span>
-          </div>
-        </div>
+      <form className="composer generic-composer" ref={formRef} onSubmit={handleSubmit}>
         <textarea
-          ref={promptRef}
-          rows={3}
+          ref={textareaRef}
+          rows={4}
           maxLength={2000}
-          placeholder="选一个模板会填入专用提示词，也可以直接描述你想做的东西…"
+          placeholder="描述你想做的东西；也可以从下方模板库选择一个起点…"
           value={prompt}
           onChange={(event) => {
-            setPrompt(event.target.value);
+            onPromptChange(event.target.value);
             setError("");
           }}
           onKeyDown={handlePromptKeyDown}

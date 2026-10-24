@@ -219,6 +219,7 @@ class TaskStore:
         if not owner_id:
             raise ValueError("owner_id is required")
         task_id = uuid.uuid4().hex[:10]
+        share_token = secrets.token_urlsafe(24) if stack != "next" else None
         task = Task(
             id=task_id,
             prompt=prompt,
@@ -227,6 +228,8 @@ class TaskStore:
             owner_id=owner_id,
             stack=stack,
             asset_key=secrets.token_hex(16),
+            share_token=share_token,
+            visibility="share" if share_token else "private",
         )
         task.workspace.mkdir(parents=True, exist_ok=True)
         task.dir.mkdir(parents=True, exist_ok=True)
