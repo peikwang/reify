@@ -17,6 +17,9 @@ os.environ.setdefault("VIBEFORGE_AUTO_MIGRATE", "0")
 from fastapi.testclient import TestClient  # noqa: E402
 
 import server.main as main_module  # noqa: E402
+from server.db import db  # noqa: E402
+from server.events import store  # noqa: E402
+from server.templates.library import classify  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -67,17 +70,99 @@ def test_capabilities_do_not_expose_stack_choice(client: TestClient):
     assert response.status_code == 200
     data = response.json()
     assert "stacks" not in data
-    assert {item["key"] for item in data["items"]} == {
+    assert [item["key"] for item in data["items"]] == [
         "game",
         "website",
         "image",
         "video",
         "resume",
         "travel",
-        "adapt",
         "code",
-    }
+    ]
+    labels = {item["key"]: item["label"] for item in data["items"]}
+    assert labels["video"] == "视频制作"
+    assert "adapt" not in labels
     assert "sandbox" in data
+
+
+def test_classification_no_longer_routes_to_adapt():
+    assert classify("把主视觉适配成 16:9、1:1、9:16 三种尺寸") != "adapt"
+    assert classify("做一个霓虹风格的贪吃蛇小游戏") == "game"
+
+
+def test_new_static_project_gets_unlisted_public_link(client: TestClient):
+    user = db.get_user_by_key("webuiuser")
+    assert user
+    task = store.create(
+        "公开链接测试",
+        "website",
+        "Public share",
+        owner_id=user.id,
+        stack="static",
+    )
+    (task.workspace / "index.html").write_text(
+        "<html><body>public-share</body></html>", encoding="utf-8"
+    )
+    task.save_meta()
+
+    assert task.share_token
+    assert task.visibility == "share"
+    meta = task.meta()
+    assert meta["share_url"] == f"/s/{task.share_token}/"
+
+    anonymous = TestClient(main_module.app)
+    shared = anonymous.get(meta["share_url"])
+    assert shared.status_code == 200
+    assert "public-share" in shared.text
+
+    assert client.delete(f"/api/projects/{task.id}/share").status_code == 200
+    assert anonymous.get(meta["share_url"]).status_code == 404
+
+
+def test_react_project_public_link_serves_dist_assets(client: TestClient):
+    user = db.get_user_by_key("webuiuser")
+    assert user
+    task = store.create(
+        "React 公开链接测试",
+        "website",
+        "React public share",
+        owner_id=user.id,
+        stack="react",
+    )
+    dist = task.artifact_dir
+    (dist / "assets").mkdir(parents=True, exist_ok=True)
+    (dist / "index.html").write_text(
+        '<div id="root"></div><script src="./assets/index.js"></script>',
+        encoding="utf-8",
+    )
+    (dist / "assets" / "index.js").write_text("console.log('public')", encoding="utf-8")
+    task.save_meta()
+
+    assert task.share_token
+    anonymous = TestClient(main_module.app)
+    base = f"/s/{task.share_token}/"
+    assert anonymous.get(base).status_code == 200
+    asset = anonymous.get(base + "assets/index.js")
+    assert asset.status_code == 200
+    assert "public" in asset.text
+
+
+def test_next_project_waits_for_runtime_public_link(client: TestClient):
+    user = db.get_user_by_key("webuiuser")
+    assert user
+    task = store.create(
+        "应用运行时项目",
+        "website",
+        "Runtime only",
+        owner_id=user.id,
+        stack="next",
+    )
+    task.save_meta()
+
+    assert task.share_token is None
+    assert task.visibility == "private"
+    assert task.meta()["share_url"] is None
+    assert client.post(f"/api/projects/{task.id}/share").status_code == 400
 
 
 def test_react_ui_serves_dist_and_spa_fallback(client: TestClient, react_dist, monkeypatch):

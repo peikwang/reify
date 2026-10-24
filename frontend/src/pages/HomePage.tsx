@@ -1,7 +1,9 @@
+import { useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
-import type { Task } from "../api/types";
+import type { Capability, Task } from "../api/types";
 import { Composer } from "../features/composer/Composer";
+import { TemplateGallery } from "../features/composer/TemplateGallery";
 import { ProjectGrid } from "../features/project-library/ProjectGrid";
 import { useCapabilities } from "../hooks/useCapabilities";
 import { useProjects } from "../hooks/useProjects";
@@ -10,12 +12,28 @@ import { useToast } from "../layout/ToastProvider";
 export function HomePage() {
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const {
-    capabilities,
-    error: capabilitiesError,
-  } = useCapabilities();
+  const { capabilities, error: capabilitiesError } = useCapabilities();
   const { items, loading, error: projectsError } = useProjects();
+  const [prompt, setPrompt] = useState("");
+  const [selectedTemplate, setSelectedTemplate] = useState<Capability | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const recent = items.slice(0, 6);
+
+  const activeTemplateKey =
+    selectedTemplate && prompt.trim() === selectedTemplate.prompt.trim()
+      ? selectedTemplate.key
+      : null;
+
+  function handleSelectTemplate(capability: Capability) {
+    setSelectedTemplate(capability);
+    setPrompt(capability.prompt);
+    window.requestAnimationFrame(() => {
+      const input = textareaRef.current;
+      if (!input) return;
+      input.focus({ preventScroll: true });
+      input.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }
 
   function handleCreated(task: Task) {
     showToast("项目已创建，Agent 开始生成");
@@ -48,12 +66,15 @@ export function HomePage() {
               <span className="gradient-text">从想法到上线。</span>
             </h1>
             <p className="hero-sub">
-              选一个模板，或者直接描述你的想法。Agent 会规划、写代码、自检，并把成果部署成属于你的项目页面。
+              从模板库找一个起点，或者直接描述你的想法。Agent 会规划、写代码、自检，并把成果部署成属于你的项目页面。
             </p>
 
             <Composer
-              capabilities={capabilities}
+              prompt={prompt}
+              onPromptChange={setPrompt}
+              selectedTemplate={selectedTemplate}
               onCreated={handleCreated}
+              textareaRef={textareaRef}
             />
             {capabilitiesError ? (
               <div className="composer-error" role="alert">
@@ -127,6 +148,12 @@ export function HomePage() {
           </aside>
         </div>
       </div>
+
+      <TemplateGallery
+        capabilities={capabilities}
+        activeKey={activeTemplateKey}
+        onSelect={handleSelectTemplate}
+      />
 
       <section className="recent-section">
         <div className="section-label">
