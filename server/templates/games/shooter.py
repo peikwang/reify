@@ -7,7 +7,7 @@ const livesEl = document.getElementById('lives');
 const hudMeta = document.getElementById('hudMeta');
 const keys = { left: false, right: false };
 let player, bullets, enemies, stars, score, lives, best, running, paused, frameTimer, spawnTimer, lastShot;
-best = readBest('vibeforge-shooter-best');
+best = readBest('reify-shooter-best');
 bestEl.textContent = best;
 
 function reset() {
@@ -80,7 +80,7 @@ function tick() {
 }
 function gameOver() {
   running = false; clearInterval(frameTimer); clearInterval(spawnTimer); setStatus('GAME OVER');
-  best = Math.max(best, score); saveBest('vibeforge-shooter-best', best); bestEl.textContent = best;
+  best = Math.max(best, score); saveBest('reify-shooter-best', best); bestEl.textContent = best;
   showOverlay('RUN COMPLETE', '本局得分 ' + score, '击落 ' + Math.floor(score / 100) + ' 架敌机，最高分 ' + best + '。再来一局，穿过弹幕。', '再来一局');
   draw();
 }

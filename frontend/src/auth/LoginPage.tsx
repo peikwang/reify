@@ -76,7 +76,7 @@ export function LoginPage() {
       : "验证中…"
     : mode === "register"
       ? "创建本地账号"
-      : "进入 VibeForge";
+      : "进入 Reify";
 
   return (
     <div className={mode === "register" ? "login-page register" : "login-page"}>
@@ -84,9 +84,9 @@ export function LoginPage() {
         <section className="login-intro">
           <div>
             <div className="login-brand">
-              <b>V</b> VibeForge
+              <b>R</b> Reify
             </div>
-            <div className="login-eyebrow">PERSONAL DESIGN AGENT / PRIVATE SERVER</div>
+            <div className="login-eyebrow">IDEA → REALITY / PRIVATE SERVER</div>
             <h1>
               你的想法，
               <br />
@@ -218,7 +218,7 @@ export function LoginPage() {
           </form>
           <div className="login-meta">
             <span>LOCAL · SQLITE</span>
-            <span>VIBEFORGE / 2026</span>
+            <span>REIFY / 2026</span>
           </div>
         </section>
       </main>

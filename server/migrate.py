@@ -12,7 +12,7 @@ from typing import Any
 from .config import DATA_DIR, PROJECTS_DIR, USERS_DIR
 from .db import db
 
-logger = logging.getLogger("vibeforge.migrate")
+logger = logging.getLogger("reify.migrate")
 
 _TEXT_SUFFIXES = {".html", ".json", ".js", ".css", ".md", ".txt"}
 

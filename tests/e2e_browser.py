@@ -21,8 +21,87 @@ ROOT = Path(__file__).resolve().parent.parent
 APP_PORT = 18190
 LLM_PORT = 18210
 BASE = f"http://127.0.0.1:{APP_PORT}"
-WORK = Path(tempfile.mkdtemp(prefix="vibeforge-browser-e2e-"))
-ARTIFACTS = Path(tempfile.mkdtemp(prefix="vibeforge-browser-artifacts-"))
+WORK = Path(tempfile.mkdtemp(prefix="reify-browser-e2e-"))
+ARTIFACTS = Path(tempfile.mkdtemp(prefix="reify-browser-artifacts-"))
+
+LONGTAIL_PAD = "/*longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard longtail-guard */"
+
+WEBSITE_HTML = """<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>街角咖啡</title><style>__PAD__
+body { margin: 0; font-family: ui-sans-serif, sans-serif; }
+section { padding: 48px 24px; max-width: 720px; margin: 0 auto; }
+</style></head><body><main>
+<section><h1>街角咖啡</h1><p>一杯手冲，一段慢下来的下午。</p></section>
+<section><h2>Menu</h2><p>手冲、可颂、季节限定。</p></section>
+<section><h2>Visit</h2><p>每天 09:00 - 19:00 · 城市中心街角。</p></section>
+</main><script>document.addEventListener('click', function () {});</script></body></html>""".replace("__PAD__", LONGTAIL_PAD)
+
+RESUME_HTML = """<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>学术简历</title><style>__PAD__
+@media print { body { color: #000; } .page { box-shadow: none; } }
+body { margin: 0; background: #f4f1e9; font-family: ui-serif, serif; }
+main { max-width: 820px; margin: 24px auto; background: #fff; padding: 48px; }
+</style></head><body><main><h1>林知夏</h1><p>社会学研究者 · 城市与公共空间</p>
+<section><h2>研究经历</h2><p>发表论文 6 篇，主持两次田野调查。</p></section>
+<section><h2>教育</h2><p>社会学博士 · 城市研究硕士。</p></section>
+</main><script>document.addEventListener('click', function () {});</script></body></html>""".replace("__PAD__", LONGTAIL_PAD)
+
+TRAVEL_HTML = """<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>海岛露营</title><style>__PAD__
+body { margin: 0; font-family: ui-sans-serif, sans-serif; background: #eef6f4; }
+main { max-width: 760px; margin: 0 auto; padding: 32px 20px; }
+</style></head><body><main>
+<h1>海岛露营</h1><p>DAY 01 · 抵达与扎营</p><p>DAY 02 · 环岛与日落</p>
+<section data-day="1"><h2>第 1 天</h2><p>坐船抵达，搭帐篷，晚上看星星。</p></section>
+<section data-day="2"><h2>第 2 天</h2><p>环岛徒步，傍晚在海边收营。</p></section>
+</main><script>
+document.addEventListener('click', function (event) {
+  if (event.target.dataset.day) document.body.dataset.active = event.target.dataset.day;
+});
+</script></body></html>""".replace("__PAD__", LONGTAIL_PAD)
+
+CODE_HTML = """<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>二分查找</title><style>__PAD__
+body { margin: 0; font-family: ui-sans-serif, sans-serif; background: #0d1512; color: #eaf7ef; }
+main { max-width: 860px; margin: 0 auto; padding: 32px 20px; }
+pre { background: #131c16; padding: 18px; border-radius: 12px; overflow: auto; }
+</style></head><body><main><h1>二分查找</h1>
+<pre><code>def binary_search(items, target):
+    lo, hi = 0, len(items) - 1
+    while lo &lt;= hi:
+        mid = (lo + hi) // 2
+        if items[mid] == target:
+            return mid
+        if items[mid] &lt; target:
+            lo = mid + 1
+        else:
+            hi = mid - 1
+    return -1</code></pre>
+<section id="steps"><h2>步骤</h2><p>选择中点、比较、缩小范围。</p></section>
+</main><script>
+document.addEventListener('click', function () { document.getElementById('steps').dataset.ran = '1'; });
+</script></body></html>""".replace("__PAD__", LONGTAIL_PAD)
+
+PYTHON_CODE = """def binary_search(items, target):
+    lo, hi = 0, len(items) - 1
+    while lo <= hi:
+        mid = (lo + hi) // 2
+        if items[mid] == target:
+            return mid
+        if items[mid] < target:
+            lo = mid + 1
+        else:
+            hi = mid - 1
+    return -1
+"""
 
 GAME_HTML = """<!DOCTYPE html>
 <html lang="zh-CN">
@@ -185,6 +264,18 @@ class MockLLM(BaseHTTPRequestHandler):
             )
         elif "独立游戏工程师" in system:
             content = GAME_HTML
+        elif "单文件交付工程师" in system:
+            if "Python 算法实现" in system:
+                content = json.dumps(
+                    {"summary": "二分查找与步骤可视化", "python": PYTHON_CODE, "html": CODE_HTML},
+                    ensure_ascii=False,
+                )
+            elif "可打印为 A4" in system:
+                content = RESUME_HTML
+            elif "按天切换" in system:
+                content = TRAVEL_HTML
+            else:
+                content = WEBSITE_HTML
         else:
             content = json.dumps({"summary": "noop", "patches": []}, ensure_ascii=False)
         body = json.dumps({"choices": [{"message": {"content": content}}]}).encode("utf-8")
@@ -201,18 +292,18 @@ class MockLLM(BaseHTTPRequestHandler):
 def server_env() -> dict[str, str]:
     return {
         **os.environ,
-        "VIBEFORGE_DATA": str(WORK / "data"),
-        "VIBEFORGE_PROJECTS": str(WORK / "legacy"),
-        "VIBEFORGE_COOKIE_SECURE": "0",
-        "VIBEFORGE_UI": "legacy",  # must be ignored after Phase 6 cutover
-        "VIBEFORGE_LLM_ENABLED": "1",
-        "VIBEFORGE_LLM_BASE_URL": f"http://127.0.0.1:{LLM_PORT}/v1",
-        "VIBEFORGE_LLM_MODEL": "mock",
-        "VIBEFORGE_LLM_TIMEOUT": "20",
-        "VIBEFORGE_STEP_DELAY": "0.02",
-        "VIBEFORGE_SANDBOX": "off",
-        "VIBEFORGE_ADMIN_PASSWORD": "browser-e2e-admin",
-        "VIBEFORGE_REGISTRATION": "open",
+        "REIFY_DATA": str(WORK / "data"),
+        "REIFY_PROJECTS": str(WORK / "legacy"),
+        "REIFY_COOKIE_SECURE": "0",
+        "REIFY_UI": "legacy",  # must be ignored after Phase 6 cutover
+        "REIFY_LLM_ENABLED": "1",
+        "REIFY_LLM_BASE_URL": f"http://127.0.0.1:{LLM_PORT}/v1",
+        "REIFY_LLM_MODEL": "mock",
+        "REIFY_LLM_TIMEOUT": "20",
+        "REIFY_STEP_DELAY": "0.02",
+        "REIFY_SANDBOX": "off",
+        "REIFY_ADMIN_PASSWORD": "browser-e2e-admin",
+        "REIFY_REGISTRATION": "open",
     }
 
 
@@ -392,7 +483,7 @@ def main() -> int:
             page.wait_for_url(re.compile(r"/login"))
             page.locator("#username").fill(username)
             page.locator("#password").fill(password)
-            page.get_by_role("button", name="进入 VibeForge").click()
+            page.locator(".login-submit").click()
             page.wait_for_url(BASE + "/")
 
             print("11. mobile smoke and non-admin route guard")
@@ -423,10 +514,32 @@ def main() -> int:
             game_task = wait_project(page, game_id)
             game_html = page.request.get(BASE + f"/p/{game_id}/").text()
             check(game_task["status"] == "done", "custom game project completed")
-            check('name="vibeforge-game"' in game_html, "LLM game passed validation")
+            check('name="reify-game"' in game_html, "LLM game passed validation")
             check("<canvas" in game_html, "custom game renders with canvas")
             expect(page.get_by_text("DEPLOYED").first).to_be_visible()
             page.screenshot(path=str(ARTIFACTS / "custom-game.png"), full_page=True)
+
+            print("13. long-tail website / resume / travel / code")
+            cases = [
+                ("website", "做一个街角咖啡店官网，要有菜单和到店信息", "咖啡"),
+                ("resume", "做一份学术科研简历，强调论文和田野调查", "学术"),
+                ("travel", "做一份海岛露营攻略，两天一夜", "海岛"),
+                ("code", "写一个二分查找并做一个可视化页面", "二分"),
+            ]
+            for capability, prompt, marker_text in cases:
+                response = page.request.post(
+                    BASE + "/api/projects",
+                    data=json.dumps({"prompt": prompt, "capability": capability}),
+                    headers={"Content-Type": "application/json"},
+                )
+                check(response.ok, f"create custom {capability}")
+                item = response.json()["task"]
+                result = wait_project(page, item["id"])
+                html = page.request.get(BASE + f"/p/{item['id']}/").text()
+                check('name="reify-longtail"' in html, f"{capability} used the generic path")
+                check(marker_text in html, f"{capability} content follows the prompt")
+                checks = (result.get("result") or {}).get("checks") or []
+                check(bool(checks) and all(item["ok"] for item in checks), f"{capability} checks passed")
 
             browser.close()
 

@@ -34,7 +34,7 @@ video{display:block;width:100%;aspect-ratio:16/9;background:#0c110e;object-fit:c
 
 BODY = """
 <div class="shell">
-  <nav><div class="brand"><b>V</b> VibeForge / Video Studio</div><div class="meta">REV {{REVISION}} · {{MODEL}}</div></nav>
+  <nav><div class="brand"><b>R</b> Reify / Video Studio</div><div class="meta">REV {{REVISION}} · {{MODEL}}</div></nav>
   <header><div><div class="kicker">MOTION STUDY / {{DURATION}} SEC</div><h1>{{TITLE}}</h1></div><p class="prompt">{{PROMPT}}</p></header>
   <main>
     <div class="film">

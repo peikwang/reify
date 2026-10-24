@@ -13,8 +13,8 @@ RUN npm run typecheck && npm run build
 
 FROM ${BASE_IMAGE}
 
-COPY requirements.txt /tmp/vibeforge-requirements.txt
-RUN pip install --no-cache-dir -r /tmp/vibeforge-requirements.txt
+COPY requirements.txt /tmp/reify-requirements.txt
+RUN pip install --no-cache-dir -r /tmp/reify-requirements.txt
 
 ENV PYTHONUNBUFFERED=1
 WORKDIR /app

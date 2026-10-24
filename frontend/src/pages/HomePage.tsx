@@ -58,7 +58,7 @@ export function HomePage() {
           <div className="hero-copy">
             <div className="eyebrow">
               <span className="pulse-dot" />
-              VIBEFORGE / PERSONAL DESIGN AGENT
+              REIFY / IDEA → REALITY
             </div>
             <h1>
               一句话，
@@ -173,7 +173,7 @@ export function HomePage() {
       </section>
 
       <footer className="home-footer">
-        <span>VIBEFORGE / RUNS ON YOUR AGENT SERVER</span>
+        <span>REIFY / RUNS ON YOUR AGENT SERVER</span>
         <span>LOCAL PROJECTS · CODE SNAPSHOTS · AUTO DEPLOY</span>
       </footer>
     </section>

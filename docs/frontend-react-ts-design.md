@@ -1,4 +1,4 @@
-# VibeForge 前端 React + TypeScript 化设计方案
+# Reify 前端 React + TypeScript 化设计方案
 
 > 状态：Phase 0-6 已实施，平台默认使用 React SPA，旧 `web/app.js` 已删除
 > 范围：平台控制台 React 化、生成 React/Next 项目的 TypeScript 化；静态模板是否 React 化单独决策
@@ -255,10 +255,10 @@ Docker：
 
 ### 4.9 迁移开关（已删除）
 
-迁移期曾使用 `VIBEFORGE_UI=legacy | react` 双入口。Phase 6 验收完成后已切流：
+迁移期曾使用 `REIFY_UI=legacy | react` 双入口。Phase 6 验收完成后已切流：
 
 - 平台只服务 `web/dist`，React SPA 是唯一入口。
-- `VIBEFORGE_UI` 不再被读取；旧 `web/index.html`、`web/app.js`、`web/app.css`、`web/login.html` 已删除。
+- `REIFY_UI` 不再被读取；旧 `web/index.html`、`web/app.js`、`web/app.css`、`web/login.html` 已删除。
 - 旧的静态资源 `/static/*` 不再挂载。
 - 如需回滚，回退到 `feature/isolation` 或 revert 切流提交，不保留运行时代码分支。
 
@@ -338,6 +338,8 @@ app/globals.css
 
 - 小游戏、简历、旅游攻略、编程演示继续走确定性模板，秒级生成，不启动 Node 构建。小游戏先按提示词命中贪吃蛇、俄罗斯方块、飞机大战或打砖块引擎；未命中的玩法使用 GameSpec 交给 LLM 生成单文件 Canvas 游戏，经结构、输入、游戏循环、离网依赖自检和一次修复后发布，仍失败则回退内置引擎。保持一个小游戏模板卡。
 - 图片/视频继续走静态画廊/播放器，不引入 React。
+- 网站、简历、旅游攻略和编程同样采用“内置模板 + 通用生成”：命中内置模板时走确定性渲染；未命中的长尾需求通过 `server/templates/longtail.py` 生成单文件页面（编程同时生成 `main.py`），经过结构、移动端、离网依赖、交互/打印/语法检查和一次修复；仍失败则回退内置模板。
+- 通用生成默认关闭模型思考模式，使用 `REIFY_LLM_LONGTAIL_MAX_TOKENS` 控制输出预算；图片/视频的“通用”由媒体模型承担，模板只负责画廊/播放器。
 
 如果后续确实要“所有生成物都是 React”：
 
@@ -388,7 +390,7 @@ app/globals.css
 ### Phase 0 — 脚手架与并行预览
 
 - 新建 `frontend/`，Vite + React + TS + Router。
-- 保留旧 UI；新增 `VIBEFORGE_UI=react` 预览入口（已完成，临时开关已在 Phase 6 删除）。
+- 保留旧 UI；新增 `REIFY_UI=react` 预览入口（已完成，临时开关已在 Phase 6 删除）。
 - 完成登录、导航、空状态；验收：可在同源下打开 React 页面并登录。
 
 ### Phase 1 — 首页与项目库
@@ -462,9 +464,9 @@ app/globals.css
 | 前端构建拖慢部署 | Docker 多阶段 + npm cache；构建失败不替换旧产物 |
 | TS 类型错误阻断生成 | `tsc --noEmit` 明确报告；LLM refine 失败保留旧版本 |
 | Next 构建 OOM | 4Gi 沙箱；限制并发；2C4G 不启用 Next |
-| 迁移期间双入口混乱 | `VIBEFORGE_UI` 开关；Phase 6 已删除开关和旧代码 |
+| 迁移期间双入口混乱 | `REIFY_UI` 开关；Phase 6 已删除开关和旧代码 |
 
-回滚：Phase 6 前保留 `feature/isolation` 的旧 UI 产物和 `VIBEFORGE_UI=legacy`；切流后通过 revert 切流提交回滚，不改数据库/API。
+回滚：Phase 6 前保留 `feature/isolation` 的旧 UI 产物和 `REIFY_UI=legacy`；切流后通过 revert 切流提交回滚，不改数据库/API。
 
 ## 14. 文件改动清单（预估）
 

@@ -32,7 +32,7 @@ figcaption a{color:#d9ff8a;border-bottom:1px solid rgba(217,255,138,.4);padding-
 
 BODY = """
 <div class="shell">
-  <nav><div class="brand"><b>V</b> VibeForge / Image Studio</div><div class="meta">{{COUNT}} FRAMES · {{MODEL}}</div></nav>
+  <nav><div class="brand"><b>R</b> Reify / Image Studio</div><div class="meta">{{COUNT}} FRAMES · {{MODEL}}</div></nav>
   <header><div><div class="kicker">VISUAL STUDY / REV {{REVISION}}</div><h1>{{TITLE}}</h1></div><p class="prompt">{{PROMPT}}</p></header>
   <main class="gallery">{{CARDS}}</main>
   <div class="footer"><span>{{TAGLINE}}</span><span>GENERATED LOCALLY · {{DATE}}</span></div>

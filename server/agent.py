@@ -33,13 +33,14 @@ from .templates.library import (
 )
 from .templates.games import detect_genre
 from .templates.games.custom import render as render_custom_game
+from .templates.longtail import detect_variant, render_code_page, render_page
 from .templates.next_app import build_files as next_build_files
 from .templates.next_app import next_checks_files
 from .templates.react_app import build_files as react_build_files
 from .templates.react_app import react_checks, react_checks_files
 from .tools import Workspace
 
-logger = logging.getLogger("vibeforge.agent")
+logger = logging.getLogger("reify.agent")
 MEDIA_CAPS = {"image", "video"}
 
 
@@ -68,7 +69,64 @@ async def _render_static_html(
             summary="自定义玩法未通过结构或离线自检，已回退到内置引擎，页面仍然可玩。",
             source="fallback",
         )
+    if (
+        capability in {"website", "resume", "travel"}
+        and detect_variant(capability, prompt) == "custom"
+        and llm_enabled()
+    ):
+        await task.emit(
+            "thinking",
+            step="生成通用页面",
+            summary=f"当前需求没有命中内置 {capability} 模板，正在按规格生成一个独特的单文件页面。",
+            source="llm",
+        )
+        html = await render_page(capability, brief, prompt)
+        if html:
+            task.source = "llm-longtail"
+            await task.emit(
+                "thinking",
+                step="通用页面已通过自检",
+                summary="结构、移动端、离网依赖与交互检查通过。",
+                source="llm",
+            )
+            return html
+        await task.emit(
+            "thinking",
+            step="回退内置模板",
+            summary="通用页面未通过自检，已回退到内置模板，页面仍然可用。",
+            source="fallback",
+        )
     return render_html(capability, brief, prompt)
+
+
+async def _render_custom_code(
+    capability: str, brief: dict[str, Any], prompt: str, task: Task
+) -> dict[str, str] | None:
+    if capability != "code" or detect_variant("code", prompt) != "custom" or not llm_enabled():
+        return None
+    await task.emit(
+        "thinking",
+        step="生成自定义算法",
+        summary="当前问题不在内置快速排序示例里，正在生成 Python 实现和可视化页面。",
+        source="llm",
+    )
+    result = await render_code_page(brief, prompt)
+    if result:
+        task.source = "llm-longtail"
+        await task.emit(
+            "thinking",
+            step="算法与页面已通过自检",
+            summary="Python 语法、页面结构、交互和离网依赖检查通过。",
+            source="llm",
+        )
+        return result
+    await task.emit(
+        "thinking",
+        step="回退内置算法模板",
+        summary="自定义算法未通过自检，已回退到内置快速排序演示。",
+        source="fallback",
+    )
+    return None
 
 
 async def _pause(multiplier: float = 1.0) -> None:
@@ -206,6 +264,8 @@ async def run_task(task: Task) -> None:
             build = None
             assets: list[dict[str, Any]] = []
             media_meta: dict[str, Any] = {}
+            custom_code: dict[str, str] | None = None
+            longtail_variant = detect_variant(capability, task.prompt)
 
             # Step 1 — understand and set the creative direction.
             await task.emit("step_started", index=0, title=plan[0])
@@ -304,10 +364,16 @@ async def run_task(task: Task) -> None:
                 html = render_media_html(capability, brief, assets, 1, task.prompt, media_meta)
                 await workspace.write_file("index.html", html, "组装媒体画廊页面")
             elif capability == "code":
-                extras = extra_files(capability, brief, task.prompt, task.id)
-                await workspace.write_file("main.py", extras["main.py"], "生成算法主体")
-                html = render_html(capability, brief, task.prompt)
-                await workspace.write_file("index.html", html, "把算法过程做成可交互页面")
+                custom_code = await _render_custom_code(capability, brief, task.prompt, task)
+                if custom_code:
+                    await workspace.write_file("main.py", custom_code["python"], "生成自定义算法主体")
+                    html = custom_code["html"]
+                    await workspace.write_file("index.html", html, "把算法过程做成可交互页面")
+                else:
+                    extras = extra_files(capability, brief, task.prompt, task.id)
+                    await workspace.write_file("main.py", extras["main.py"], "生成算法主体")
+                    html = render_html(capability, brief, task.prompt)
+                    await workspace.write_file("index.html", html, "把算法过程做成可交互页面")
             else:
                 html = await _render_static_html(capability, brief, task.prompt, task)
                 await workspace.write_file("index.html", html, "完成页面结构、视觉与交互")
@@ -369,6 +435,11 @@ async def run_task(task: Task) -> None:
                 )
             if not is_react and not is_next:
                 extras = extra_files(capability, brief, task.prompt, task.id)
+                if capability == "code" and custom_code:
+                    extras["main.py"] = custom_code["python"]
+                if longtail_variant == "custom" and capability in {"resume", "travel"}:
+                    extras.pop("resume.json", None)
+                    extras.pop("itinerary.json", None)
                 for path, content in extras.items():
                     if path == "media.json":
                         continue

@@ -60,7 +60,7 @@ export const initialProjectView: ProjectViewState = {
   timeline: [],
   checks: [],
   files: {},
-  terminalLines: [{ kind: "muted", text: "$ vibeforge agent --wait" }],
+  terminalLines: [{ kind: "muted", text: "$ reify agent --wait" }],
   lastSeq: 0,
   terminal: null,
   previewReady: false,

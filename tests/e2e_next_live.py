@@ -2,7 +2,7 @@
 """Live Next.js runtime UI E2E: build -> start -> 12889 iframe -> server API.
 
 Usage:
-    VIBEFORGE_E2E_BASE=https://117.148.166.55:12888 .venv/bin/python tests/e2e_next_live.py
+    REIFY_E2E_BASE=https://117.148.166.55:12888 .venv/bin/python tests/e2e_next_live.py
 """
 from __future__ import annotations
 
@@ -15,10 +15,10 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
-BASE = os.environ.get("VIBEFORGE_E2E_BASE", "").rstrip("/")
+BASE = os.environ.get("REIFY_E2E_BASE", "").rstrip("/")
 if not BASE:
-    raise SystemExit("VIBEFORGE_E2E_BASE is required")
-ARTIFACTS = Path(tempfile.mkdtemp(prefix="vibeforge-next-live-"))
+    raise SystemExit("REIFY_E2E_BASE is required")
+ARTIFACTS = Path(tempfile.mkdtemp(prefix="reify-next-live-"))
 
 
 def check(condition: bool, message: str) -> None:

@@ -81,7 +81,7 @@ def test_custom_render_stamps_and_returns_llm_game(monkeypatch):
     monkeypatch.setattr(custom, "generate_game_page", fake_generate)
     html = asyncio.run(custom.render(BRIEF, "做一个 2048 数字合并小游戏"))
     assert html is not None
-    assert '<meta name="vibeforge-game" content="custom">' in html
+    assert '<meta name="reify-game" content="custom">' in html
     assert len(calls) == 1
     assert calls[0][0]["genre"] == "custom"
 
@@ -107,7 +107,7 @@ def test_custom_render_falls_back_when_llm_is_unavailable(monkeypatch):
     assert asyncio.run(custom.render(BRIEF, "做一个 2048 数字合并小游戏")) is None
 
     html = render_html("game", BRIEF, "做一个 2048 数字合并小游戏")
-    assert "vibeforge-snake-best" in html
+    assert "reify-snake-best" in html
     assert "<canvas" in html
 
 

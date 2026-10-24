@@ -6,10 +6,10 @@ from typing import Any
 
 from .spec import build_spec
 
-logger = logging.getLogger("vibeforge.games")
+logger = logging.getLogger("reify.games")
 
 _EXTERNAL_RESOURCE = re.compile(
-    r"""(?:(?:src|href)\s*=\s*["']?\s*(?:https?:)?//|url\(\s*["']?https?://|@import\s+["']?https?://|import\s*\(\s*["']https?://)""",
+    r"""(?:src\s*=\s*["']?\s*(?:https?:)?//|url\(\s*["']?https?://|@import\s+["']?https?://|import\s*\(\s*["']https?://|<link[^>]+href\s*=\s*["']?\s*(?:https?:)?//)""",
     re.IGNORECASE,
 )
 _NETWORK_CALL = re.compile(
@@ -64,7 +64,7 @@ def validate_game_html(html: str) -> list[str]:
 
 
 def _stamp(html: str) -> str:
-    tag = '<meta name="vibeforge-game" content="custom">'
+    tag = '<meta name="reify-game" content="custom">'
     if tag in html:
         return html
     head = re.search(r"<head[^>]*>", html, re.IGNORECASE)

@@ -301,7 +301,7 @@ def defaults(capability: str, prompt: str) -> dict[str, Any]:
 def safe_brief(capability: str, brief: dict[str, Any]) -> dict[str, Any]:
     value = dict(brief)
     value["accent"] = accent(value.get("accent", "#b8ff5a"))
-    value["title"] = str(value.get("title", "VibeForge"))[:80]
+    value["title"] = str(value.get("title", "Reify"))[:80]
     for key in ("tagline", "paragraph", "headline"):
         if key in value:
             value[key] = str(value[key])[:220]
@@ -343,7 +343,7 @@ def render_media_html(
 
 
 def scaffold_html(capability: str, brief: dict[str, Any]) -> str:
-    title = esc(str(brief.get("title", "VibeForge")))
+    title = esc(str(brief.get("title", "Reify")))
     color = accent(brief.get("accent", "#b8ff5a"))
     return f"""<!DOCTYPE html>
 <html lang="zh-CN">
@@ -359,7 +359,7 @@ p{{color:#7f958a;font-size:12px;letter-spacing:.12em}}
 @keyframes pulse{{50%{{opacity:.4;transform:scale(.94)}}}}
 </style>
 </head>
-<body><div class="stage"><div><div class="mark">V</div><h1>{title}</h1><p>AGENT IS BUILDING · PLEASE WAIT</p></div></div></body>
+<body><div class="stage"><div><div class="mark">R</div><h1>{title}</h1><p>AGENT IS BUILDING · PLEASE WAIT</p></div></div></body>
 </html>"""
 
 
@@ -426,9 +426,9 @@ if __name__ == "__main__":
     print(quick_sort(data))
 '''
     artifact_lines = "\n".join(f"- `{path}`" for path in sorted(files))
-    files["README.md"] = f"""# {brief.get('title', 'VibeForge 产物')}
+    files["README.md"] = f"""# {brief.get('title', 'Reify 产物')}
 
-> 由 VibeForge 的个人设计 Agent 生成 · 任务 `{task_id}`
+> 由 Reify 的个人设计 Agent 生成 · 任务 `{task_id}`
 
 ## 原始需求
 
@@ -463,17 +463,40 @@ def html_checks(html: str, capability: str) -> list[tuple[str, bool, str]]:
         ("结构完整", html.lstrip().startswith("<!DOCTYPE html>") and "</html>" in html, "DOCTYPE / html 闭合"),
         ("移动端适配", 'name="viewport"' in html, "viewport 已声明"),
         ("内容完整", len(html) > 2400 and "{{" not in html, f"{len(html)} 字符"),
-        ("交互就绪", "<script>" in html and "</script>" in html, "脚本已注入"),
+        (
+            "交互就绪",
+            ("<script>" in html and "</script>" in html) or 'name="reify-longtail"' in html,
+            "脚本已注入" if "<script>" in html else "通用页面按需交互",
+        ),
     ]
     cap_check = {
         "game": ("玩法载体", "<canvas" in html, "canvas 已生成"),
         "resume": ("打印就绪", "@media print" in html, "A4 打印样式"),
-        "travel": ("行程交互", 'class="tab' in html, "每日路线可切换"),
+        "travel": (
+            "行程交互",
+            'class="tab' in html or "data-day" in html or "addEventListener" in html,
+            "每日路线可切换",
+        ),
         "adapt": ("多尺寸", 'data-ratio' in html, "三种画板比例"),
-        "code": ("代码演示", "quick_sort" in html, "代码与可视化已连接"),
+        "code": (
+            "代码演示",
+            (
+                "<pre" in html
+                or "<code" in html
+                or "<textarea" in html
+                or 'class="code' in html
+                or "def " in html
+            )
+            and "<script>" in html,
+            "代码与可视化已连接",
+        ),
         "image": ("图像画廊", "<img" in html and "assets/" in html, "图片画廊已组装"),
         "video": ("视频播放器", "<video" in html and "assets/" in html, "视频播放器已组装"),
-        "website": ("品牌区块", 'class="feature"' in html, "内容区块已生成"),
+        "website": (
+            "品牌区块",
+            'class="feature"' in html or html.count("<section") >= 2,
+            "内容区块已生成",
+        ),
     }
     checks.append(cap_check.get(capability, cap_check["website"]))
     return checks

@@ -1,33 +1,110 @@
-# VibeForge
+# Reify
 
-> 从 Vibe Coding 到 Vibe Working：一句话生成网站、简历、小游戏、旅游攻略、图片、视频制作和编程演示，并把成品直接部署到自己的 Agent Server。
+> One sentence. Made real. 一句话生成网站、简历、小游戏、旅游攻略、图片、视频制作和编程演示，并把成品直接部署到自己的 Agent Server。
 
-VibeForge 是一个单机优先的个人设计 Agent。它把自然语言拆成计划，逐步写文件，展示代码 Diff 与 Agent 思考流，跑结构/交互/语法自检，最后发布到 `/p/{id}/`。当前版本支持多用户自助注册，账号、会话和项目归属全部持久化在本机 SQLite，每个用户只能访问自己的项目。
+## 项目介绍
 
-## 能力
+Reify 是一个单机优先的个人设计 Agent：把一句自然语言需求拆成计划，逐步写文件，展示代码 Diff 与 Agent 思考流，跑结构/交互/语法自检，最后发布成可访问的项目。它面向希望快速把想法变成可展示成果的个人、独立开发者和小团队，不要求用户理解 React、Next 或构建工具。
+
+**当前分支**：`reify`。当前开发工作区：`/Users/shaodeng/Desktop/reify`。
+
+设计原则：
+
+- **一句话到成品**：用户只描述想要什么，技术栈和交付路径由后端自动选择。
+- **过程可见**：规划、写文件、自检、构建、部署都以 SSE 事件实时呈现，可切换日常/编程模式查看。
+- **模板与通用并重**：常见需求走快速确定性模板；长尾需求由 LLM 生成单文件页面/游戏/代码，并通过离网、结构和语法自检。
+- **本地优先、默认安全**：账号、会话、项目、事件和产物保存在本机 SQLite/文件系统；生成内容在 CSP sandbox 或独立 12889 origin 中运行。
+
+## 快速导航
+
+- [功能与模板](#功能与模板)
+- [总体架构](#总体架构)
+- [目录结构](#目录结构)
+- [本地启动](#本地启动)
+- [E2E 测试](#e2e-测试)
+- [环境与资源要求](#环境与资源要求)
+- [远程部署](#远程部署https--caddy)
+- [运维与故障排查](#运维与故障排查)
+- [API](#api)
+- [安全边界](#安全边界)
+
+## 功能与模板
 
 | Studio | 产物 | 自动验收 |
 | --- | --- | --- |
 | 小游戏 | 贪吃蛇 / 俄罗斯方块 / 飞机大战 / 打砖块，以及 LLM 生成的长尾玩法 | 结构、viewport、脚本、canvas、离网自检 |
-| 网站 | 有品牌感的响应式落地页 | 结构、viewport、内容区块、脚本 |
-| 简历 | 单页双栏、在线可读、A4 可打印 | 结构、打印样式、viewport |
-| 旅游攻略 | 按天切换的路线、预算与贴士 | 结构、每日路线交互、viewport |
+| 网站 | 内置工作室模板 + LLM 通用落地页 | 结构、viewport、内容区块、脚本、离网自检 |
+| 简历 | 内置经典模板 + LLM 通用简历 | 结构、打印样式、viewport、离网自检 |
+| 旅游攻略 | 内置城市模板 + LLM 通用攻略 | 结构、每日路线交互、viewport、离网自检 |
 | 图片 | 一次生成 4 张本地保存的图片 + 画廊 | 结构、图片资源、viewport |
 | 视频制作 | 异步渲染视频 + 播放器页 | 结构、视频资源、viewport |
-| 编程 | Python 代码 + 交互式可视化 | 结构、代码演示、`py_compile` |
+| 编程 | 内置快速排序模板 + LLM 通用算法 | 结构、代码演示、`py_compile`、离网自检 |
 
 实现方式由 Agent 自动选择，界面上不再暴露技术栈：小游戏、简历、攻略、图片、视频制作和编程固定使用静态模板；公司/工作室官网默认静态；个人网站、作品集、博客在沙箱可用时默认 React；只有提示词明确要求 Next.js/SSR 时才走 Next 源码工程——React 生成 Vite 工程并构建静态 `dist/`，Next 生成 App Router 全栈工程，构建 standalone 产物，并在独立运行时沙箱中启动 Node 服务。源码仍可在“编程模式”里逐个文件查看。
 
-小游戏先按提示词命中内置引擎（贪吃蛇、俄罗斯方块、飞机大战、打砖块）；其他玩法（如 2048、数独、跑酷）会按 GameSpec 交给 LLM 生成单文件 Canvas 游戏。生成结果必须包含 canvas、游戏循环、键鼠/触控输入、计分和重开，且不引用外部资源或发起网络请求；首次校验失败会让模型修复一次，仍失败则回退到内置引擎，保证页面始终可玩。
+所有静态能力都采用 **内置模板 + 通用生成**：
+
+- 小游戏先命中内置引擎（贪吃蛇、俄罗斯方块、飞机大战、打砖块）；其他玩法（如 2048、数独、跑酷）按 GameSpec 交给 LLM 生成单文件 Canvas 游戏。
+- 网站命中工作室/公司/品牌类提示词时使用内置模板；咖啡店、餐厅、活动、产品发布等长尾需求生成独立页面。
+- 简历默认使用经典模板；学术、医学、法律、演艺等方向走通用生成。
+- 旅游攻略默认使用城市行程模板；自驾、露营、徒步、海岛、美食等主题走通用生成。
+- 编程默认快速排序演示；二分查找、动态规划、图算法等走通用生成（同时产出 `main.py` 与可视化页面）。
+- 图片/视频本身就是提示词驱动的模型能力，内置画廊/播放器负责承载结果。
+
+通用生成的页面必须通过结构、移动端、离网依赖、交互/打印/代码展示检查，并禁止外部资源和网络请求；首次失败会带问题修复一次，仍失败则回退内置模板，保证始终有可交付结果。
+
+平台功能：
+
+- 登录/注册、多用户项目隔离、SQLite 服务端会话、限流和审计。
+- 7 模板插图画廊 + 单一通用 Composer；Composer 不暴露 STACK/技术栈。
+- 静态/React/Next 自动路由；React/Next 源码工程在 OpenSandbox 中真实构建。
+- 日常模式与编程模式；文件树、逐行 Diff、构建日志、事件重播。
+- Refine 二次修改、重新部署、源码导出、免登录公开链接和撤销。
+- Next standalone 运行时启动/停止/蓝绿切换；每用户运行时数量上限。
+- 管理员用户表、禁用/启用、撤销会话、审计日志。
+- 项目库筛选、统计、最近项目，以及 390px 移动端适配。
+
+## 总体架构
+
+```text
+                         HTTPS :12888
+Browser ──────────────────────────────▶ Caddy
+                                          │  TLS / ACME / SSE 反向代理
+                                          ▼
+                              ┌─────────────────────────┐
+                              │ FastAPI + React SPA     │
+                              │ auth · SSE · projects   │
+                              │ templates · admin       │
+                              └───────┬─────────┬───────┘
+                                      │         │
+                     SQLite + workspace│         │ OpenSandbox API
+                     data/reify.db     │         │ (builder / runtime)
+                                      ▼         ▼
+                              ┌─────────────────────────┐
+                              │ 静态产物 / React dist    │
+                              │ Next runtime :12889     │
+                              └─────────────────────────┘
+                                      │
+                              /p/ · /s/ · /apps/
+```
+
+一次生成请求的主流程：
+
+1. 前端把 `{prompt, capability?}` 发给 FastAPI；后端分类能力并自动选择 `static`、`react` 或 `next`。
+2. Agent 产出计划；先选内置模板或通用生成，写入 workspace，再做结构/交互/语法/离网校验。
+3. 静态结果直接发布到 `/p/{id}/`；React/Next 把源码送入 OpenSandbox，执行 `npm ci` + 构建；Next 构建完成后可启动 standalone 运行时。
+4. 每个步骤写入事件流，前端通过 SSE 实时渲染；项目完成后可 Refine、分享、导出或启动运行时。
+
+信任边界：平台 UI/API 在 12888 可信域；`/p/` 与 `/s/` 生成内容在 CSP sandbox 中运行；Next SSR 在独立的 12889 origin 上运行，12888 屏蔽 `/apps/*`。
 
 ## Next.js SSR 运行时
 
 - 提示词明确要求 Next.js/SSR 时，Agent 生成 `app/`、`app/api/notes/route.ts`、`next.config.mjs` 等 TypeScript 源码，在 OpenSandbox 中执行 `npm ci` + `next build`，打包 `.next/standalone`。
 - 构建完成后点击“启动应用”：创建独立运行时沙箱，上传 standalone 产物，后台启动 `node server.js`，健康检查通过后状态变为 `APP RUNNING`。
 - 运行时默认 1 CPU / 1 GiB、TTL 1 小时；空闲 10 分钟由监控任务停止。当前 Docker runtime 采用 stop/start 冷启动，不是 MicroVM pause/resume。
-- 远端 55 机器上 OpenSandbox server 同时接入 `vibeforge-net` 与默认 `bridge`：app 通过 `vibeforge-sandbox:8080` 调用，server 通过 bridge 直接代理到沙箱 execd；不把 41000-42000 端口暴露公网。
+- 远端 55 机器上 OpenSandbox server 同时接入 `reify-net` 与默认 `bridge`：app 通过 `reify-sandbox:8080` 调用，server 通过 bridge 直接代理到沙箱 execd；不把 41000-42000 端口暴露公网。
 - 当前示例是带 `/api/notes` 的服务端接口，留言写入项目数据卷（`runtime-data/notes.json`），停止再启动仍保留；数据卷由 OpenSandbox host bind 提供。
-- `/apps/{id}/` 预览默认关闭（`VIBEFORGE_SSR_PREVIEW=0`）。生产部署在 IP-only 模式下使用独立 HTTPS 端口 `12889`：平台在 `:12888`，SSR 应用在 `:12889`，两者不同 origin；Caddy 只在 `:12889` 暴露 `/apps/*`，并在 `:12888` 屏蔽 `/apps/*`。需要在云安全组放行 `12889`。生成应用仍可覆盖同主机 Cookie 造成登出（DoS），但无法读取平台 Cookie/API 响应。
+- `/apps/{id}/` 预览默认关闭（`REIFY_SSR_PREVIEW=0`）。生产部署在 IP-only 模式下使用独立 HTTPS 端口 `12889`：平台在 `:12888`，SSR 应用在 `:12889`，两者不同 origin；Caddy 只在 `:12889` 暴露 `/apps/*`，并在 `:12888` 屏蔽 `/apps/*`。需要在云安全组放行 `12889`。生成应用仍可覆盖同主机 Cookie 造成登出（DoS），但无法读取平台 Cookie/API 响应。
 - 运行时接口：`GET /api/projects/{id}/runtime`、`POST .../runtime/start`、`POST .../runtime/stop`。
 - React/Next 的「继续修改」会修改源码 patch、重新构建；Next 会先启动新运行时并通过健康检查，再停掉旧运行时（蓝绿切换）。
 
@@ -50,11 +127,11 @@ VibeForge 是一个单机优先的个人设计 Agent。它把自然语言拆成�
 uvx opensandbox-server init-config ~/.sandbox.toml --example docker
 uvx opensandbox-server --config ~/.sandbox.toml
 
-# 2. 启动 VibeForge
-VIBEFORGE_SANDBOX=opensandbox \
-VIBEFORGE_SANDBOX_DOMAIN=127.0.0.1:8080 \
-VIBEFORGE_SANDBOX_API_KEY=your-sandbox-key \
-VIBEFORGE_LLM_ENABLED=0 \
+# 2. 启动 Reify
+REIFY_SANDBOX=opensandbox \
+REIFY_SANDBOX_DOMAIN=127.0.0.1:8080 \
+REIFY_SANDBOX_API_KEY=your-sandbox-key \
+REIFY_LLM_ENABLED=0 \
 .venv/bin/python -m uvicorn server.main:app --host 127.0.0.1 --port 7801
 ```
 
@@ -69,13 +146,13 @@ OpenSandbox 的配置示例见 [`.env.example`](.env.example) 与 `deploy_remote
 ## 账号与访问保护
 
 - 任意用户可以在登录页自助注册；用户名 3~32 位，密码至少 8 位，注册后自动登录。
-- 账号、scrypt 密码哈希、登录会话、项目归属和运行时记录都保存在本机 `data/vibeforge.db`（SQLite WAL），服务重启后登录态和项目不会丢失。
+- 账号、scrypt 密码哈希、登录会话、项目归属和运行时记录都保存在本机 `data/reify.db`（SQLite WAL），服务重启后登录态和项目不会丢失。
 - Cookie 只保存随机令牌，会话本体在 SQLite；支持登出、退出所有设备、改密后失效。
-- 登录/注册按 IP 和用户名限流；默认开放注册，可设置 `VIBEFORGE_REGISTRATION=closed` 关闭。
-- 首个管理员由 `VIBEFORGE_ADMIN_USER` / `VIBEFORGE_ADMIN_PASSWORD` 启动时创建；未配置密码时会生成随机密码并打印到启动日志。
+- 登录/注册按 IP 和用户名限流；默认开放注册，可设置 `REIFY_REGISTRATION=closed` 关闭。
+- 首个管理员由 `REIFY_ADMIN_USER` / `REIFY_ADMIN_PASSWORD` 启动时创建；未配置密码时会生成随机密码并打印到启动日志。
 - 管理员角色已落库，并在 `/admin` 提供用户表、禁用/启用、撤销会话和审计日志；普通用户无法读取、修改、下载或预览其他用户的项目。
 
-现有单密码部署升级时，旧的 `VIBEFORGE_PASSWORD` 会作为管理员密码继续使用；启动时会自动把旧的扁平项目迁移到首个管理员名下（原目录保留）。部署脚本在升级前会备份 `data/vibeforge.db`。也可以手动执行：
+现有单密码部署升级时，旧的 `REIFY_PASSWORD` 会作为管理员密码继续使用；启动时会自动把旧的扁平项目迁移到首个管理员名下（原目录保留）。部署脚本在升级前会备份 `data/reify.db`。也可以手动执行：
 
 ```bash
 .venv/bin/python scripts/migrate_v2.py --dry-run
@@ -92,10 +169,10 @@ OpenSandbox 的配置示例见 [`.env.example`](.env.example) 与 `deploy_remote
 
 - Python 3.12+（当前验证到 3.14）
 - Node.js 20+（推荐 24）与 npm，仅用于构建平台前端和生成项目
-- 静态模板/长尾游戏可以直接运行；React/Next 源码生成还需要 Docker + OpenSandbox
+- 静态模板/通用生成可以直接运行；React/Next 源码生成还需要 Docker + OpenSandbox
 
 ```bash
-cd vibeforge-react-ts
+cd reify
 
 # 1. 构建平台前端
 cd frontend && npm ci && npm run build && cd ..
@@ -108,8 +185,8 @@ python3 -m venv .venv
 cp .env.example .env
 
 # 4. 启动
-VIBEFORGE_ADMIN_PASSWORD=your-admin-password \
-VIBEFORGE_REGISTRATION=open \
+REIFY_ADMIN_PASSWORD=your-admin-password \
+REIFY_REGISTRATION=open \
 .venv/bin/python -m uvicorn server.main:app --host 127.0.0.1 --port 7801
 ```
 
@@ -121,7 +198,7 @@ VIBEFORGE_REGISTRATION=open \
 cd frontend
 npm run dev
 # 默认 http://127.0.0.1:5173
-# 后端不在 7801 时：VIBEFORGE_BACKEND=http://127.0.0.1:12888 npm run dev
+# 后端不在 7801 时：REIFY_BACKEND=http://127.0.0.1:12888 npm run dev
 ```
 
 本地启用 React/Next 构建沙箱：
@@ -131,12 +208,12 @@ npm run dev
 uvx opensandbox-server init-config ~/.sandbox.toml --example docker
 uvx opensandbox-server --config ~/.sandbox.toml
 
-# 2. 使用与服务端配置一致的 API Key 启动 VibeForge
-VIBEFORGE_SANDBOX=opensandbox \
-VIBEFORGE_SANDBOX_DOMAIN=127.0.0.1:8080 \
-VIBEFORGE_SANDBOX_API_KEY=your-sandbox-key \
-VIBEFORGE_SSR_PREVIEW=1 \
-VIBEFORGE_SSR_PORT=12889 \
+# 2. 使用与服务端配置一致的 API Key 启动 Reify
+REIFY_SANDBOX=opensandbox \
+REIFY_SANDBOX_DOMAIN=127.0.0.1:8080 \
+REIFY_SANDBOX_API_KEY=your-sandbox-key \
+REIFY_SSR_PREVIEW=1 \
+REIFY_SSR_PORT=12889 \
 .venv/bin/python -m uvicorn server.main:app --host 127.0.0.1 --port 7801
 ```
 
@@ -153,7 +230,7 @@ VIBEFORGE_SSR_PORT=12889 \
 ```
 
 ```bash
-# 后端单测（61 项）
+# 后端单测（75 项）
 .venv/bin/python -m pytest -q
 
 # 前端组件/Reducer/SSE 测试（57 项）+ 类型检查 + 构建
@@ -163,20 +240,25 @@ cd frontend && npm ci && npm test && npm run typecheck && npm run build && cd ..
 .venv/bin/python tests/e2e_typescript_scaffolds.py
 
 # 平台 UI 全链路（真实 uvicorn + Chrome + mock LLM；注册、模板、生成、Refine、
-# 编程模式、部署、分享、导出、项目库、管理员、移动端、长尾游戏）
+# 编程模式、部署、分享、导出、项目库、管理员、移动端、通用生成）
 .venv/bin/python tests/e2e_browser.py
 
 # 已部署环境 UI 回归（需要一个可访问的 BASE）
-VIBEFORGE_E2E_BASE=https://117.148.166.55:12888 \
+REIFY_E2E_BASE=https://117.148.166.55:12888 \
   .venv/bin/python tests/e2e_deployed.py
 
-# 已部署环境真实 LLM 长尾游戏（会消耗模型 token）
-VIBEFORGE_E2E_BASE=https://117.148.166.55:12888 \
+# 已部署环境真实 LLM 通用生成（会消耗模型 token）
+REIFY_E2E_BASE=https://117.148.166.55:12888 \
   .venv/bin/python tests/e2e_game_live.py
 
 # 已部署环境 Next 运行时 UI：真实构建 -> 启动 -> 12889 iframe -> 服务端留言
-VIBEFORGE_E2E_BASE=https://117.148.166.55:12888 \
+REIFY_E2E_BASE=https://117.148.166.55:12888 \
   .venv/bin/python tests/e2e_next_live.py
+
+# 已部署环境通用模板：网站 / 简历 / 攻略 / 编程（真实 LLM）
+REIFY_E2E_BASE=https://117.148.166.55:12888 \
+  .venv/bin/python tests/e2e_longtail_live.py
+# 只跑其中几类：REIFY_E2E_CASES=resume,code
 ```
 
 `tests/e2e_react_sandbox.py`、`tests/e2e_next_ssr.py`、`tests/e2e_refine.py` 需要可用的 OpenSandbox，最好在 55 机器的内部网络里运行：
@@ -184,22 +266,22 @@ VIBEFORGE_E2E_BASE=https://117.148.166.55:12888 \
 ```bash
 ssh root@117.148.166.55
 
-docker run --rm --network vibeforge-net \
-  -v /opt/vibeforge:/app -w /app \
-  --env-file /opt/vibeforge/.runtime.env \
-  --entrypoint python3 vibeforge-app:latest \
+docker run --rm --network reify-net \
+  -v /opt/reify:/app -w /app \
+  --env-file /opt/reify/.runtime.env \
+  --entrypoint python3 reify-app:latest \
   tests/e2e_react_sandbox.py
 
-docker run --rm --network vibeforge-net \
-  -v /opt/vibeforge:/app -w /app \
-  --env-file /opt/vibeforge/.runtime.env \
-  --entrypoint python3 vibeforge-app:latest \
+docker run --rm --network reify-net \
+  -v /opt/reify:/app -w /app \
+  --env-file /opt/reify/.runtime.env \
+  --entrypoint python3 reify-app:latest \
   tests/e2e_next_ssr.py
 
-docker run --rm --network vibeforge-net \
-  -v /opt/vibeforge:/app -w /app \
-  --env-file /opt/vibeforge/.runtime.env \
-  --entrypoint python3 vibeforge-app:latest \
+docker run --rm --network reify-net \
+  -v /opt/reify:/app -w /app \
+  --env-file /opt/reify/.runtime.env \
+  --entrypoint python3 reify-app:latest \
   tests/e2e_refine.py
 ```
 
@@ -215,12 +297,12 @@ https://117.148.166.55:12888/
 
 ## 可选：接入任意 OpenAI 兼容模型
 
-不配置模型时，Agent 使用确定性的“本地导演 + 模板渲染”，保证每次都能生成可运行产物。配置后，模型负责产出短创意 brief（标题、语气、强调色、要点），长尾小游戏还会生成完整单文件游戏；其余 HTML 仍由可验证的模板渲染，避免模型输出坏页面。长尾游戏默认关闭模型思考模式（`enable_thinking=false`），避免推理占满输出预算；如模型不支持该参数，可设置 `VIBEFORGE_LLM_GAME_DISABLE_THINKING=0`，并适当调大 `VIBEFORGE_LLM_GAME_MAX_TOKENS`。
+不配置模型时，Agent 使用确定性的“本地导演 + 模板渲染”，保证每次都能生成可运行产物。配置后，模型负责产出短创意 brief（标题、语气、强调色、要点），长尾页面和小游戏还会生成完整单文件交付物；其余 HTML 仍由可验证的模板渲染，避免模型输出坏页面。通用生成默认关闭模型思考模式（`enable_thinking=false`），避免推理占满输出预算；如模型不支持该参数，可设置 `REIFY_LLM_LONGTAIL_DISABLE_THINKING=0`，并适当调大 `REIFY_LLM_LONGTAIL_MAX_TOKENS`。
 
 ```bash
-export VIBEFORGE_LLM_BASE_URL=http://127.0.0.1:8000/v1
-export VIBEFORGE_LLM_API_KEY=sk-...
-export VIBEFORGE_LLM_MODEL=qwen-plus
+export REIFY_LLM_BASE_URL=http://127.0.0.1:8000/v1
+export REIFY_LLM_API_KEY=sk-...
+export REIFY_LLM_MODEL=qwen-plus
 ```
 
 也支持 vLLM / SGLang / Ollama 的 OpenAI 兼容接口。
@@ -228,7 +310,7 @@ export VIBEFORGE_LLM_MODEL=qwen-plus
 图片默认使用 `qwen-image-3.0-pro`，一次生成 4 张；视频默认使用当前工作区已开放的 `wan3.0-video`。`wan2.7-video` 在当前工作区返回 Model not exist，如果后续开通可设置：
 
 ```bash
-VIBEFORGE_VIDEO_MODEL=wan2.7-video
+REIFY_VIDEO_MODEL=wan2.7-video
 ```
 
 图片/视频素材会下载到 `data/users/{uid}/projects/{id}/workspace/assets/v{revision}/`，项目页展示画廊或播放器；二次修改会生成新的 `v{revision}` 目录，旧素材保留。素材 URL 带项目级能力 key，静态页面在 CSP sandbox 下也能正常加载。
@@ -239,16 +321,16 @@ VIBEFORGE_VIDEO_MODEL=wan2.7-video
 
 ```bash
 umask 077
-cat > ~/.vibeforge_llm.env <<'EOF'
-VIBEFORGE_LLM_BASE_URL=https://your-provider/v1
-VIBEFORGE_LLM_MODEL=your-model
-VIBEFORGE_LLM_API_KEY=sk-your-key
-VIBEFORGE_LLM_ENABLED=1
+cat > ~/.reify_llm.env <<'EOF'
+REIFY_LLM_BASE_URL=https://your-provider/v1
+REIFY_LLM_MODEL=your-model
+REIFY_LLM_API_KEY=sk-your-key
+REIFY_LLM_ENABLED=1
 EOF
 
-scp ~/.vibeforge_llm.env root@117.148.166.55:/opt/vibeforge/.llm.env
-ssh root@117.148.166.55 'chmod 600 /opt/vibeforge/.llm.env'
-cd vibeforge && ./deploy_remote.sh root@117.148.166.55 12888
+scp ~/.reify_llm.env root@117.148.166.55:/opt/reify/.llm.env
+ssh root@117.148.166.55 'chmod 600 /opt/reify/.llm.env'
+cd reify && ./deploy_remote.sh root@117.148.166.55 12888
 ```
 
 部署脚本会把 `.auth.env` 与 `.llm.env` 合并成 600 权限的 `.runtime.env` 再注入容器；不会写入镜像、源码或 Git。
@@ -256,9 +338,9 @@ cd vibeforge && ./deploy_remote.sh root@117.148.166.55 12888
 如果只想用一次，测完后删除凭据并重建容器：
 
 ```bash
-ssh root@117.148.166.55 'shred -u /opt/vibeforge/.llm.env /opt/vibeforge/.runtime.env'
-rm -f ~/.vibeforge_llm.env
-cd vibeforge && ./deploy_remote.sh root@117.148.166.55 12888
+ssh root@117.148.166.55 'shred -u /opt/reify/.llm.env /opt/reify/.runtime.env'
+rm -f ~/.reify_llm.env
+cd reify && ./deploy_remote.sh root@117.148.166.55 12888
 ```
 
 重建后 `/api/health` 会回到 `llm:false`，模板导演继续兜底。
@@ -266,7 +348,7 @@ cd vibeforge && ./deploy_remote.sh root@117.148.166.55 12888
 ## 目录结构
 
 ```text
-vibeforge-react-ts/
+reify/
 ├── frontend/                    平台控制台：Vite + React 19 + TypeScript
 │   ├── src/
 │   │   ├── api/                 fetch 封装与 API 类型
@@ -285,7 +367,7 @@ vibeforge-react-ts/
 │   ├── main.py                  HTTP API、SSE、SPA 服务、鉴权入口
 │   ├── auth.py / db.py          scrypt 密码、SQLite 会话、用户/项目/审计
 │   ├── agent.py                 生成编排：规划 → 写文件 → 自检 → 部署/构建
-│   ├── llm.py                   OpenAI 兼容 brief、Refine、长尾游戏生成
+│   ├── llm.py                   OpenAI 兼容 brief、Refine、通用页面/代码生成
 │   ├── media.py                 图片/视频生成与下载
 │   ├── sandbox.py               OpenSandbox 客户端、React/Next 构建与产物校验
 │   ├── runtime.py               Next standalone 运行时、健康检查、蓝绿切换
@@ -295,6 +377,7 @@ vibeforge-react-ts/
 │   └── templates/
 │       ├── library.py           7 类能力注册、分类、计划与自检
 │       ├── website.py 等        静态页面模板
+│       ├── longtail.py          通用生成规格、校验、修复与回退
 │       ├── react_app.py         Vite + React + TS 源码脚手架
 │       ├── next_app.py          Next App Router + TS 源码脚手架
 │       └── games/
@@ -310,7 +393,7 @@ vibeforge-react-ts/
 ├── docs/                        迁移设计、隔离设计
 ├── scripts/                     migrate_v2.py
 ├── data/                        运行时数据（忽略提交）
-│   ├── vibeforge.db             SQLite：用户、会话、项目索引、运行时
+│   ├── reify.db             SQLite：用户、会话、项目索引、运行时
 │   └── users/{uid}/projects/{pid}/
 │       ├── workspace/           源码、dist、runtime
 │       ├── events.jsonl         事件流
@@ -337,7 +420,7 @@ vibeforge-react-ts/
 - `GET /api/projects/{id}/events` → SSE 事件流
 - `POST /api/projects/{id}/deploy` → 重新部署（静态/React）
 - `GET|POST /api/projects/{id}/runtime[/start|/stop]` → Next SSR 运行时管理
-- `GET /apps/{id}/` → SSR 预览（仅 `VIBEFORGE_SSR_PREVIEW=1`，且仅项目所有者）
+- `GET /apps/{id}/` → SSR 预览（仅 `REIFY_SSR_PREVIEW=1`，且仅项目所有者）
 - `GET /api/projects/{id}/bundle` → 下载项目 zip
 - `GET /p/{id}/` → 已部署静态产物（仅项目所有者）
 - `POST|DELETE /api/projects/{id}/share` → 创建/撤销只读分享
@@ -350,7 +433,7 @@ vibeforge-react-ts/
 
 - 管理员在 `/admin` 查看用户、项目数、存储占用和最近审计；可禁用/启用账号、撤销某用户全部会话。
 - 新生成的静态/React 项目会自动获得只读分享链接 `/s/{token}/`；也可用 `POST /api/projects/{id}/share` 重新签发，`DELETE` 立即撤销。分享页不需要登录，但不能调用平台 API；只暴露 `index.html` 与 `assets/`，源码、README 和 prompt 不会通过分享页泄露。撤销后旧 asset key 对匿名访问立即失效，项目所有者仍可在登录状态预览。Next SSR 项目暂不支持分享。
-- 每用户最多保留 2 个运行中的 SSR 应用（`VIBEFORGE_MAX_RUNTIME_PER_USER`），超出时启动接口返回 429。
+- 每用户最多保留 2 个运行中的 SSR 应用（`REIFY_MAX_RUNTIME_PER_USER`），超出时启动接口返回 429。
 - 密码、会话和审计都保存在本机 SQLite；审计记录包含注册/登录、项目创建/修改/部署、运行时启停、分享和管理员操作。
 - 每用户默认限制 50 个项目、1 GB 存储、2 个活跃任务、1 个源码构建；超出时 API 返回 429。
 
@@ -380,7 +463,7 @@ vibeforge-react-ts/
 
 | 场景 | vCPU | 内存 | 磁盘 | 说明 |
 |---|---:|---:|---:|---|
-| 只跑静态模板/长尾游戏，不启用源码沙箱 | 2 | 2 GB | 10 GB | 应用 + Caddy + SQLite |
+| 只跑静态模板/通用生成，不启用源码沙箱 | 2 | 2 GB | 10 GB | 应用 + Caddy + SQLite |
 | 推荐完整能力 | 4-8 | 16 GB | 60 GB | React/Next 构建 + 1-2 个 SSR 运行时 |
 | 最低可尝试 Next | 4 | 8 GB | 30 GB | 构建需 4 GiB 沙箱；并发高会排队 |
 
@@ -396,30 +479,30 @@ vibeforge-react-ts/
 
 | 变量 | 默认 | 用途 |
 |---|---|---|
-| `VIBEFORGE_DATA` | `./data` | SQLite 与用户项目根目录 |
-| `VIBEFORGE_PROJECTS` | `./projects` | 旧版项目目录（迁移用） |
-| `VIBEFORGE_DB` | `data/vibeforge.db` | SQLite 路径 |
-| `VIBEFORGE_ADMIN_USER/PASSWORD` | `admin` / 随机 | 首个管理员 |
-| `VIBEFORGE_COOKIE_SECURE` | `0` | HTTPS 部署必须设为 `1` |
-| `VIBEFORGE_REGISTRATION` | `open` | `open` 或 `closed` |
-| `VIBEFORGE_SANDBOX` | `off` | `opensandbox` 启用源码构建 |
-| `VIBEFORGE_SANDBOX_DOMAIN` | `127.0.0.1:8080` | Sandbox Server 地址 |
-| `VIBEFORGE_SANDBOX_API_KEY` | 空 | Sandbox API Key |
-| `VIBEFORGE_SANDBOX_BUILD_MEMORY` | `2Gi`（55 用 `4Gi`） | 构建沙箱内存 |
-| `VIBEFORGE_SANDBOX_CONCURRENCY` | `2` | 同时构建数 |
-| `VIBEFORGE_NPM_REGISTRY` | `https://registry.npmmirror.com` | 构建 npm 源 |
-| `VIBEFORGE_NPM_INSTALL_TIMEOUT` / `BUILD_TIMEOUT` | `600` | npm 超时（秒） |
-| `VIBEFORGE_SSR_PREVIEW` | `0` | 是否代理 `/apps/*` 预览 |
-| `VIBEFORGE_SSR_PORT` | `12889` | SSR origin 端口 |
-| `VIBEFORGE_RUNTIME_IDLE/TTL` | `600` / `3600` | 运行时空闲停止/TTL（秒） |
-| `VIBEFORGE_LLM_ENABLED` | `1` | 是否调用模型 |
-| `VIBEFORGE_LLM_BASE_URL/API_KEY/MODEL` | 空 | OpenAI 兼容接口 |
-| `VIBEFORGE_LLM_GAME_DISABLE_THINKING` | `1` | 长尾游戏关闭思考模式 |
-| `VIBEFORGE_LLM_GAME_MAX_TOKENS` | `24000` | 长尾游戏输出预算 |
-| `VIBEFORGE_MEDIA_API_BASE/KEY` | 继承 LLM | 图片/视频接口 |
-| `VIBEFORGE_MAX_STORAGE_PER_USER` | `1073741824` | 每用户存储上限（1 GB） |
+| `REIFY_DATA` | `./data` | SQLite 与用户项目根目录 |
+| `REIFY_PROJECTS` | `./projects` | 旧版项目目录（迁移用） |
+| `REIFY_DB` | `data/reify.db` | SQLite 路径 |
+| `REIFY_ADMIN_USER/PASSWORD` | `admin` / 随机 | 首个管理员 |
+| `REIFY_COOKIE_SECURE` | `0` | HTTPS 部署必须设为 `1` |
+| `REIFY_REGISTRATION` | `open` | `open` 或 `closed` |
+| `REIFY_SANDBOX` | `off` | `opensandbox` 启用源码构建 |
+| `REIFY_SANDBOX_DOMAIN` | `127.0.0.1:8080` | Sandbox Server 地址 |
+| `REIFY_SANDBOX_API_KEY` | 空 | Sandbox API Key |
+| `REIFY_SANDBOX_BUILD_MEMORY` | `2Gi`（55 用 `4Gi`） | 构建沙箱内存 |
+| `REIFY_SANDBOX_CONCURRENCY` | `2` | 同时构建数 |
+| `REIFY_NPM_REGISTRY` | `https://registry.npmmirror.com` | 构建 npm 源 |
+| `REIFY_NPM_INSTALL_TIMEOUT` / `BUILD_TIMEOUT` | `600` | npm 超时（秒） |
+| `REIFY_SSR_PREVIEW` | `0` | 是否代理 `/apps/*` 预览 |
+| `REIFY_SSR_PORT` | `12889` | SSR origin 端口 |
+| `REIFY_RUNTIME_IDLE/TTL` | `600` / `3600` | 运行时空闲停止/TTL（秒） |
+| `REIFY_LLM_ENABLED` | `1` | 是否调用模型 |
+| `REIFY_LLM_BASE_URL/API_KEY/MODEL` | 空 | OpenAI 兼容接口 |
+| `REIFY_LLM_LONGTAIL_DISABLE_THINKING` | `1` | 通用生成关闭思考模式 |
+| `REIFY_LLM_LONGTAIL_MAX_TOKENS` | `24000` | 通用生成输出预算 |
+| `REIFY_MEDIA_API_BASE/KEY` | 继承 LLM | 图片/视频接口 |
+| `REIFY_MAX_STORAGE_PER_USER` | `1073741824` | 每用户存储上限（1 GB） |
 
-完整列表见 [.env.example](.env.example)。部署时敏感变量写入 `/opt/vibeforge/.auth.env`、`.sandbox.env`、`.llm.env`，由脚本合并为 600 权限的 `.runtime.env`。
+完整列表见 [.env.example](.env.example)。部署时敏感变量写入 `/opt/reify/.auth.env`、`.sandbox.env`、`.llm.env`，由脚本合并为 600 权限的 `.runtime.env`。
 
 ## 远程部署（HTTPS / Caddy）
 
@@ -433,38 +516,40 @@ vibeforge-react-ts/
 ### 首次部署
 
 ```bash
-cd vibeforge-react-ts
+cd reify
 ./deploy_remote.sh root@117.148.166.55 12888
 ```
 
+如果目标机器上已有旧的 `/opt/vibeforge` 部署，脚本会自动做一次迁移：复制数据到 `/opt/reify`、把 `vibeforge.db` 复制为 `reify.db`、把环境变量前缀改为 `REIFY_`、将旧运行时标记为 stopped；新栈健康后再删除旧 app/Caddy/sandbox 容器。旧目录会保留作为回滚备份。由于 Cookie 名从 `vibeforge_session` 改为 `reify_session`，所有用户需要重新登录。迁移只在 `/opt/reify/data` 不存在时执行；不需要删除旧容器时可设置 `REIFY_REMOVE_LEGACY=0`。
+
 脚本会：
 
-1. 同步源码到 `/opt/vibeforge`
-2. 用 `python:3.12-slim` 构建 `vibeforge-app:latest`（内部多阶段用 Node 构建 `web/dist`）
-3. 把镜像里的前端产物复制到宿主 `/opt/vibeforge/web/dist`（应用容器把 `/opt/vibeforge` 挂载为 `/app`）
-4. 备份 `/opt/vibeforge/data/vibeforge.db` 到 `/opt/vibeforge/backups/`
-5. 生成/复用 `.auth.env`、`.sandbox.env`，启动或复用 `vibeforge-sandbox`
-6. 替换 `vibeforge` 与 `vibeforge-caddy`，保留沙箱容器
+1. 同步源码到 `/opt/reify`
+2. 用 `python:3.12-slim` 构建 `reify-app:latest`（内部多阶段用 Node 构建 `web/dist`）
+3. 把镜像里的前端产物复制到宿主 `/opt/reify/web/dist`（应用容器把 `/opt/reify` 挂载为 `/app`）
+4. 备份 `/opt/reify/data/reify.db` 到 `/opt/reify/backups/`
+5. 生成/复用 `.auth.env`、`.sandbox.env`，启动或复用 `reify-sandbox`
+6. 替换 `reify` 与 `reify-caddy`，保留沙箱容器
 7. 校验 `/api/health`、未登录 `/api/projects` 返回 401、`/login` 返回 React 入口
 
 首次启动的管理员密码在：
 
 ```text
-root@<host>:/opt/vibeforge/.auth.env
+root@<host>:/opt/reify/.auth.env
 ```
 
 ### 数据、备份与回滚
 
-- 数据全部在宿主 `/opt/vibeforge/data/`，容器重建不会丢失
-- 每次部署前自动备份 SQLite 到 `/opt/vibeforge/backups/`；建议保留 7 天并定期复制到宿主机之外
-- 项目产物体积受 `VIBEFORGE_MAX_STORAGE_PER_USER` 限制（默认 1 GB/用户）
-- 回滚：切回上一个 Git 版本重新执行部署脚本；数据库备份在 `backups/`，恢复时先停 `vibeforge` 再替换 `data/vibeforge.db`
+- 数据全部在宿主 `/opt/reify/data/`，容器重建不会丢失
+- 每次部署前自动备份 SQLite 到 `/opt/reify/backups/`；建议保留 7 天并定期复制到宿主机之外
+- 项目产物体积受 `REIFY_MAX_STORAGE_PER_USER` 限制（默认 1 GB/用户）
+- 回滚：切回上一个 Git 版本重新执行部署脚本；数据库备份在 `backups/`，恢复时先停 `reify` 再替换 `data/reify.db`
 
 ### 更新与沙箱
 
 - 重复执行部署脚本即可更新；默认只重建 app/Caddy，不打断已有 SSR 运行时
-- 修改了 `.sandbox.env` 或 `sandbox/config.toml` 后，需要手动重建 `vibeforge-sandbox`，否则旧配置继续生效
-- `VIBEFORGE_IMAGE` 可替换 app 基座镜像；`VIBEFORGE_APP_IMAGE` 只改变镜像 tag，不会跳过构建
+- 修改了 `.sandbox.env` 或 `sandbox/config.toml` 后，需要手动重建 `reify-sandbox`，否则旧配置继续生效
+- `REIFY_IMAGE` 可替换 app 基座镜像；`REIFY_APP_IMAGE` 只改变镜像 tag，不会跳过构建
 
 ### 证书与验证
 
@@ -473,25 +558,25 @@ curl -kfsS https://117.148.166.55:12888/api/health
 curl -kfsS -o /dev/null -w '%{http_code}\n' https://117.148.166.55:12888/login
 ```
 
-Caddy 使用公网 IP 证书（短周期，自动续期），证书与 ACME 账户保存在 Docker volume `vibeforge-caddy-data`。如果 80 端口不可达，需要改用域名 + DNS-01 或接受自签名证书。12889 是独立 origin，平台 12888 会屏蔽 `/apps/*`，避免生成应用读取平台 Cookie/API 响应。
+Caddy 使用公网 IP 证书（短周期，自动续期），证书与 ACME 账户保存在 Docker volume `reify-caddy-data`。如果 80 端口不可达，需要改用域名 + DNS-01 或接受自签名证书。12889 是独立 origin，平台 12888 会屏蔽 `/apps/*`，避免生成应用读取平台 Cookie/API 响应。
 
 ## 运维与故障排查
 
 ```bash
 # 服务与沙箱状态
-docker ps --format '{{.Names}}\t{{.Status}}' | grep vibeforge
-docker logs --tail 100 vibeforge
-docker logs --tail 100 vibeforge-sandbox
+docker ps --format '{{.Names}}\t{{.Status}}' | grep reify
+docker logs --tail 100 reify
+docker logs --tail 100 reify-sandbox
 curl -kfsS https://<host>:12888/api/health
 
 # 数据量
-docker exec vibeforge python3 -c "import sqlite3; c=sqlite3.connect('/app/data/vibeforge.db'); print(c.execute('select count(*) from users').fetchone(), c.execute('select count(*) from projects').fetchone())"
+docker exec reify python3 -c "import sqlite3; c=sqlite3.connect('/app/data/reify.db'); print(c.execute('select count(*) from users').fetchone(), c.execute('select count(*) from projects').fetchone())"
 
 # 备份与恢复（停服务后替换）
-ls -lt /opt/vibeforge/backups | head
-docker stop vibeforge
-cp /opt/vibeforge/backups/vibeforge-<stamp>.db /opt/vibeforge/data/vibeforge.db
-docker start vibeforge
+ls -lt /opt/reify/backups | head
+docker stop reify
+cp /opt/reify/backups/reify-<stamp>.db /opt/reify/data/reify.db
+docker start reify
 ```
 
 常见问题：
@@ -499,13 +584,13 @@ docker start vibeforge
 | 现象 | 处理 |
 |---|---|
 | 页面 503，提示 React UI build is missing | 执行 `cd frontend && npm ci && npm run build`，确认 `web/dist/index.html` 存在 |
-| 登录后立即跳回登录 | 生产 `VIBEFORGE_COOKIE_SECURE=1`；本地 HTTP 设为 `0` |
-| React/Next 任务 503 或配置 503 | 检查沙箱容器、API Key、`vibeforge-sandbox:8080` 网络别名和 `/api/health` 的 `reachable` |
-| npm ci 卡住 | 确认构建沙箱能访问 `VIBEFORGE_NPM_REGISTRY`；不要把 lockfile 指向内网 registry |
-| Next 构建 OOM | 构建沙箱至少 4 GiB，降低 `VIBEFORGE_SANDBOX_CONCURRENCY` |
+| 登录后立即跳回登录 | 生产 `REIFY_COOKIE_SECURE=1`；本地 HTTP 设为 `0` |
+| React/Next 任务 503 或配置 503 | 检查沙箱容器、API Key、`reify-sandbox:8080` 网络别名和 `/api/health` 的 `reachable` |
+| npm ci 卡住 | 确认构建沙箱能访问 `REIFY_NPM_REGISTRY`；不要把 lockfile 指向内网 registry |
+| Next 构建 OOM | 构建沙箱至少 4 GiB，降低 `REIFY_SANDBOX_CONCURRENCY` |
 | 12889 打不开 | 安全组放行 12889；平台 12888 不代理 `/apps/*` |
 | 公开页空白 / React 资源加载失败 | 确认 `/s/` 响应带 `Access-Control-Allow-Origin: *`，且 `web/dist` 完整 |
-| 长尾游戏回退内置引擎 | 检查 LLM 配置；模型支持时保持 `VIBEFORGE_LLM_GAME_DISABLE_THINKING=1`，否则调整 `MAX_TOKENS`/超时 |
+| 通用生成回退内置模板 | 检查 LLM 配置；模型支持时保持 `REIFY_LLM_LONGTAIL_DISABLE_THINKING=1`，否则调整 `MAX_TOKENS`/超时 |
 | 磁盘不足 | 清理悬空镜像（先确认没有容器使用）：`docker image prune`；长期方案扩容到 60 GB |
 
 ## 安全边界
@@ -518,6 +603,6 @@ docker start vibeforge
 - 产物只写入 `data/users/{uid}/projects/{pid}/workspace/`，所有文件工具做工作区路径校验。
 - 静态 `/p/` 预览 iframe 不开放 same-origin；Next 预览在独立的 12889 origin 上允许 same-origin，以便其自身 `/apps/{id}/api/*` 工作，仍无法访问 12888 平台页面。
 - 当前数据层已按用户隔离；React/Next 构建在独立 OpenSandbox 沙箱中执行，app 容器不持有 docker.sock。
-- 沙箱不注入平台密钥，构建结束销毁。本机默认使用 npm registry allowlist；当前 55 机器的 OpenSandbox egress sidecar 无法启动，部署脚本使用 `VIBEFORGE_SANDBOX_EGRESS=open`（无 sidecar），隔离仍依赖容器边界，后续需修复/替换 sidecar。
+- 沙箱不注入平台密钥，构建结束销毁。本机默认使用 npm registry allowlist；当前 55 机器的 OpenSandbox egress sidecar 无法启动，部署脚本使用 `REIFY_SANDBOX_EGRESS=open`（无 sidecar），隔离仍依赖容器边界，后续需修复/替换 sidecar。
 - Next SSR 运行时是单独沙箱；`/apps/` 预览通过独立端口 `12889` 与平台 `12888` 隔离，Caddy 只在该端口暴露 `/apps/*`。运行时出网同样受上述 sidecar 限制。仍需注意同主机 Cookie 可被生成应用覆盖（DoS）。
 - 若要开放给不可信多用户并执行任意生成代码，建议把 Docker runtime 升级为 OpenSandbox Firecracker 或 ACS Agent Sandbox（MicroVM）。

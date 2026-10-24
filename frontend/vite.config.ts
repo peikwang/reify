@@ -1,7 +1,7 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 
-const backend = process.env.VIBEFORGE_BACKEND || "http://127.0.0.1:7801";
+const backend = process.env.REIFY_BACKEND || "http://127.0.0.1:7801";
 
 export default defineConfig({
   plugins: [react()],

@@ -2,7 +2,7 @@
 """Deployed-environment smoke E2E: real HTTPS deployment, real Chrome, one static project.
 
 Usage:
-    VIBEFORGE_E2E_BASE=https://117.148.166.55:12888 .venv/bin/python tests/e2e_deployed.py
+    REIFY_E2E_BASE=https://117.148.166.55:12888 .venv/bin/python tests/e2e_deployed.py
 """
 from __future__ import annotations
 
@@ -14,10 +14,10 @@ from pathlib import Path
 
 from playwright.sync_api import Page, expect, sync_playwright
 
-BASE = os.environ.get("VIBEFORGE_E2E_BASE", "").rstrip("/")
+BASE = os.environ.get("REIFY_E2E_BASE", "").rstrip("/")
 if not BASE:
-    raise SystemExit("VIBEFORGE_E2E_BASE is required")
-ARTIFACTS = Path(tempfile.mkdtemp(prefix="vibeforge-deployed-e2e-"))
+    raise SystemExit("REIFY_E2E_BASE is required")
+ARTIFACTS = Path(tempfile.mkdtemp(prefix="reify-deployed-e2e-"))
 
 
 def check(condition: bool, message: str) -> None:

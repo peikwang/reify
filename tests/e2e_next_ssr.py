@@ -16,23 +16,23 @@ import httpx
 ROOT = Path(__file__).resolve().parent.parent
 PORT = 18130
 BASE = f"http://127.0.0.1:{PORT}"
-WORK = Path(tempfile.mkdtemp(prefix="vibeforge-next-e2e-"))
+WORK = Path(tempfile.mkdtemp(prefix="reify-next-e2e-"))
 
 
 def env() -> dict[str, str]:
     return {
         **os.environ,
-        "VIBEFORGE_DATA": str(WORK / "data"),
-        "VIBEFORGE_PROJECTS": str(WORK / "legacy"),
-        "VIBEFORGE_COOKIE_SECURE": "0",
-        "VIBEFORGE_LLM_ENABLED": "0",
-        "VIBEFORGE_STEP_DELAY": "0.02",
-        "VIBEFORGE_ADMIN_PASSWORD": "e2e-admin-password",
-        "VIBEFORGE_SANDBOX": "opensandbox",
-        "VIBEFORGE_SANDBOX_DOMAIN": os.getenv("VIBEFORGE_SANDBOX_DOMAIN", "127.0.0.1:8080"),
-        "VIBEFORGE_SANDBOX_API_KEY": os.getenv("VIBEFORGE_SANDBOX_API_KEY", "vibeforge-local-key"),
-        "VIBEFORGE_SANDBOX_SERVER_PROXY": "1",
-        "VIBEFORGE_SSR_PREVIEW": "1",
+        "REIFY_DATA": str(WORK / "data"),
+        "REIFY_PROJECTS": str(WORK / "legacy"),
+        "REIFY_COOKIE_SECURE": "0",
+        "REIFY_LLM_ENABLED": "0",
+        "REIFY_STEP_DELAY": "0.02",
+        "REIFY_ADMIN_PASSWORD": "e2e-admin-password",
+        "REIFY_SANDBOX": "opensandbox",
+        "REIFY_SANDBOX_DOMAIN": os.getenv("REIFY_SANDBOX_DOMAIN", "127.0.0.1:8080"),
+        "REIFY_SANDBOX_API_KEY": os.getenv("REIFY_SANDBOX_API_KEY", "reify-local-key"),
+        "REIFY_SANDBOX_SERVER_PROXY": "1",
+        "REIFY_SSR_PREVIEW": "1",
     }
 
 

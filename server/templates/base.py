@@ -19,7 +19,7 @@ HTML_SHELL = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<meta name="generator" content="VibeForge Agent Server" />
+<meta name="generator" content="Reify Agent Server" />
 <title>{{TITLE}}</title>
 <style>
 {{STYLE}}
@@ -59,6 +59,6 @@ def highlight_cards(highlights: list[str], class_name: str = "feature") -> str:
     for index, item in enumerate(highlights, start=1):
         cards.append(
             f'<article class="{class_name}"><span class="idx">0{index}</span>'
-            f"<h3>{esc(item)}</h3><p>由 VibeForge 根据你的描述生成的设计要点。</p></article>"
+            f"<h3>{esc(item)}</h3><p>由 Reify 根据你的描述生成的设计要点。</p></article>"
         )
     return "\n".join(cards)
