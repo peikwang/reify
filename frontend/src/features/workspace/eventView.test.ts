@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { RuntimeState, Task, TaskEvent } from "../../api/types";
 import {
   applyProjectEvent,
+  buildProjectView,
   initialProjectView,
   projectPageStatus,
   type ProjectViewState,
@@ -81,7 +82,7 @@ describe("applyProjectEvent", () => {
     ]);
   });
 
-  it("ignores build log lines in the read-only timeline", () => {
+  it("collects build logs in the terminal without bloating the timeline", () => {
     const before = applyProjectEvent(
       initialProjectView,
       event(1, "build_started", { files: 4, image: "node:24" }),
@@ -91,6 +92,8 @@ describe("applyProjectEvent", () => {
       event(2, "build_log", { line: "vite build" }),
     );
     expect(after.timeline).toHaveLength(before.timeline.length);
+    expect(after.terminalLines).toHaveLength(before.terminalLines.length + 1);
+    expect(after.terminalLines.at(-1)?.text).toBe("vite build");
     expect(after.lastSeq).toBe(2);
   });
 
@@ -107,6 +110,9 @@ describe("applyProjectEvent", () => {
     );
     expect(state.timeline[0]?.summary).toContain("+1 行");
     expect(state.timeline[0]?.detail).toBe("添加区块");
+    expect(state.files["src/App.jsx"]?.content).toBe("a\nb\nc");
+    expect(state.files["src/App.jsx"]?.before).toBe("a\nb");
+    expect(state.terminalLines.at(-1)?.text).toContain("src/App.jsx");
   });
 
   it("closes the view on done with checks and outcome", () => {
@@ -124,6 +130,21 @@ describe("applyProjectEvent", () => {
     expect(state.previewReady).toBe(true);
     expect(state.outcome).toEqual({ title: "测试项目", text: "已完成" });
     expect(state.checks).toEqual([{ name: "结构完整", ok: true, detail: "ok" }]);
+  });
+
+  it("replays a unique event list deterministically", () => {
+    const events = [
+      event(2, "done", { title: "完成" }),
+      event(1, "plan", { steps: ["规划"] }),
+    ];
+    const first = buildProjectView(events);
+    const second = buildProjectView(events);
+    expect(first.plan).toEqual(["规划"]);
+    expect(first.terminal).toBe("done");
+    expect(second).toEqual(first);
+    expect(first.timeline.map((item) => item.key)).toEqual(
+      Array.from(new Set(first.timeline.map((item) => item.key))),
+    );
   });
 
   it("marks error and interrupted terminals", () => {

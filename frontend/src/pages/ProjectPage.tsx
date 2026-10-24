@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useReducer,
   useRef,
   useState,
@@ -17,6 +18,8 @@ import type {
   TaskEvent,
 } from "../api/types";
 import { capabilityInfo } from "../features/project-library/projectView";
+import { CodingPane } from "../features/workspace/CodingPane";
+import { DailyOutput } from "../features/workspace/DailyOutput";
 import {
   applyProjectEvent,
   initialProjectView,
@@ -29,6 +32,7 @@ import { useTaskStream, type StreamConnection } from "../hooks/useTaskStream";
 import { useToast } from "../layout/ToastProvider";
 
 type ViewAction = { type: "reset" } | { type: "event"; event: TaskEvent };
+type ViewMode = "daily" | "coding";
 
 function viewReducer(
   state: ProjectViewState,
@@ -92,8 +96,30 @@ export function ProjectPage() {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [initialSeq, setInitialSeq] = useState(0);
+  const [mode, setMode] = useState<ViewMode>(() => {
+    try {
+      return localStorage.getItem("vf-react-mode") === "coding" ? "coding" : "daily";
+    } catch {
+      return "daily";
+    }
+  });
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [replaying, setReplaying] = useState(false);
   const [view, dispatch] = useReducer(viewReducer, initialProjectView);
   const timelineRef = useRef<HTMLDivElement>(null);
+  const replayTimerRef = useRef<number | null>(null);
+  const eventsRef = useRef<TaskEvent[]>([]);
+
+  const files = useMemo(
+    () =>
+      Object.values(view.files).sort((a, b) => {
+        if (a.path === "index.html") return -1;
+        if (b.path === "index.html") return 1;
+        return a.path.localeCompare(b.path);
+      }),
+    [view.files],
+  );
+  const activeFile = selectedFile ? view.files[selectedFile] ?? null : null;
 
   const refreshRuntime = useCallback(async () => {
     if (!id) return;
@@ -109,17 +135,21 @@ export function ProjectPage() {
 
   useEffect(() => {
     let active = true;
+    eventsRef.current = [];
     setLoaded(false);
     setError(null);
     setTask(null);
     setRuntime(null);
     setInitialSeq(0);
+    setSelectedFile(null);
+    setReplaying(false);
     dispatch({ type: "reset" });
 
     api<ProjectDetailResponse>("/api/projects/" + encodeURIComponent(id ?? ""))
       .then((data) => {
         if (!active) return;
         setTask(data.task);
+        eventsRef.current = [...data.events].sort((a, b) => a.seq - b.seq);
         const lastSeq = data.events.reduce(
           (max, event) => Math.max(max, event.seq),
           0,
@@ -142,11 +172,33 @@ export function ProjectPage() {
   }, [id]);
 
   useEffect(() => {
+    if (!files.length) {
+      if (selectedFile) setSelectedFile(null);
+      return;
+    }
+    if (selectedFile && view.files[selectedFile]) return;
+    setSelectedFile(view.files["index.html"] ? "index.html" : files[0]?.path ?? null);
+  }, [files, view.files, selectedFile]);
+
+  useEffect(
+    () => () => {
+      if (replayTimerRef.current !== null) {
+        window.clearTimeout(replayTimerRef.current);
+        replayTimerRef.current = null;
+      }
+    },
+    [id],
+  );
+
+  useEffect(() => {
     if (task?.stack === "next") void refreshRuntime();
   }, [task?.stack, refreshRuntime]);
 
   const handleEvent = useCallback(
     (event: TaskEvent) => {
+      if (!eventsRef.current.some((item) => item.seq === event.seq)) {
+        eventsRef.current.push(event);
+      }
       dispatch({ type: "event", event });
       if (event.type.startsWith("runtime_") && task?.stack === "next") {
         void refreshRuntime();
@@ -250,6 +302,49 @@ export function ProjectPage() {
     if (previewUrl) window.open(previewUrl, "_blank", "noopener,noreferrer");
   }
 
+  async function copyCode() {
+    if (!activeFile) return;
+    try {
+      await navigator.clipboard.writeText(activeFile.content);
+      showToast("代码已复制");
+    } catch {
+      showToast("复制失败，请手动复制");
+    }
+  }
+
+  function changeMode(next: ViewMode) {
+    setMode(next);
+    try {
+      localStorage.setItem("vf-react-mode", next);
+    } catch {
+      // Private browsing may reject storage; the in-memory mode still works.
+    }
+  }
+
+  function replay() {
+    if (running || replaying) return;
+    const events = [...eventsRef.current].sort((a, b) => a.seq - b.seq);
+    if (!events.length) return;
+    if (replayTimerRef.current !== null) {
+      window.clearTimeout(replayTimerRef.current);
+      replayTimerRef.current = null;
+    }
+    setReplaying(true);
+    dispatch({ type: "reset" });
+    let index = 0;
+    const step = () => {
+      if (index >= events.length) {
+        replayTimerRef.current = null;
+        setReplaying(false);
+        return;
+      }
+      dispatch({ type: "event", event: events[index] });
+      index += 1;
+      replayTimerRef.current = window.setTimeout(step, 18);
+    };
+    step();
+  }
+
   const agentOrbClass = running
     ? "agent-orb running"
     : view.terminal === "done" || task.status === "done"
@@ -278,6 +373,32 @@ export function ProjectPage() {
           </div>
         </div>
         <div className="workspace-actions">
+          <div
+            className="mode-switch"
+            data-mode={mode}
+            role="tablist"
+            aria-label="展示模式"
+          >
+            <span className="mode-slider" aria-hidden="true" />
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === "daily"}
+              className={mode === "daily" ? "mode-btn active" : "mode-btn"}
+              onClick={() => changeMode("daily")}
+            >
+              交付
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === "coding"}
+              className={mode === "coding" ? "mode-btn active" : "mode-btn"}
+              onClick={() => changeMode("coding")}
+            >
+              编程
+            </button>
+          </div>
           <div className={"conn " + connectionView.className}>
             <i />
             <span>{connectionView.text}</span>
@@ -315,6 +436,14 @@ export function ProjectPage() {
               <span className="panel-kicker">AGENT FLOW</span>
               <h3>{flowTitle}</h3>
             </div>
+            <button
+              className="mini-btn"
+              type="button"
+              onClick={replay}
+              disabled={running || replaying || eventsRef.current.length === 0}
+            >
+              ↻ {replaying ? "重播中" : "重播"}
+            </button>
           </div>
           <div className={agentOrbClass}>
             <span />
@@ -358,15 +487,23 @@ export function ProjectPage() {
           <div className="stage-head">
             <div className="stage-head-left">
               <span className="stage-dot" />
-              <span>{task.stack === "next" ? "APP OUTPUT" : "DAILY OUTPUT"}</span>
+              <span>
+                {mode === "coding"
+                  ? "CODE CHANGES"
+                  : task.stack === "next"
+                    ? "APP OUTPUT"
+                    : "DAILY OUTPUT"}
+              </span>
             </div>
             <div className="stage-head-right">
               <span>
-                {previewUrl
-                  ? task.stack === "next"
-                    ? "APP PREVIEW"
-                    : "LIVE PREVIEW"
-                  : "WAITING"}
+                {mode === "coding"
+                  ? "GIT SNAPSHOT"
+                  : previewUrl
+                    ? task.stack === "next"
+                      ? "APP PREVIEW"
+                      : "LIVE PREVIEW"
+                    : "WAITING"}
               </span>
               {previewUrl ? (
                 <button className="mini-btn" type="button" onClick={openPreview}>
@@ -376,67 +513,28 @@ export function ProjectPage() {
             </div>
           </div>
           <div className="stage-body">
-            <div className="daily-view">
-              <div className="outcome-card">
-                <div className="outcome-copy">
-                  <span className="outcome-kicker">PROJECT OUTPUT</span>
-                  <h2>{outcomeTitle}</h2>
-                  <p>{outcomeText}</p>
-                </div>
-                <div className="outcome-checks">
-                  {view.checks.length ? (
-                    view.checks.map((check) => (
-                      <div
-                        className={check.ok ? "check-item" : "check-item fail"}
-                        key={check.name}
-                        title={check.detail}
-                      >
-                        <i />
-                        {check.name}
-                      </div>
-                    ))
-                  ) : running ? (
-                    <>
-                      <div className="check-skeleton" />
-                      <div className="check-skeleton" />
-                      <div className="check-skeleton" />
-                    </>
-                  ) : null}
-                </div>
-              </div>
-              <div className="browser-frame">
-                <div className="browser-bar">
-                  <div className="browser-dots">
-                    <i />
-                    <i />
-                    <i />
-                  </div>
-                  <div className="browser-url">
-                    {previewUrl ||
-                      (task.stack === "next"
-                        ? "/apps/" + encodeURIComponent(task.id) + "/"
-                        : task.url)}
-                  </div>
-                  <div className="browser-tag">
-                    {task.stack === "next" ? "APP" : "LOCAL"}
-                  </div>
-                </div>
-                <div className="preview-stage">
-                  {previewUrl ? (
-                    <iframe
-                      title="生成结果预览"
-                      src={previewUrl}
-                      sandbox="allow-scripts allow-forms allow-popups allow-modals"
-                    />
-                  ) : (
-                    <div className="preview-empty">
-                      <div className="loader" />
-                      <span>{previewMessage}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
+            {mode === "coding" ? (
+              <CodingPane
+                task={task}
+                files={files}
+                selectedPath={selectedFile}
+                onSelect={setSelectedFile}
+                activeFile={activeFile}
+                terminal={view.terminalLines}
+                previewUrl={previewUrl}
+                onCopy={() => void copyCode()}
+              />
+            ) : (
+              <DailyOutput
+                task={task}
+                outcomeTitle={outcomeTitle}
+                outcomeText={outcomeText}
+                checks={view.checks}
+                running={running}
+                previewUrl={previewUrl}
+                previewMessage={previewMessage}
+              />
+            )}
           </div>
         </section>
       </div>
