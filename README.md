@@ -23,7 +23,8 @@ VibeForge 是一个单机优先的个人设计 Agent。它把自然语言拆成�
 
 - 选择 **Next SSR** 后，Agent 生成 `app/`、`app/api/notes/route.js`、`next.config.mjs` 等源码，在 OpenSandbox 中执行 `npm ci` + `next build`，打包 `.next/standalone`。
 - 构建完成后点击“启动 SSR”：创建独立运行时沙箱，上传 standalone 产物，后台启动 `node server.js`，健康检查通过后状态变为 `SSR RUNNING`。
-- 运行时默认拒绝出网，1 CPU / 1 GiB，TTL 1 小时；空闲 10 分钟由监控任务停止。当前 Docker runtime 采用 stop/start 冷启动，不是 MicroVM pause/resume。
+- 运行时默认 1 CPU / 1 GiB、TTL 1 小时；空闲 10 分钟由监控任务停止。当前 Docker runtime 采用 stop/start 冷启动，不是 MicroVM pause/resume。
+- 远端 55 机器上 OpenSandbox server 同时接入 `vibeforge-net` 与默认 `bridge`：app 通过 `vibeforge-sandbox:8080` 调用，server 通过 bridge 直接代理到沙箱 execd；不把 40000-60000 端口暴露公网。
 - 当前示例是带 `/api/notes` 的服务端接口，留言写入项目数据卷（`runtime-data/notes.json`），停止再启动仍保留；数据卷由 OpenSandbox host bind 提供。
 - `/apps/{id}/` 预览默认关闭（`VIBEFORGE_SSR_PREVIEW=0`）。生产部署在 IP-only 模式下使用独立 HTTPS 端口 `12889`：平台在 `:12888`，SSR 应用在 `:12889`，两者不同 origin；Caddy 只在 `:12889` 暴露 `/apps/*`，并在 `:12888` 屏蔽 `/apps/*`。需要在云安全组放行 `12889`。生成应用仍可覆盖同主机 Cookie 造成登出（DoS），但无法读取平台 Cookie/API 响应。
 - 运行时接口：`GET /api/projects/{id}/runtime`、`POST .../runtime/start`、`POST .../runtime/stop`。
@@ -34,7 +35,7 @@ VibeForge 是一个单机优先的个人设计 Agent。它把自然语言拆成�
 当前 Phase 2 的沙箱实现：
 
 - **控制面**：独立部署的 OpenSandbox Server（`opensandbox/server`，Docker runtime），app 通过 Python SDK 调用；app 容器本身**不挂载 docker.sock**。
-- **每个项目/每次构建一个临时沙箱**：`node:24-bookworm-slim`，1 CPU / 1 GiB，启用 cap-drop、no-new-privileges、PID 限制，TTL 默认 15 分钟，构建结束立即销毁。当前 Docker runtime 下容器内命令仍以镜像默认用户执行；非 root、只读根要等 MicroVM/secure runtime 升级。
+- **每个项目/每次构建一个临时沙箱**：`node:24-bookworm-slim`，构建默认 2 GiB（当前 55 机器用 4 GiB，Next 构建需要），运行时 1 GiB；启用 cap-drop、no-new-privileges、PID 限制，TTL 默认 15 分钟，构建结束立即销毁。当前 Docker runtime 下容器内命令仍以镜像默认用户执行；非 root、只读根要等 MicroVM/secure runtime 升级。
 - **源码与日志**：源码通过文件 API 写入沙箱 `/workspace`；`npm install --ignore-scripts` 和 `npm run build` 的输出实时回传为 `build_log` 事件。
 - **出网**：默认拒绝，只允许 `*.npmmirror.com`、`registry.npmjs.org`、`*.npmjs.org`；不向沙箱注入任何平台密钥。
 - **产物**：构建完成后把 `dist/` 打包、下载、校验大小，原子切换到 `workspace/dist/`；构建失败保留上一版产物。
@@ -239,6 +240,6 @@ curl https://117.148.166.55:12888/api/health
 - 产物只写入 `data/users/{uid}/projects/{pid}/workspace/`，所有文件工具做工作区路径校验。
 - 预览 iframe 使用 sandbox，不开放 same-origin；生成页面不能读取主站 Cookie。
 - 当前数据层已按用户隔离；React/Next 构建在独立 OpenSandbox 沙箱中执行，app 容器不持有 docker.sock。
-- 沙箱默认拒绝出网，仅放行 npm registry；不注入平台密钥，构建结束销毁。
-- Next SSR 运行时是单独沙箱，默认拒绝出网；`/apps/` 预览通过独立端口 `12889` 与平台 `12888` 隔离，Caddy 只在该端口暴露 `/apps/*`。仍需注意同主机 Cookie 可被生成应用覆盖（DoS）。
+- 沙箱不注入平台密钥，构建结束销毁。本机默认使用 npm registry allowlist；当前 55 机器的 OpenSandbox egress sidecar 无法启动，部署脚本使用 `VIBEFORGE_SANDBOX_EGRESS=open`（无 sidecar），隔离仍依赖容器边界，后续需修复/替换 sidecar。
+- Next SSR 运行时是单独沙箱；`/apps/` 预览通过独立端口 `12889` 与平台 `12888` 隔离，Caddy 只在该端口暴露 `/apps/*`。运行时出网同样受上述 sidecar 限制。仍需注意同主机 Cookie 可被生成应用覆盖（DoS）。
 - 若要开放给不可信多用户并执行任意生成代码，建议把 Docker runtime 升级为 OpenSandbox Firecracker 或 ACS Agent Sandbox（MicroVM）。

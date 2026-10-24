@@ -27,6 +27,7 @@ from .config import (
     SANDBOX_DOMAIN,
     SANDBOX_EGRESS,
     SANDBOX_EGRESS_ALLOW,
+    SANDBOX_BUILD_MEMORY,
     SANDBOX_IMAGE,
     SANDBOX_MEMORY,
     SANDBOX_PROTOCOL,
@@ -176,7 +177,7 @@ class SandboxRunner:
                     connection_config=self._connection_config(),
                     timeout=timedelta(seconds=SANDBOX_TTL_SECONDS),
                     ready_timeout=timedelta(seconds=SANDBOX_READY_TIMEOUT),
-                    resource={"cpu": SANDBOX_CPU, "memory": SANDBOX_MEMORY},
+                    resource={"cpu": SANDBOX_CPU, "memory": SANDBOX_BUILD_MEMORY},
                     env={
                         "NPM_CONFIG_REGISTRY": NPM_REGISTRY,
                         "CI": "1",
