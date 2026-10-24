@@ -35,6 +35,13 @@ DEFAULTS: dict[str, dict[str, Any]] = {
         "highlights": ["多行砖块", "挡板反弹", "关卡升级", "本地最高分"],
         "accent": "#5ee0ff",
     },
+    "custom": {
+        "title": "长尾小游戏",
+        "tagline": "把你描述的玩法，做成一个真正能玩的页面。",
+        "paragraph": "根据你的描述生成一个单文件 Canvas 街机，打开就能玩。",
+        "highlights": ["自定义玩法", "键盘 / 触控", "计分与重开", "离线单文件"],
+        "accent": "#b8ff5a",
+    },
 }
 
 _TETRIS_WORDS = ("俄罗斯方块", "tetris", "方块消除", "方块消除游戏")
@@ -60,7 +67,7 @@ def detect_genre(prompt: str) -> str:
         return "breakout"
     if any(word in text for word in _SNAKE_WORDS):
         return "snake"
-    return "snake"
+    return "custom"
 
 
 def defaults(prompt: str) -> dict[str, Any]:
@@ -69,4 +76,5 @@ def defaults(prompt: str) -> dict[str, Any]:
 
 def render(brief: dict[str, Any], prompt: str = "") -> str:
     genre = detect_genre(prompt)
-    return RENDERERS[genre](brief, prompt)
+    renderer = RENDERERS.get(genre, snake.render)
+    return renderer(brief, prompt)

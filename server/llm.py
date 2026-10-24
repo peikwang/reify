@@ -11,6 +11,8 @@ from .config import (
     LLM_API_KEY,
     LLM_BASE_URL,
     LLM_ENABLED,
+    LLM_GAME_MAX_TOKENS,
+    LLM_GAME_TIMEOUT,
     LLM_MAX_TOKENS,
     LLM_MODEL,
     LLM_REFINE_MAX_TOKENS,
@@ -243,4 +245,75 @@ async def refine_html(current_html: str, instruction: str, capability: str) -> d
         return {"html": updated, "summary": summary, "notes": notes}
     except Exception as exc:  # noqa: BLE001 - surface as a failed refinement, keep old page
         logger.info("refine fallback: %s", exc)
+        return None
+
+
+def _clean_document(text: str) -> str:
+    text = text.strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:html)?\s*", "", text)
+        text = re.sub(r"\s*```$", "", text)
+    lowered = text.lower()
+    start = lowered.find("<!doctype")
+    if start < 0:
+        start = lowered.find("<html")
+    end = lowered.rfind("</html>")
+    if start < 0 or end < start:
+        return ""
+    return text[start : end + len("</html>")]
+
+
+async def generate_game_page(
+    spec: dict[str, Any], prompt: str, feedback: str = ""
+) -> str | None:
+    """Generate a complete single-file canvas game for an unknown genre."""
+    if not enabled():
+        return None
+    system = (
+        "你是 VibeForge 的独立游戏工程师。根据规格，输出一个完整可运行的单文件 HTML5 游戏。"
+        "只输出 HTML 文档本身，不要 markdown 代码围栏，不要解释。"
+        "硬性要求：所有 CSS 和 JavaScript 内联；使用 <canvas> 渲染核心玩法；"
+        "包含开始、暂停、失败、重新开始；显示分数或进度；同时支持键盘和触控；"
+        "适配手机宽度；不加载任何外部脚本、字体、图片，不发起任何网络请求；"
+        "不要使用省略号、TODO 或占位代码。"
+    )
+    user = (
+        "游戏规格：\n"
+        + json.dumps(spec, ensure_ascii=False, indent=2)
+        + f"\n\n用户需求：{prompt}\n"
+    )
+    if feedback:
+        user += (
+            "\n上一次输出未通过自检，问题如下，请完整重写并修复：\n"
+            + feedback
+            + "\n"
+        )
+    payload = {
+        "model": "",
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        "temperature": 0.65,
+        "max_tokens": LLM_GAME_MAX_TOKENS,
+    }
+    headers = {"Content-Type": "application/json"}
+    if LLM_API_KEY:
+        headers["Authorization"] = f"Bearer {LLM_API_KEY}"
+    try:
+        async with httpx.AsyncClient(timeout=LLM_GAME_TIMEOUT) as client:
+            payload["model"] = await _resolve_model(client)
+            response = await client.post(
+                f"{LLM_BASE_URL}/chat/completions", json=payload, headers=headers
+            )
+            response.raise_for_status()
+            message = response.json()["choices"][0]["message"]
+        content = message.get("content") or message.get("reasoning_content") or ""
+        document = _clean_document(content)
+        if not document:
+            logger.info("game generation returned no html document")
+            return None
+        return document
+    except Exception as exc:  # noqa: BLE001 - fallback to a built-in engine
+        logger.info("game generation fallback: %s", exc)
         return None

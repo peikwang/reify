@@ -24,6 +24,131 @@ BASE = f"http://127.0.0.1:{APP_PORT}"
 WORK = Path(tempfile.mkdtemp(prefix="vibeforge-browser-e2e-"))
 ARTIFACTS = Path(tempfile.mkdtemp(prefix="vibeforge-browser-artifacts-"))
 
+GAME_HTML = """<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>E2E 2048</title>
+<style>
+:root{--bg:#0a0f0c;--panel:#131c16;--ink:#eaf7ef;--accent:#f4b860}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:radial-gradient(circle at 50% 20%,#1b2a20,var(--bg));color:var(--ink);font-family:ui-sans-serif,system-ui,sans-serif}
+.shell{width:min(560px,calc(100vw - 32px));padding:20px}
+.hud{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font:700 12px/1.4 ui-monospace,monospace;letter-spacing:.12em}
+.hud b{color:var(--accent);font-size:22px}
+.board{border:1px solid rgba(244,184,96,.24);border-radius:20px;padding:12px;background:var(--panel)}
+canvas{width:100%;aspect-ratio:1;display:block;border-radius:12px;background:#0b120e}
+.actions{display:flex;gap:8px;margin-top:12px}
+button{flex:1;border:1px solid rgba(244,184,96,.3);border-radius:10px;padding:11px;background:transparent;color:var(--ink);font:700 12px/1 ui-monospace,monospace}
+button:hover{background:var(--accent);color:#1b1408}
+.hint{margin-top:10px;color:#8fa39a;font:11px/1.6 ui-monospace,monospace;text-align:center}
+/* layout-guard-000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 */
+</style>
+</head>
+<body>
+<div class="shell">
+  <header class="hud"><span>SCORE <b id="score">0</b></span><span>2048 / E2E</span></header>
+  <div class="board"><canvas id="game" width="512" height="512" aria-label="数字合并棋盘"></canvas></div>
+  <div class="actions"><button id="start" type="button">开始</button><button id="pause" type="button">暂停</button><button id="reset" type="button">重开</button></div>
+  <p class="hint">方向键 / WASD 移动 · 手机滑动或点按方向按钮</p>
+</div>
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const scoreEl = document.getElementById('score');
+const size = 4, cell = 116, gap = 12, origin = 22;
+let grid = [], score = 0, paused = false, running = false;
+function reset() {
+  grid = Array.from({ length: size }, () => Array(size).fill(0));
+  score = 0; paused = false; running = true;
+  addTile(); addTile(); paint();
+}
+function addTile() {
+  const empty = [];
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) if (!grid[y][x]) empty.push([x, y]);
+  if (!empty.length) return;
+  const [x, y] = empty[Math.floor(Math.random() * empty.length)];
+  grid[y][x] = Math.random() < 0.9 ? 2 : 4;
+}
+function compress(line) {
+  const values = line.filter(Boolean);
+  const merged = [];
+  for (let i = 0; i < values.length; i++) {
+    if (values[i] === values[i + 1]) { merged.push(values[i] * 2); score += values[i] * 2; i++; }
+    else merged.push(values[i]);
+  }
+  while (merged.length < size) merged.push(0);
+  return merged;
+}
+function move(dx, dy) {
+  if (!running || paused) return;
+  const before = JSON.stringify(grid);
+  if (dx) {
+    for (let y = 0; y < size; y++) {
+      const row = grid[y].slice();
+      if (dx > 0) grid[y] = compress(row.reverse()).reverse();
+      else grid[y] = compress(row);
+    }
+  } else {
+    for (let x = 0; x < size; x++) {
+      const column = grid.map((row) => row[x]);
+      const moved = dy > 0 ? compress(column.reverse()).reverse() : compress(column);
+      for (let y = 0; y < size; y++) grid[y][x] = moved[y];
+    }
+  }
+  if (JSON.stringify(grid) !== before) { addTile(); paint(); }
+}
+function color(value) {
+  const table = { 2: '#2d3a31', 4: '#3b4c40', 8: '#8a6a32', 16: '#c58a38', 32: '#f4b860', 64: '#ff9d5c', 128: '#ff7a59', 256: '#f45d48', 512: '#d6423b', 1024: '#a92f36', 2048: '#7a2030' };
+  return table[value] || '#202b24';
+}
+function paint() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#0b120e'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    const value = grid[y][x];
+    const px = origin + x * (cell + gap), py = origin + y * (cell + gap);
+    ctx.fillStyle = color(value);
+    ctx.beginPath(); ctx.roundRect(px, py, cell, cell, 12); ctx.fill();
+    if (value) {
+      ctx.fillStyle = value >= 8 ? '#fff8ea' : '#dcebe0';
+      ctx.font = '700 ' + (value >= 1000 ? 30 : 38) + 'px ui-monospace, monospace';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(String(value), px + cell / 2, py + cell / 2);
+    }
+  }
+  scoreEl.textContent = String(score);
+}
+function togglePause() { if (!running) return; paused = !paused; }
+function handleKey(event) {
+  const key = event.key.toLowerCase();
+  if (['arrowup', 'w'].includes(key)) { event.preventDefault(); move(0, -1); }
+  if (['arrowdown', 's'].includes(key)) { event.preventDefault(); move(0, 1); }
+  if (['arrowleft', 'a'].includes(key)) { event.preventDefault(); move(-1, 0); }
+  if (['arrowright', 'd'].includes(key)) { event.preventDefault(); move(1, 0); }
+  if (key === 'p') togglePause();
+}
+let touchStart = null;
+document.addEventListener('keydown', handleKey);
+canvas.addEventListener('touchstart', (event) => { touchStart = event.touches[0]; }, { passive: true });
+canvas.addEventListener('touchend', (event) => {
+  if (!touchStart) return;
+  const touch = event.changedTouches[0];
+  const dx = touch.clientX - touchStart.clientX, dy = touch.clientY - touchStart.clientY;
+  if (Math.max(Math.abs(dx), Math.abs(dy)) < 18) return;
+  if (Math.abs(dx) > Math.abs(dy)) move(dx > 0 ? 1 : -1, 0); else move(0, dy > 0 ? 1 : -1);
+  touchStart = null;
+}, { passive: true });
+document.getElementById('start').addEventListener('click', reset);
+document.getElementById('pause').addEventListener('click', togglePause);
+document.getElementById('reset').addEventListener('click', reset);
+setInterval(() => { if (running && !paused) paint(); }, 160);
+reset();
+</script>
+</body>
+</html>"""
+
 
 class MockLLM(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
@@ -58,6 +183,8 @@ class MockLLM(BaseHTTPRequestHandler):
             content = json.dumps(
                 {"summary": "已更新页面标题", "patches": patches}, ensure_ascii=False
             )
+        elif "独立游戏工程师" in system:
+            content = GAME_HTML
         else:
             content = json.dumps({"summary": "noop", "patches": []}, ensure_ascii=False)
         body = json.dumps({"choices": [{"message": {"content": content}}]}).encode("utf-8")
@@ -277,6 +404,25 @@ def main() -> int:
             page.goto(BASE + f"/projects/{project_id}", wait_until="networkidle")
             expect(page.get_by_text("DEPLOYED").first).to_be_visible()
             page.screenshot(path=str(ARTIFACTS / "mobile-project.png"), full_page=True)
+
+            print("12. long-tail custom game generation")
+            page.set_viewport_size({"width": 1440, "height": 960})
+            page.goto(BASE + "/", wait_until="networkidle")
+            page.locator(".generic-composer textarea").fill(
+                "做一个 2048 数字合并小游戏：支持方向键和触控，显示分数、暂停和重新开始"
+            )
+            page.get_by_role("button", name="开始生成").click()
+            page.wait_for_url(re.compile(r"/projects$"))
+            page.locator(".project-card-main").first.click()
+            page.wait_for_url(re.compile(r"/projects/[0-9a-f]+$"))
+            game_id = page.url.rsplit("/", 1)[-1]
+            game_task = wait_project(page, game_id)
+            game_html = page.request.get(BASE + f"/p/{game_id}/").text()
+            check(game_task["status"] == "done", "custom game project completed")
+            check('name="vibeforge-game"' in game_html, "LLM game passed validation")
+            check("<canvas" in game_html, "custom game renders with canvas")
+            expect(page.get_by_text("DEPLOYED").first).to_be_visible()
+            page.screenshot(path=str(ARTIFACTS / "custom-game.png"), full_page=True)
 
             browser.close()
 
