@@ -11,7 +11,7 @@ CAPABILITIES: dict[str, dict[str, str]] = {
     "game": {
         "label": "小游戏",
         "short": "GAME",
-        "description": "可玩、可计分、适配触控的浏览器小游戏",
+        "description": "贪吃蛇、俄罗斯方块、飞机大战、打砖块等可玩的小游戏",
         "example": "做一个霓虹风格的贪吃蛇小游戏，要有最高分和手机方向键",
         "prompt": "做一个霓虹风格的贪吃蛇小游戏：深色网格背景，蛇身带发光轨迹，吃到能量点有粒子反馈；支持方向键/WASD 和手机方向键，显示分数、最高分和速度等级；页面打开即可开始，带暂停和重开。",
     },
@@ -132,7 +132,24 @@ THINKING = {
 
 def classify(prompt: str) -> str:
     text = prompt.lower()
-    if any(k in text for k in ("游戏", "game", "贪吃蛇", "俄罗斯方块", "飞机大战", "扫雷", "街机")):
+    if any(
+        k in text
+        for k in (
+            "游戏",
+            "game",
+            "贪吃蛇",
+            "snake",
+            "俄罗斯方块",
+            "tetris",
+            "飞机大战",
+            "打砖块",
+            "breakout",
+            "弹球",
+            "扫雷",
+            "街机",
+            "射击",
+        )
+    ):
         return "game"
     if any(k in text for k in ("简历", "resume", "cv", "求职", "个人介绍页")):
         return "resume"
@@ -196,13 +213,7 @@ def _extract_days(prompt: str) -> int:
 
 def defaults(capability: str, prompt: str) -> dict[str, Any]:
     if capability == "game":
-        return {
-            "title": "霓虹贪吃蛇",
-            "tagline": "在霓虹网格里收集能量，别撞上自己的轨迹。",
-            "paragraph": "一个足够小、足够快的浏览器街机，打开就能玩。",
-            "highlights": ["键盘 / 触控双操作", "连击加速", "本地最高分", "零依赖单文件"],
-            "accent": "#b8ff5a",
-        }
+        return game.defaults(prompt)
     if capability == "image":
         clean = _media_title(prompt)
         return {
@@ -289,10 +300,11 @@ def safe_brief(capability: str, brief: dict[str, Any]) -> dict[str, Any]:
     return value
 
 
-def render_html(capability: str, brief: dict[str, Any]) -> str:
+def render_html(capability: str, brief: dict[str, Any], prompt: str = "") -> str:
     brief = safe_brief(capability, brief)
+    if capability == "game":
+        return game.render(brief, prompt)
     renderers = {
-        "game": game.render,
         "website": website.render,
         "resume": resume.render,
         "travel": travel.render,
