@@ -1,0 +1,111 @@
+from __future__ import annotations
+
+import os
+import tempfile
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(tempfile.mkdtemp(prefix="vibeforge-webui-test-"))
+os.environ.setdefault("VIBEFORGE_DATA", str(ROOT / "data"))
+os.environ.setdefault("VIBEFORGE_PROJECTS", str(ROOT / "legacy-projects"))
+os.environ.setdefault("VIBEFORGE_DB", str(ROOT / "data" / "vibeforge.db"))
+os.environ.setdefault("VIBEFORGE_ADMIN_PASSWORD", "admin-test-password")
+os.environ.setdefault("VIBEFORGE_COOKIE_SECURE", "0")
+os.environ.setdefault("VIBEFORGE_AUTO_MIGRATE", "0")
+
+from fastapi.testclient import TestClient  # noqa: E402
+
+import server.main as main_module  # noqa: E402
+
+
+@pytest.fixture(scope="module")
+def client():
+    with TestClient(main_module.app) as test_client:
+        response = test_client.post(
+            "/api/auth/register",
+            json={"username": "webuiuser", "password": "webui-password"},
+        )
+        if response.status_code == 409:
+            response = test_client.post(
+                "/api/auth/login",
+                json={"username": "webuiuser", "password": "webui-password"},
+            )
+        assert response.status_code == 200, response.text
+        yield test_client
+
+
+@pytest.fixture()
+def react_dist(tmp_path: Path) -> Path:
+    dist = tmp_path / "dist"
+    assets = dist / "assets"
+    assets.mkdir(parents=True)
+    (dist / "index.html").write_text(
+        '<!doctype html><div id="root" data-ui="react"></div>'
+        '<script type="module" src="/assets/index-abc.js"></script>',
+        encoding="utf-8",
+    )
+    (assets / "index-abc.js").write_text("console.log('react-ui');", encoding="utf-8")
+    return dist
+
+
+def test_legacy_ui_serves_static_app(client: TestClient):
+    response = client.get("/")
+    assert response.status_code == 200
+    assert 'href="/static/app.css' in response.text
+    assert "react-ui" not in response.text
+
+    projects = client.get("/projects/demo123")
+    assert projects.status_code == 200
+    assert 'href="/static/app.css' in projects.text
+
+    assert client.get("/assets/index-abc.js").status_code == 404
+
+
+def test_react_ui_serves_dist_and_spa_fallback(client: TestClient, react_dist, monkeypatch):
+    monkeypatch.setattr(main_module, "UI_MODE", "react")
+    monkeypatch.setattr(main_module, "REACT_DIST_DIR", react_dist)
+
+    for path in ("/", "/projects", "/projects/demo123", "/admin", "/projects/demo123/refine"):
+        response = client.get(path)
+        assert response.status_code == 200, path
+        assert 'data-ui="react"' in response.text, path
+        assert response.headers["cache-control"].startswith("no-store"), path
+
+    asset = client.get("/assets/index-abc.js")
+    assert asset.status_code == 200
+    assert "react-ui" in asset.text or "react-ui" in asset.content.decode()
+    assert "immutable" in asset.headers["cache-control"]
+
+    api = client.get("/api/health")
+    assert api.status_code == 200
+    assert api.json()["status"] == "ok"
+    assert 'data-ui="react"' not in api.text
+
+    assert client.get("/assets/../app.js").status_code == 404
+    assert client.get("/assets/%2e%2e/app.js").status_code == 404
+
+
+def test_react_login_is_public_and_served_by_spa(react_dist, monkeypatch):
+    monkeypatch.setattr(main_module, "UI_MODE", "react")
+    monkeypatch.setattr(main_module, "REACT_DIST_DIR", react_dist)
+
+    anonymous = TestClient(main_module.app)
+    page = anonymous.get("/login")
+    assert page.status_code == 200
+    assert 'data-ui="react"' in page.text
+
+    # The legacy login page remains available when the switch is off.
+    monkeypatch.setattr(main_module, "UI_MODE", "legacy")
+    legacy = TestClient(main_module.app).get("/login")
+    assert legacy.status_code == 200
+    assert "访问保护" in legacy.text
+
+
+def test_react_ui_reports_missing_build(client: TestClient, tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(main_module, "UI_MODE", "react")
+    monkeypatch.setattr(main_module, "REACT_DIST_DIR", tmp_path / "missing")
+
+    response = client.get("/")
+    assert response.status_code == 503
+    assert "npm run build" in response.json()["detail"]
