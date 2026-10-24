@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=vllm/vllm-openai:latest
+ARG BASE_IMAGE=python:3.12-slim
 
 FROM node:24-bookworm-slim AS frontend
 ARG NPM_REGISTRY=https://registry.npmmirror.com

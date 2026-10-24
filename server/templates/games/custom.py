@@ -9,11 +9,11 @@ from .spec import build_spec
 logger = logging.getLogger("vibeforge.games")
 
 _EXTERNAL_RESOURCE = re.compile(
-    r"""(?:(?:src|href)\s*=\s*["']\s*(?:https?:)?//|url\(\s*["']?https?://|@import\s+["']?https?://)""",
+    r"""(?:(?:src|href)\s*=\s*["']?\s*(?:https?:)?//|url\(\s*["']?https?://|@import\s+["']?https?://|import\s*\(\s*["']https?://)""",
     re.IGNORECASE,
 )
 _NETWORK_CALL = re.compile(
-    r"\b(?:fetch|XMLHttpRequest|WebSocket|EventSource)\s*\(",
+    r"\b(?:fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon)\s*\(",
     re.IGNORECASE,
 )
 _MIN_BYTES = 3200

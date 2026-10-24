@@ -34,6 +34,7 @@ from .config import (
     MAX_ACTIVE_REACT_PER_USER,
     MAX_ACTIVE_TASKS_PER_USER,
     MAX_PROJECTS_PER_USER,
+    MAX_RUNTIME_PER_USER,
     MAX_STORAGE_PER_USER,
     PORT,
     REACT_DIST_DIR,
@@ -200,6 +201,16 @@ def _enforce_user_quota(user: User, *, exclude_project_id: str | None = None) ->
         raise HTTPException(status_code=429, detail="当前运行中的任务过多，请稍后再试")
 
 
+def _running_runtime_count(user_id: str) -> int:
+    project_ids = {item["id"] for item in store.list(user_id)}
+    return sum(
+        1
+        for record in db.list_runtimes()
+        if record["project_id"] in project_ids
+        and record.get("status") in {"starting", "running"}
+    )
+
+
 def _set_session_cookie(response, token: str) -> None:
     response.set_cookie(
         key=AUTH_COOKIE_NAME,
@@ -261,7 +272,7 @@ def _ui_asset(filename: str) -> FileResponse:
 async def auth_guard(request: Request, call_next):
     path = request.url.path
     asset_request = path.startswith(("/media/", "/assets/"))
-    user = None if asset_request else auth.resolve_session(request.cookies.get(AUTH_COOKIE_NAME))
+    user = None if path.startswith("/assets/") else auth.resolve_session(request.cookies.get(AUTH_COOKIE_NAME))
     request.state.user = user
     public = (
         path in PUBLIC_PATHS
@@ -429,6 +440,8 @@ async def project_preview_file(
     user = _current_user(request)
     allowed = bool(user and user.id == task.owner_id)
     if not allowed:
+        if task.visibility != "share":
+            raise HTTPException(status_code=404, detail="project file not found")
         if not task.asset_key or not k:
             raise HTTPException(status_code=404, detail="project file not found")
         if not hmac.compare_digest(k.encode("utf-8"), task.asset_key.encode("utf-8")):
@@ -440,9 +453,14 @@ async def project_preview_file(
 
 
 @app.get("/media/{project_id}/{filename:path}")
-async def media_asset(project_id: str, filename: str, k: str = "") -> FileResponse:
+async def media_asset(
+    project_id: str, request: Request, filename: str, k: str = ""
+) -> FileResponse:
     task = store.get_any(project_id)
     if not task or not task.asset_key or not k:
+        raise HTTPException(status_code=404, detail="asset not found")
+    user = _current_user(request)
+    if not (user and user.id == task.owner_id) and task.visibility != "share":
         raise HTTPException(status_code=404, detail="asset not found")
     if not hmac.compare_digest(k.encode("utf-8"), task.asset_key.encode("utf-8")):
         raise HTTPException(status_code=404, detail="asset not found")
@@ -605,9 +623,11 @@ async def refine_project(project_id: str, payload: RefineRequest, request: Reque
         if task.status in {"queued", "running", "deploying"}:
             raise HTTPException(status_code=409, detail="task is still running")
         if task.stack == "next":
-            required = task.workspace / "app" / "page.tsx"
+            candidates = [task.workspace / "app" / "page.tsx", task.workspace / "app" / "page.jsx"]
+            required = next((path for path in candidates if path.exists()), candidates[0])
         elif task.stack == "react":
-            required = task.workspace / "src" / "App.tsx"
+            candidates = [task.workspace / "src" / "App.tsx", task.workspace / "src" / "App.jsx"]
+            required = next((path for path in candidates if path.exists()), candidates[0])
         else:
             required = task.workspace / "index.html"
         if not required.exists():
@@ -671,11 +691,15 @@ async def start_runtime(project_id: str, request: Request) -> dict[str, Any]:
     task = _project_for(request, project_id)
     if task.stack != "next":
         raise HTTPException(status_code=400, detail="该项目不是 SSR 运行时项目")
+    user = _require_user(request)
+    current = runtime_manager.status(task).get("status")
+    if current not in {"starting", "running"} and _running_runtime_count(user.id) >= MAX_RUNTIME_PER_USER:
+        raise HTTPException(status_code=429, detail="运行中的应用数量已达上限，请先停止其他应用")
     try:
         state = await runtime_manager.start(task)
     except SandboxError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-    _audit(request, "runtime.start", user=_require_user(request), project_id=task.id)
+    _audit(request, "runtime.start", user=user, project_id=task.id)
     return {"ok": True, "runtime": state}
 
 
@@ -802,6 +826,8 @@ async def share_index(token: str) -> FileResponse:
 @app.get("/s/{token}/{filename:path}")
 async def share_file(token: str, filename: str) -> FileResponse:
     task = _shared_project(token)
+    if filename != "index.html" and not filename.startswith("assets/"):
+        raise HTTPException(status_code=404, detail="share not found")
     target = _safe_file(task.artifact_dir, filename)
     if not target:
         raise HTTPException(status_code=404, detail="share not found")
@@ -884,8 +910,8 @@ async def http_error(request: Request, exc: HTTPException):
 
 @app.on_event("startup")
 async def startup() -> None:
-    admin = auth.bootstrap_admin()
-    if AUTH_PASSWORD_GENERATED:
+    admin, admin_created = auth.bootstrap_admin()
+    if AUTH_PASSWORD_GENERATED and admin_created:
         logger.warning("VIBEFORGE_ADMIN_PASSWORD is not set; generated admin password: %s", ADMIN_PASSWORD)
     if AUTO_MIGRATE_LEGACY:
         report = migrate_legacy(admin.id)

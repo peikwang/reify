@@ -61,14 +61,25 @@ export function useTaskStream(
 
     async function checkSessionAndReconnect() {
       try {
-        const response = await fetch("/api/auth/me", {
-          headers: { "Content-Type": "application/json" },
-        });
-        if (response.status === 401) {
+        const [authResponse, projectResponse] = await Promise.all([
+          fetch("/api/auth/me", {
+            headers: { "Content-Type": "application/json" },
+          }),
+          fetch("/api/projects/" + encodeURIComponent(projectId), {
+            headers: { "Content-Type": "application/json" },
+          }),
+        ]);
+        if (authResponse.status === 401) {
           location.replace(loginRedirectPath());
           return;
         }
-        const data = (await response.json().catch(() => ({}))) as {
+        if (projectResponse.status === 404 || projectResponse.status === 403) {
+          terminalRef.current = true;
+          closeSource();
+          setConnection("error");
+          return;
+        }
+        const data = (await authResponse.json().catch(() => ({}))) as {
           authenticated?: boolean;
         };
         if (data.authenticated === false) {

@@ -125,9 +125,9 @@ export function AdminPage() {
         <div className="empty-state">正在加载管理数据…</div>
       ) : (
         <>
-          <div className="admin-table" aria-label="用户列表">
+          <div className="admin-table" role="list" aria-label="用户列表">
             {users.map((user) => (
-              <div className="admin-row" key={user.id}>
+              <div className="admin-row" role="listitem" key={user.id}>
                 <div>
                   <b>{user.display_name || user.username}</b>
                   <small>
@@ -153,6 +153,7 @@ export function AdminPage() {
                 <div className="admin-actions">
                   <button
                     type="button"
+                    aria-label={(user.disabled ? "启用 " : "禁用 ") + user.username}
                     className={user.disabled ? "" : "danger"}
                     disabled={busyUser === user.id}
                     onClick={() => void applyStatus(user)}
@@ -161,6 +162,7 @@ export function AdminPage() {
                   </button>
                   <button
                     type="button"
+                    aria-label={"下线 " + user.username}
                     disabled={busyUser === user.id}
                     onClick={() => void revokeSessions(user)}
                   >

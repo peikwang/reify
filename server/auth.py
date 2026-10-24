@@ -278,18 +278,18 @@ def same_origin(request) -> bool:
     return parsed.netloc == request.headers.get("host", "")
 
 
-def bootstrap_admin() -> User:
+def bootstrap_admin() -> tuple[User, bool]:
     users = db.db.list_users()
     admins = [user for user in users if user.role == "admin" and not user.disabled]
     if admins:
-        return admins[0]
+        return admins[0], False
     existing = db.db.get_user_by_key(ADMIN_USERNAME.casefold())
     if existing:
         raise RuntimeError(
             f"user '{ADMIN_USERNAME}' already exists but is not an active admin; "
             "set VIBEFORGE_ADMIN_USER to a different name"
         )
-    return db.db.create_user(
+    admin = db.db.create_user(
         username=ADMIN_USERNAME,
         username_key=ADMIN_USERNAME.casefold(),
         email=None,
@@ -299,3 +299,4 @@ def bootstrap_admin() -> User:
         role="admin",
         created_ip=None,
     )
+    return admin, True

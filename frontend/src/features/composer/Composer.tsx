@@ -83,6 +83,7 @@ export function Composer({
           ref={textareaRef}
           rows={4}
           maxLength={2000}
+          aria-label="项目需求"
           placeholder="描述你想做的东西；也可以从下方模板库选择一个起点…"
           value={prompt}
           onChange={(event) => {

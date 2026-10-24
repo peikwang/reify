@@ -1,4 +1,5 @@
 import type { Task, TaskCheck } from "../../api/types";
+import { previewSandbox } from "./ssrPreview";
 
 interface DailyOutputProps {
   task: Task;
@@ -21,9 +22,7 @@ export function DailyOutput({
 }: DailyOutputProps) {
   const displayUrl =
     previewUrl ||
-    (task.stack === "next"
-      ? "/apps/" + encodeURIComponent(task.id) + "/"
-      : task.url);
+    (task.stack === "next" ? "APP RUNTIME" : task.url);
 
   return (
     <div className="daily-view">
@@ -71,7 +70,7 @@ export function DailyOutput({
             <iframe
               title="生成结果预览"
               src={previewUrl}
-              sandbox="allow-scripts allow-forms allow-popups allow-modals"
+              sandbox={previewSandbox(task.stack)}
             />
           ) : (
             <div className="preview-empty">

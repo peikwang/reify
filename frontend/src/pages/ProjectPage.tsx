@@ -28,6 +28,7 @@ import {
   type TimelineItem,
 } from "../features/workspace/eventView";
 import { RefineBar } from "../features/workspace/RefineBar";
+import { buildSsrPreviewUrl } from "../features/workspace/ssrPreview";
 import { WorkspaceActions } from "../features/workspace/WorkspaceActions";
 import { useCapabilities } from "../hooks/useCapabilities";
 import { useTaskStream, type StreamConnection } from "../hooks/useTaskStream";
@@ -92,7 +93,7 @@ export function ProjectPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const { capabilities } = useCapabilities();
+  const { capabilities, ssrPreview, ssrPort } = useCapabilities();
   const [task, setTask] = useState<Task | null>(null);
   const [runtime, setRuntime] = useState<RuntimeState | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -200,12 +201,26 @@ export function ProjectPage() {
     if (!id || !view.terminal) return;
     if (!task || !["queued", "running", "deploying"].includes(task.status)) return;
     let active = true;
+    const terminal = view.terminal;
     api<ProjectDetailResponse>("/api/projects/" + encodeURIComponent(id))
       .then((data) => {
         if (active) setTask(data.task);
       })
       .catch(() => {
-        // The terminal event already carries the outcome; keep the local task.
+        if (!active) return;
+        setTask((current) =>
+          current
+            ? {
+                ...current,
+                status:
+                  terminal === "done"
+                    ? "done"
+                    : terminal === "interrupted"
+                      ? "interrupted"
+                      : "error",
+              }
+            : current,
+        );
       });
     return () => {
       active = false;
@@ -270,18 +285,22 @@ export function ProjectPage() {
     task.stack !== "next" &&
     (view.previewReady || task.status === "done" || task.status === "deploying");
   const runtimeReady = task.stack === "next" && runtime?.status === "running";
+  const ssrPreviewUrl = runtimeReady
+    ? buildSsrPreviewUrl(
+        runtime?.url || "/apps/" + encodeURIComponent(task.id) + "/",
+        ssrPreview,
+        ssrPort,
+        window.location.origin,
+      )
+    : null;
   const previewUrl =
-    task.stack === "next"
-      ? runtimeReady
-        ? runtime?.url || "/apps/" + encodeURIComponent(task.id) + "/"
-        : null
-      : staticReady
-        ? task.url
-        : null;
+    task.stack === "next" ? ssrPreviewUrl : staticReady ? task.url : null;
   const previewMessage = previewUrl
     ? ""
     : task.stack === "next" && (task.status === "done" || view.terminal === "done")
-      ? "应用运行时未启动；点击顶部「启动应用」。"
+      ? runtimeReady
+        ? "应用正在运行；当前部署未开放 12889 预览入口。"
+        : "应用运行时未启动；点击顶部「启动应用」。"
       : view.terminal === "error" || task.status === "error"
         ? "生成失败，暂无预览。"
         : "AGENT IS BUILDING";

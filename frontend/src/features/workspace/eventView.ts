@@ -128,7 +128,10 @@ export function applyProjectEvent(
   switch (event.type) {
     case "task_started": {
       return withTimeline(
-        withTerminal(base, { kind: "muted", text: "● task started" }),
+        withTerminal(
+          { ...base, terminal: null, previewReady: false },
+          { kind: "muted", text: "● task started" },
+        ),
         {
           key: `evt-${event.seq}`,
           kind: "thought",
@@ -568,6 +571,7 @@ export function applyProjectEvent(
             terminal: "done",
             previewReady: true,
             currentStep: null,
+            planStatus: base.plan.map(() => "done"),
             checks: checks.length ? upsertChecks(base.checks, checks) : base.checks,
             outcome: {
               title: event.title || "已完成",
@@ -589,11 +593,19 @@ export function applyProjectEvent(
       );
     }
     case "refine_started": {
+      const refinePlan = ["理解修改要求", "应用修改并重建", "验证并发布"];
       return withTimeline(
         withTerminal(
           {
             ...base,
-            currentStep: null,
+            terminal: null,
+            previewReady: false,
+            plan: refinePlan,
+            planStatus: refinePlan.map((_, index) =>
+              index === 0 ? "active" : "pending",
+            ),
+            currentStep: 0,
+            checks: [],
             outcome: {
               title: "正在修改",
               text: event.instruction || "Agent 正在根据你的要求修改。",

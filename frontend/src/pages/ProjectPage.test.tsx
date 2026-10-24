@@ -139,4 +139,72 @@ describe("ProjectPage", () => {
     expect(screen.getByText("TERMINAL")).toBeInTheDocument();
     expect(document.querySelector("#miniState")?.textContent).toBe("READY");
   });
+
+  it("previews a running Next runtime through the SSR origin port", async () => {
+    const nextTask: Task = {
+      ...task,
+      id: "p2",
+      stack: "next",
+      title: "SSR 项目",
+      url: "",
+      shared: false,
+      share_url: null,
+    };
+    const nextEvents: TaskEvent[] = [
+      { seq: 1, type: "plan", ts: "2026-10-24T06:00:01+00:00", steps: ["规划", "构建"] },
+      { seq: 2, type: "done", ts: "2026-10-24T06:00:07+00:00", title: "SSR 项目", revision: 0 },
+    ];
+    const nextCapabilities: CapabilitiesResponse = {
+      ...capabilities,
+      ssr_preview: true,
+      ssr_port: 12889,
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = String(input);
+        if (path === "/api/capabilities") return jsonResponse(nextCapabilities);
+        if (path === "/api/projects/p2") {
+          return jsonResponse({ task: nextTask, events: nextEvents });
+        }
+        if (path === "/api/projects/p2/runtime") {
+          return jsonResponse({
+            runtime: {
+              status: "running",
+              revision: 0,
+              preview: true,
+              url: "/apps/p2/",
+            },
+          });
+        }
+        return new Response("not found", { status: 404 });
+      }),
+    );
+
+    render(
+      <MemoryRouter initialEntries={["/projects/p2"]}>
+        <ToastProvider>
+          <Routes>
+            <Route path="/projects/:id" element={<ProjectPage />} />
+          </Routes>
+        </ToastProvider>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByText("SSR 项目").length).toBeGreaterThan(0);
+    });
+    await waitFor(() => {
+      expect(screen.getAllByText("APP RUNNING").length).toBeGreaterThan(0);
+    });
+    expect(screen.getByRole("button", { name: "停止应用" })).toBeInTheDocument();
+    await waitFor(() => {
+      const iframe = document.querySelector("iframe");
+      expect(iframe).not.toBeNull();
+      const expected = new URL("/apps/p2/", window.location.origin);
+      expected.port = "12889";
+      expect(iframe?.getAttribute("src")).toBe(expected.toString());
+      expect(iframe?.getAttribute("sandbox")).toContain("allow-same-origin");
+    });
+  });
 });

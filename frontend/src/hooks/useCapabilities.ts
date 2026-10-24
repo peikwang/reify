@@ -7,10 +7,14 @@ interface CapabilitiesState {
   capabilities: Capability[];
   loading: boolean;
   error: string | null;
+  ssrPreview: boolean;
+  ssrPort: number | null;
 }
 
 export function useCapabilities(): CapabilitiesState {
   const [capabilities, setCapabilities] = useState<Capability[]>([]);
+  const [ssrPreview, setSsrPreview] = useState(false);
+  const [ssrPort, setSsrPort] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -20,6 +24,8 @@ export function useCapabilities(): CapabilitiesState {
       .then((data) => {
         if (!active) return;
         setCapabilities(data.items);
+        setSsrPreview(data.ssr_preview);
+        setSsrPort(data.ssr_port);
         setError(null);
       })
       .catch((reason: unknown) => {
@@ -34,5 +40,5 @@ export function useCapabilities(): CapabilitiesState {
     };
   }, []);
 
-  return { capabilities, loading, error };
+  return { capabilities, loading, error, ssrPreview, ssrPort };
 }
