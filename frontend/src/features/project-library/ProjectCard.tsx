@@ -14,9 +14,17 @@ interface ProjectCardProps {
   task: Task;
   index: number;
   capabilities: Capability[];
+  onDelete?: (task: Task) => void;
+  deleting?: boolean;
 }
 
-export function ProjectCard({ task, index, capabilities }: ProjectCardProps) {
+export function ProjectCard({
+  task,
+  index,
+  capabilities,
+  onDelete,
+  deleting = false,
+}: ProjectCardProps) {
   const info = capabilityInfo(task.capability, capabilities);
   const status = projectStatus(task);
   const title = task.title || task.prompt || "未命名项目";
@@ -58,6 +66,17 @@ export function ProjectCard({ task, index, capabilities }: ProjectCardProps) {
         <span>{revisionLabel(task)}</span>
         <span className="project-card-foot-right">
           <span>{info.short}</span>
+          {onDelete ? (
+            <button
+              className="project-delete"
+              type="button"
+              disabled={deleting}
+              aria-label={"删除项目 " + title}
+              onClick={() => onDelete(task)}
+            >
+              {deleting ? "删除中…" : "删除"}
+            </button>
+          ) : null}
           {publicUrl ? (
             <a
               className="project-public-link"

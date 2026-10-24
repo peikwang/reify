@@ -108,6 +108,7 @@ export function ProjectPage() {
   });
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [replaying, setReplaying] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [view, dispatch] = useReducer(viewReducer, initialProjectView);
   const timelineRef = useRef<HTMLDivElement>(null);
   const replayTimerRef = useRef<number | null>(null);
@@ -334,6 +335,25 @@ export function ProjectPage() {
     if (previewUrl) window.open(previewUrl, "_blank", "noopener,noreferrer");
   }
 
+  async function deleteProject() {
+    if (!task || running || deleting) return;
+    if (!window.confirm("删除当前项目？源码、产物、事件和公开链接都会被永久删除。")) {
+      return;
+    }
+    setDeleting(true);
+    try {
+      await api("/api/projects/" + encodeURIComponent(task.id), { method: "DELETE" });
+      showToast("项目已删除");
+      navigate("/projects", { replace: true });
+    } catch (reason) {
+      showToast(
+        "删除失败：" + (reason instanceof Error ? reason.message : "未知错误"),
+      );
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   function handleRefineStarted(updated: Task) {
     const lastSeq = eventsRef.current.reduce(
       (max, event) => Math.max(max, event.seq),
@@ -449,6 +469,14 @@ export function ProjectPage() {
             onTaskChange={setTask}
             onRuntimeChange={setRuntime}
           />
+          <button
+            className="ghost-btn danger-btn"
+            type="button"
+            disabled={running || deleting}
+            onClick={() => void deleteProject()}
+          >
+            {deleting ? "删除中…" : "删除项目"}
+          </button>
           <span className={"status-pill " + status.tone}>
             <i />
             <span>{status.label}</span>

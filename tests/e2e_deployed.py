@@ -116,6 +116,17 @@ def main() -> int:
         expect(page.locator(".generic-composer textarea")).to_be_visible()
         page.screenshot(path=str(ARTIFACTS / "deployed-mobile.png"), full_page=True)
 
+        print("7. delete the throwaway project")
+        page.set_viewport_size({"width": 1440, "height": 960})
+        page.goto(BASE + f"/projects/{project_id}", wait_until="networkidle")
+        page.once("dialog", lambda dialog: dialog.accept())
+        page.get_by_role("button", name="删除项目").click()
+        page.wait_for_url(BASE + "/projects")
+        check(
+            page.request.get(BASE + f"/api/projects/{project_id}").status == 404,
+            "project deletion removes the project and its files",
+        )
+
         browser.close()
 
     print(f"\nDEPLOYED E2E PASSED\nartifacts: {ARTIFACTS}")

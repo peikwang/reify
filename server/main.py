@@ -6,6 +6,7 @@ import io
 import json
 import logging
 import secrets
+import shutil
 import zipfile
 from pathlib import Path
 from typing import Any
@@ -663,6 +664,43 @@ async def deploy_project(project_id: str, request: Request) -> dict[str, Any]:
         task.save_meta()
     _audit(request, "project.deploy", user=_require_user(request), project_id=task.id)
     return {"ok": True, "url": manifest["url"], "manifest": manifest}
+
+
+@app.delete("/api/projects/{project_id}")
+async def delete_project(project_id: str, request: Request) -> dict[str, Any]:
+    task = _project_for(request, project_id)
+    user = _require_user(request)
+    async with task.refine_lock:
+        if task.status in ACTIVE_STATUSES:
+            raise HTTPException(status_code=409, detail="任务运行中，完成后再删除")
+        if task.stack == "next":
+            try:
+                if runtime_manager.status(task).get("status") in {"running", "starting"}:
+                    await runtime_manager.stop(task)
+            except Exception:  # noqa: BLE001 - still remove the project data
+                logger.warning("runtime stop failed while deleting %s", task.id, exc_info=True)
+        project_dir = task.dir.resolve()
+        users_root = (DATA_DIR / "users").resolve()
+        if project_dir.is_relative_to(users_root):
+            removed = await asyncio.to_thread(_remove_project_dir, project_dir)
+            if not removed:
+                raise HTTPException(status_code=500, detail="项目文件删除失败，请重试")
+        db.delete_project(task.id)
+        store.remove(task.id)
+    _audit(request, "project.delete", user=user, project_id=task.id)
+    logger.info("project deleted id=%s user=%s", task.id, user.id)
+    return {"ok": True}
+
+
+def _remove_project_dir(path: Path) -> bool:
+    try:
+        shutil.rmtree(path)
+        return True
+    except FileNotFoundError:
+        return True
+    except OSError:
+        logger.exception("failed to remove project directory %s", path)
+        return False
 
 
 @app.get("/api/projects/{project_id}/bundle")

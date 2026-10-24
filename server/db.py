@@ -445,6 +445,7 @@ class Database:
 
     def delete_project(self, project_id: str) -> None:
         with self._lock:
+            self._conn.execute("DELETE FROM runtimes WHERE project_id = ?", (project_id,))
             self._conn.execute("DELETE FROM projects WHERE id = ?", (project_id,))
             self._conn.commit()
 
