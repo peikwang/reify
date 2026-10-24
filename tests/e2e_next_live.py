@@ -104,6 +104,8 @@ def main() -> int:
         page.get_by_role("button", name="停止应用").click()
         page.get_by_role("button", name="启动应用").wait_for(timeout=60_000)
         check(True, "runtime stopped")
+        removed = request.delete(BASE + f"/api/projects/{project_id}")
+        check(removed.status == 200, "throwaway Next project deleted")
         browser.close()
 
     print(f"\nNEXT UI E2E PASSED\nartifacts: {ARTIFACTS}")
