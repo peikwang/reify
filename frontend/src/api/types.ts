@@ -82,13 +82,11 @@ export interface CapabilitiesResponse {
   sandbox: SandboxStatus;
   ssr_preview: boolean;
   ssr_port: number | null;
-  stacks: Stack[];
 }
 
 export interface CreateProjectRequest {
   prompt: string;
   capability: string | null;
-  stack: Stack;
 }
 
 export interface CreateProjectResponse {

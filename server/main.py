@@ -490,7 +490,6 @@ async def capabilities() -> dict[str, Any]:
         "sandbox": sandbox_runner.status(),
         "ssr_preview": SSR_PREVIEW_ENABLED,
         "ssr_port": SSR_PORT if SSR_PREVIEW_ENABLED else None,
-        "stacks": ["static", "react", "next"],
     }
 
 

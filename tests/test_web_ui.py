@@ -62,6 +62,24 @@ def test_legacy_ui_serves_static_app(client: TestClient):
     assert client.get("/assets/index-abc.js").status_code == 404
 
 
+def test_capabilities_do_not_expose_stack_choice(client: TestClient):
+    response = client.get("/api/capabilities")
+    assert response.status_code == 200
+    data = response.json()
+    assert "stacks" not in data
+    assert {item["key"] for item in data["items"]} == {
+        "game",
+        "website",
+        "image",
+        "video",
+        "resume",
+        "travel",
+        "adapt",
+        "code",
+    }
+    assert "sandbox" in data
+
+
 def test_react_ui_serves_dist_and_spa_fallback(client: TestClient, react_dist, monkeypatch):
     monkeypatch.setattr(main_module, "UI_MODE", "react")
     monkeypatch.setattr(main_module, "REACT_DIST_DIR", react_dist)

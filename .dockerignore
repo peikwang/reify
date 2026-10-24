@@ -1,10 +1,10 @@
 .git
 .venv
 __pycache__
-data
-projects
-backups
-tests
+/data
+/projects
+/backups
+/tests
 *.env
 frontend/node_modules
 web/dist

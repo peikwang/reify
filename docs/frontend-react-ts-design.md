@@ -33,6 +33,8 @@
 - API、认证、SSE、项目数据格式保持不变，迁移不影响已有项目。
 - 保持现有视觉、动画、移动端布局和 12888/12889 部署方式。
 - 每个阶段可独立验收、可回滚。
+- 产品约束：技术栈对用户不可见。用户只选择模板或描述需求，Composer 不提供 STACK 选择器；非网站模板固定使用静态实现，网站由后端根据提示词自动选择静态/React/Next，沙箱不可用时自动回退静态。
+- 用户可见的运行时文案统一使用“应用运行时 / APP RUNNING”，不暴露 SSR、React、Next 等技术栈术语。
 
 ### 非目标
 
@@ -89,7 +91,7 @@ frontend/
       AdminPage.tsx
     features/
       composer/          # 模板选择、STACK 选择、提示词
-      projects/          # 项目卡片、筛选、统计
+      projects/          # 项目卡片、筛选、统计（实现目录名 project-library）
       workspace/
         AgentFlow.tsx    # 计划步骤、时间线、重播
         CodingPane.tsx   # 文件树、Diff、终端
@@ -188,6 +190,8 @@ type TaskEvent =
 
 事件类型集中定义，避免页面里出现 `any`。API 字段以现有后端为准，前端类型只做描述，不改后端契约。
 
+`Stack` 仅作为任务元数据保留在 `Task` 中；创建请求只发送 `{prompt, capability}`，不发送也不展示技术栈选择。
+
 ### 4.5 SSE 状态机
 
 `useTaskStream(taskId, lastSeq)` 负责：
@@ -214,6 +218,7 @@ type TaskEvent =
 - 组件使用局部 CSS 或统一 `app.css`，不引入 UI 组件库。
 - 时间线、步骤卡、打字机效果、`prefers-reduced-motion` 行为保持。
 - iframe 预览继续使用现有 `/p`、`/apps`、`/media` URL 规则；不把生成页面 HTML 注入 React DOM。
+- Composer 只展示模板与提示词，不展示 STACK/React/Next 选项；项目卡片只展示能力标签（GAME/WEB/CV 等）。
 
 ### 4.8 构建与部署
 
@@ -387,8 +392,9 @@ app/globals.css
 
 ### Phase 1 — 首页与项目库
 
-- Composer、模板选择、STACK 选择、项目卡片、筛选、统计、最近项目。
-- 验收：创建静态/React/Next 项目后项目库正确刷新；移动端布局一致。
+- Composer、模板选择、最近项目、项目卡片、筛选、统计。
+- 创建请求只发送 `{prompt, capability}`；技术栈由后端自动路由，前端不提供选择器。
+- 验收：创建静态项目后项目库正确刷新；提示词驱动的 React/Next 自动路由在后端合并后验收；移动端布局一致。
 
 ### Phase 2 — 项目页只读 + SSE
 
@@ -471,6 +477,7 @@ app/globals.css
 4. 静态模板：默认保留；是否新增 `react-game` 等按需求另开议题。
 5. 包管理器：npm + lockfile（与当前 sandbox 一致），不引入 pnpm/yarn。
 6. 分支：`feature/react-ts` 从 `feature/isolation` 拉出；每阶段一个 commit，全部通过后再合并。
+7. 技术栈选择：不暴露给用户；后端 `resolve_stack` 自动路由（在 `feature/isolation` 实现），前端只传 `{prompt, capability}`。
 
 ## 16. 验收定义
 

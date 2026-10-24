@@ -619,3 +619,14 @@ h1 {
 .section-link:hover {
   text-decoration: underline;
 }
+
+.composer-error {
+  margin: 8px 2px 0;
+  color: var(--red);
+  font-size: 10.5px;
+  line-height: 1.6;
+}
+
+.empty-state .filter-chip {
+  margin-left: 8px;
+}
