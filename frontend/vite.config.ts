@@ -1,7 +1,7 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 
-const backend = "http://127.0.0.1:12888";
+const backend = process.env.VIBEFORGE_BACKEND || "http://127.0.0.1:7801";
 
 export default defineConfig({
   plugins: [react()],
@@ -13,7 +13,6 @@ export default defineConfig({
       "/s": backend,
       "/media": backend,
       "/apps": backend,
-      "/static": backend,
     },
   },
   build: {

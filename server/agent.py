@@ -46,7 +46,7 @@ MEDIA_CAPS = {"image", "video"}
 async def _render_static_html(
     capability: str, brief: dict[str, Any], prompt: str, task: Task
 ) -> str:
-    if capability == "game" and detect_genre(prompt) == "custom":
+    if capability == "game" and detect_genre(prompt) == "custom" and llm_enabled():
         await task.emit(
             "thinking",
             step="实现自定义玩法",
@@ -516,7 +516,31 @@ async def _refine_failed(task: Task, message: str) -> None:
 async def _run_source_refine(task: Task, instruction: str, revision: int) -> None:
     workspace = Workspace(task)
     is_next = task.stack == "next"
-    page_path = "app/page.tsx" if is_next else "src/App.tsx"
+    page_path = (
+        next(
+            (
+                path
+                for path in (
+                    "app/page.tsx",
+                    "app/page.jsx",
+                )
+                if (task.workspace / path).is_file()
+            ),
+            "app/page.tsx",
+        )
+        if is_next
+        else next(
+            (
+                path
+                for path in (
+                    "src/App.tsx",
+                    "src/App.jsx",
+                )
+                if (task.workspace / path).is_file()
+            ),
+            "src/App.tsx",
+        )
+    )
     style_path = "app/globals.css" if is_next else "src/styles.css"
     style_words = ("颜色", "配色", "字体", "字号", "间距", "留白", "样式", "主题", "背景", "css", "style")
     target_path = style_path if any(word in instruction.lower() for word in style_words) else page_path
@@ -528,11 +552,15 @@ async def _run_source_refine(task: Task, instruction: str, revision: int) -> Non
     if not llm_enabled():
         await _refine_failed(task, "当前没有可用的 LLM，无法进行源码修改。")
         return
+    if page_path.endswith(".tsx"):
+        language = "Next.js App Router TypeScript (TSX/TS)" if is_next else "React TypeScript (TSX)"
+    else:
+        language = "Next.js App Router JSX" if is_next else "React JSX"
     result = await refine_source(
         original,
         instruction,
         task.capability,
-        "Next.js App Router TypeScript (TSX/TS)" if is_next else "React TypeScript (TSX)",
+        language,
     )
     if not result:
         await _refine_failed(task, "模型没有返回可应用的源码修改，已保留原运行时。")

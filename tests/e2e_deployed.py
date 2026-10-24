@@ -59,7 +59,7 @@ def main() -> int:
         check("LOCAL ACCOUNTS" in page.content(), "React login page rendered")
 
         print("2. register a throwaway user and create a static project")
-        page.get_by_role("button", name="注册").click()
+        page.get_by_role("tab", name="注册").click()
         page.locator("#username").fill(username)
         page.locator("#password").fill(password)
         page.get_by_role("button", name="创建本地账号").click()

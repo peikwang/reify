@@ -104,6 +104,37 @@ describe("useTaskStream", () => {
     unmount();
   });
 
+  it("stops reconnecting when the project no longer exists", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input).startsWith("/api/projects/")) {
+          return new Response("not found", { status: 404 });
+        }
+        return new Response(JSON.stringify({ authenticated: true }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }),
+    );
+    const { result, unmount } = renderHook(() =>
+      useTaskStream("p1", 0, vi.fn(), true),
+    );
+
+    const source = FakeEventSource.instances[0];
+    await act(async () => {
+      source?.onerror?.();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(result.current).toBe("error");
+
+    act(() => vi.advanceTimersByTime(5000));
+    expect(FakeEventSource.instances).toHaveLength(1);
+    unmount();
+  });
+
   it("does not open a stream when disabled", () => {
     renderHook(() => useTaskStream("p1", 0, vi.fn(), false));
     expect(FakeEventSource.instances).toHaveLength(0);

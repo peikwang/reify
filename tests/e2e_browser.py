@@ -277,7 +277,7 @@ def main() -> int:
             print("1. register through the React login page")
             page.goto(BASE + "/login", wait_until="networkidle")
             expect(page.get_by_role("heading", name="进入工作台。")).to_be_visible()
-            page.get_by_role("button", name="注册").click()
+            page.get_by_role("tab", name="注册").click()
             page.locator("#username").fill(username)
             page.locator("#password").fill(password)
             page.get_by_role("button", name="创建本地账号").click()
@@ -395,7 +395,10 @@ def main() -> int:
             page.get_by_role("button", name="进入 VibeForge").click()
             page.wait_for_url(BASE + "/")
 
-            print("11. mobile smoke")
+            print("11. mobile smoke and non-admin route guard")
+            page.goto(BASE + "/admin", wait_until="networkidle")
+            page.wait_for_url(BASE + "/")
+            check(page.locator(".admin-table").count() == 0, "non-admin is redirected away from /admin")
             page.set_viewport_size({"width": 390, "height": 844})
             page.goto(BASE + "/", wait_until="networkidle")
             expect(page.locator(".generic-composer textarea")).to_be_visible()
@@ -403,6 +406,7 @@ def main() -> int:
             page.screenshot(path=str(ARTIFACTS / "mobile-home.png"), full_page=True)
             page.goto(BASE + f"/projects/{project_id}", wait_until="networkidle")
             expect(page.get_by_text("DEPLOYED").first).to_be_visible()
+            expect(page.get_by_role("button", name="重新部署")).to_be_visible()
             page.screenshot(path=str(ARTIFACTS / "mobile-project.png"), full_page=True)
 
             print("12. long-tail custom game generation")

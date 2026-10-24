@@ -128,12 +128,31 @@ describe("applyProjectEvent", () => {
     ]);
     expect(state.terminal).toBe("done");
     expect(state.previewReady).toBe(true);
+    expect(state.planStatus).toEqual(["done"]);
     expect(state.outcome).toEqual({ title: "测试项目", text: "已完成" });
     expect(state.checks).toEqual([{ name: "结构完整", ok: true, detail: "ok" }]);
   });
 
-  it("replays a unique event list deterministically", () => {
-    const events = [
+  it("clears a previous terminal state when a refine starts", () => {
+    const state = applyAll([
+      event(1, "plan", { steps: ["规划", "生成"] }),
+      event(2, "done", {
+        title: "旧版本",
+        summary: "已完成",
+        checks: [{ name: "结构完整", ok: true, detail: "ok" }],
+      }),
+      event(3, "refine_started", { instruction: "换个标题" }),
+    ]);
+    expect(state.terminal).toBeNull();
+    expect(state.previewReady).toBe(false);
+    expect(state.plan).toEqual(["理解修改要求", "应用修改并重建", "验证并发布"]);
+    expect(state.planStatus).toEqual(["active", "pending", "pending"]);
+    expect(state.checks).toEqual([]);
+    expect(state.currentStep).toBe(0);
+    expect(state.outcome?.title).toBe("正在修改");
+  });
+
+  it("replays a unique event list deterministically", () => {    const events = [
       event(2, "done", { title: "完成" }),
       event(1, "plan", { steps: ["规划"] }),
     ];

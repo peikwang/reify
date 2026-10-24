@@ -88,7 +88,7 @@ describe("AdminPage", () => {
     expect(screen.getByText("project.share")).toBeInTheDocument();
     expect(screen.getByText(/DISABLED/)).toBeInTheDocument();
 
-    const disableButtons = screen.getAllByRole("button", { name: "禁用" });
+    const disableButtons = screen.getAllByRole("button", { name: /^禁用/ });
     expect(disableButtons).toHaveLength(1);
     fireEvent.click(disableButtons[0]);
     await waitFor(() => {
@@ -101,7 +101,7 @@ describe("AdminPage", () => {
       );
     });
 
-    fireEvent.click(screen.getAllByRole("button", { name: "下线" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: /^下线/ })[0]);
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
         "/api/admin/users/u1/revoke-sessions",
@@ -109,7 +109,7 @@ describe("AdminPage", () => {
       );
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "启用" }));
+    fireEvent.click(screen.getByRole("button", { name: /^启用/ }));
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
         "/api/admin/users/u2/status",

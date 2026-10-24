@@ -522,9 +522,12 @@ h1 {
   .project-stats { margin: 18px 0 20px; }
   .home-footer { flex-direction: column; gap: 6px; margin-top: 34px; }
   .workspace-view { padding: 8px; }
-  .workspace-head { align-items: flex-start; }
+  .workspace-head { align-items: flex-start; flex-wrap: wrap; }
   .task-identity h2 { max-width: 48vw; font-size: 13.5px; }
-  .workspace-actions .ghost-btn { display: none; }
+  .workspace-actions { width: 100%; justify-content: flex-start; overflow-x: auto; flex-wrap: nowrap; padding-bottom: 2px; scrollbar-width: none; }
+  .workspace-actions::-webkit-scrollbar { display: none; }
+  .workspace-actions .ghost-btn { display: inline-flex; flex: none; }
+  .workspace-actions .status-pill, .workspace-actions .conn, .workspace-actions .runtime-state { flex: none; }
   .workspace-actions { gap: 5px; }
   .status-pill { padding: 6px 7px; }
   .stage-panel { height: 72vh; min-height: 490px; }
@@ -573,7 +576,6 @@ h1 {
   .admin-row { grid-template-columns: 1fr auto; gap: 8px; }
   .admin-row .admin-meta { grid-column: 1 / -1; }
   .audit-row { grid-template-columns: 1fr; gap: 3px; }
-  .workspace-actions #shareBtn { display: inline-flex; }
 }
 
 /* ---------- React migration additions ---------- */

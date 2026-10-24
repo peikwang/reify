@@ -123,6 +123,8 @@ export function LoginPage() {
           <div className="login-tabs" role="tablist">
             <button
               type="button"
+              role="tab"
+              aria-selected={mode === "login"}
               className={mode === "login" ? "login-tab active" : "login-tab"}
               onClick={() => switchMode("login")}
             >
@@ -130,6 +132,8 @@ export function LoginPage() {
             </button>
             <button
               type="button"
+              role="tab"
+              aria-selected={mode === "register"}
               className={mode === "register" ? "login-tab active" : "login-tab"}
               onClick={() => switchMode("register")}
             >

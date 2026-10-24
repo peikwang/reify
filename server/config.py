@@ -35,8 +35,11 @@ LLM_ENABLED = os.getenv("VIBEFORGE_LLM_ENABLED", "1") not in {"0", "false", "Fal
 MEDIA_API_BASE = os.getenv("VIBEFORGE_MEDIA_API_BASE", "").rstrip("/")
 if not MEDIA_API_BASE:
     MEDIA_API_BASE = LLM_BASE_URL
-    if MEDIA_API_BASE.endswith("/compatible-mode/v1"):
-        MEDIA_API_BASE = MEDIA_API_BASE[: -len("/compatible-mode/v1")]
+    for suffix in ("/compatible-mode/v1", "/v1"):
+        if MEDIA_API_BASE.endswith(suffix):
+            MEDIA_API_BASE = MEDIA_API_BASE[: -len(suffix)]
+            break
+MEDIA_API_KEY = os.getenv("VIBEFORGE_MEDIA_API_KEY", "") or LLM_API_KEY
 IMAGE_MODEL = os.getenv("VIBEFORGE_IMAGE_MODEL", "qwen-image-3.0-pro")
 VIDEO_MODEL = os.getenv("VIBEFORGE_VIDEO_MODEL", "wan3.0-video")
 IMAGE_COUNT = max(1, min(int(os.getenv("VIBEFORGE_IMAGE_COUNT", "4")), 6))
@@ -50,6 +53,7 @@ MAX_CONCURRENT_TASKS = int(os.getenv("VIBEFORGE_MAX_CONCURRENT", "4"))
 MAX_PROJECTS_PER_USER = int(os.getenv("VIBEFORGE_MAX_PROJECTS_PER_USER", "50"))
 MAX_ACTIVE_TASKS_PER_USER = int(os.getenv("VIBEFORGE_MAX_ACTIVE_PER_USER", "2"))
 MAX_ACTIVE_REACT_PER_USER = int(os.getenv("VIBEFORGE_MAX_ACTIVE_REACT_PER_USER", "1"))
+MAX_RUNTIME_PER_USER = int(os.getenv("VIBEFORGE_MAX_RUNTIME_PER_USER", "2"))
 MAX_STORAGE_PER_USER = int(os.getenv("VIBEFORGE_MAX_STORAGE_PER_USER", str(1024 * 1024 * 1024)))
 
 # Execution sandbox (OpenSandbox server with Docker runtime).
@@ -76,8 +80,8 @@ SANDBOX_EGRESS_ALLOW = [
     if item.strip()
 ]
 NPM_REGISTRY = os.getenv("VIBEFORGE_NPM_REGISTRY", "https://registry.npmmirror.com").strip()
-NPM_INSTALL_TIMEOUT = int(os.getenv("VIBEFORGE_NPM_INSTALL_TIMEOUT", "240"))
-NPM_BUILD_TIMEOUT = int(os.getenv("VIBEFORGE_NPM_BUILD_TIMEOUT", "240"))
+NPM_INSTALL_TIMEOUT = int(os.getenv("VIBEFORGE_NPM_INSTALL_TIMEOUT", "600"))
+NPM_BUILD_TIMEOUT = int(os.getenv("VIBEFORGE_NPM_BUILD_TIMEOUT", "600"))
 REACT_DIST_MAX_BYTES = int(os.getenv("VIBEFORGE_REACT_DIST_MAX_BYTES", str(30 * 1024 * 1024)))
 NEXT_ARTIFACT_MAX_BYTES = int(os.getenv("VIBEFORGE_NEXT_ARTIFACT_MAX_BYTES", str(120 * 1024 * 1024)))
 RUNTIME_TTL_SECONDS = int(os.getenv("VIBEFORGE_RUNTIME_TTL", "3600"))

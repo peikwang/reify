@@ -100,20 +100,31 @@ def test_new_static_project_gets_unlisted_public_link(client: TestClient):
     (task.workspace / "index.html").write_text(
         "<html><body>public-share</body></html>", encoding="utf-8"
     )
+    (task.workspace / "README.md").write_text("secret prompt", encoding="utf-8")
+    assets = task.workspace / "assets"
+    assets.mkdir(exist_ok=True)
+    (assets / "note.txt").write_text("public asset", encoding="utf-8")
     task.save_meta()
 
     assert task.share_token
     assert task.visibility == "share"
     meta = task.meta()
     assert meta["share_url"] == f"/s/{task.share_token}/"
+    asset_key = task.asset_key
 
     anonymous = TestClient(main_module.app)
     shared = anonymous.get(meta["share_url"])
     assert shared.status_code == 200
     assert "public-share" in shared.text
+    assert anonymous.get(meta["share_url"] + "README.md").status_code == 404
+    assert anonymous.get(meta["share_url"] + "assets/note.txt").text == "public asset"
+    assert anonymous.get(f"/p/{task.id}/assets/note.txt?k={asset_key}").status_code == 200
 
     assert client.delete(f"/api/projects/{task.id}/share").status_code == 200
     assert anonymous.get(meta["share_url"]).status_code == 404
+    assert anonymous.get(f"/p/{task.id}/assets/note.txt?k={asset_key}").status_code == 404
+    assert anonymous.get(f"/media/{task.id}/assets/note.txt?k={asset_key}").status_code == 404
+    assert client.get(f"/p/{task.id}/").status_code == 200
 
 
 def test_react_project_public_link_serves_dist_assets(client: TestClient):
@@ -203,6 +214,42 @@ def test_react_ui_reports_missing_build(client: TestClient, tmp_path: Path, monk
     response = client.get("/")
     assert response.status_code == 503
     assert "npm run build" in response.json()["detail"]
+
+
+def test_refine_accepts_legacy_jsx_and_typescript_sources(client: TestClient, monkeypatch):
+    async def noop(_task, _instruction):
+        return None
+
+    monkeypatch.setattr(main_module, "run_refine", noop)
+    monkeypatch.setattr(main_module, "_enforce_user_quota", lambda *_args, **_kwargs: None)
+    user = db.get_user_by_key("webuiuser")
+    assert user
+    cases = [
+        ("react", "src/App.jsx"),
+        ("react", "src/App.tsx"),
+        ("next", "app/page.jsx"),
+        ("next", "app/page.tsx"),
+    ]
+    for stack, source in cases:
+        task = store.create(
+            f"refine {source}",
+            "website",
+            f"Refine {source}",
+            owner_id=user.id,
+            stack=stack,
+        )
+        target = task.workspace / source
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("export default function App() { return null; }\n", encoding="utf-8")
+        task.status = "done"
+        task.save_meta()
+        response = client.post(
+            f"/api/projects/{task.id}/refine",
+            json={"instruction": "改标题"},
+        )
+        assert response.status_code == 200, (source, response.text)
+        task.status = "done"
+        task.save_meta()
 
 
 def test_auto_source_routing_falls_back_when_sandbox_unavailable(monkeypatch):
@@ -303,3 +350,36 @@ def test_auto_source_routing_selects_react_and_next_with_sandbox_available(monke
         next_task = created.json()["task"]
         assert next_task["stack"] == "next"
         assert next_task["share_url"] is None
+
+
+def test_runtime_start_respects_per_user_cap(client: TestClient, monkeypatch):
+    monkeypatch.setattr(main_module, "MAX_RUNTIME_PER_USER", 2)
+    user = db.get_user_by_key("webuiuser")
+    assert user
+    running = []
+    for index in range(2):
+        project = store.create(
+            f"runtime {index}",
+            "website",
+            f"Runtime {index}",
+            owner_id=user.id,
+            stack="next",
+        )
+        db.save_runtime({"project_id": project.id, "status": "running", "revision": 0})
+        running.append(project)
+    target = store.create(
+        "runtime target",
+        "website",
+        "Runtime target",
+        owner_id=user.id,
+        stack="next",
+    )
+    target.status = "done"
+    target.save_meta()
+
+    response = client.post(f"/api/projects/{target.id}/runtime/start")
+    assert response.status_code == 429
+    assert "运行中的应用数量已达上限" in response.json()["detail"]
+
+    for project in [*running, target]:
+        db.save_runtime({"project_id": project.id, "status": "stopped", "revision": 0})

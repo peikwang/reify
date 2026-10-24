@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef } from "react";
 import type { Task } from "../../api/types";
 import { computeLineDiff } from "./diff";
 import type { FileSnapshot, TerminalLine } from "./eventView";
+import { previewSandbox } from "./ssrPreview";
 
 interface CodingPaneProps {
   task: Task;
@@ -160,7 +161,7 @@ export function CodingPane({
             <iframe
               title="代码模式实时预览"
               src={previewUrl}
-              sandbox="allow-scripts allow-forms allow-popups allow-modals"
+              sandbox={previewSandbox(task.stack)}
             />
           ) : (
             <div className="empty-state small">
