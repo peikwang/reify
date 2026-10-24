@@ -46,18 +46,19 @@ VibeForge 是一个单机优先的个人设计 Agent，目标是把 Vibe Coding 
 
 ### 1.4 生成原则：确定性优先
 
-当前生成层不是 MetaGPT 式的多 Agent，也不是 OpenManus 式的通用工具调用 Agent，而是“**确定性工作流 + 模板渲染 + 两个 LLM 介入点**”：
+当前生成层不是 MetaGPT 式的多 Agent，也不是 OpenManus 式的通用工具调用 Agent，而是“**确定性工作流 + 模板渲染 + 多个受控 LLM 介入点**”：
 
 | 环节 | 由谁负责 | 说明 |
 |---|---|---|
 | 意图路由 | 规则 / capability | 选择能力类型和技术栈 |
 | 创意方向 | LLM | 标题、语气、视觉调性、强调色 |
 | 页面/工程骨架 | 模板 / 脚手架 | 保证结构可运行、可验收 |
+| 长尾游戏 | LLM + 自检 | 未知玩法先出受约束的 game spec，再生成单文件 Canvas 游戏；失败回退内置引擎 |
 | 构建 | 沙箱 | React 或 Next 的真实构建 |
 | 自检 | 规则 | HTML 结构、资源、产物完整性 |
 | 二次修改 | LLM + 规则 | 唯一锚点 patch，失败回滚 |
 
-这样做的收益是**交付稳定、成本低、坏页面不会直接交给用户**；代价是**生成自由度有限**，目前 React/Next 只支持“网站”能力，非网站能力仍以固定模板为主。
+这样做的收益是**交付稳定、成本低、坏页面不会直接交给用户**；代价是**生成自由度有限**，目前 React/Next 只支持“网站”能力，其他非网站能力仍以固定模板为主；小游戏额外提供一条受约束的长尾生成路径。
 
 ### 1.5 平台 UI 与三种生成栈
 
@@ -74,6 +75,8 @@ VibeForge 是一个单机优先的个人设计 Agent，目标是把 Vibe Coding 
 技术栈可以显式指定，也可以由 `server/stacks.py` 自动识别 React/Next 意图；非网站能力或沙箱不可用时回退 `static`。
 
 > **关键区分**：平台 UI 的 React、用户生成项目的 React、Next 的 Node 运行时是三件不同的事。平台 UI 是固定的 Vite 应用；生成项目的 React 只做静态构建；只有 Next SSR 有常驻 Node 运行时。
+
+> 小游戏的长尾玩法不走 static/react/next 构建，而是直接生成单文件 HTML 再做自检；它和三种网站栈是并列关系。
 
 ---
 
@@ -248,7 +251,7 @@ data/
 | 沙箱隔离 | Docker 容器级 | 弱于 MicroVM；运行时休眠是冷停止，不是 pause/resume |
 | 出网策略 | 代码支持 allowlist；55 实际 `open` | 当前构建沙箱没有网络白名单，是下一步必须收口的安全项 |
 | 运行时配额 | 设计有，代码未强制 | 大量运行时可能耗尽主机资源 |
-| 生成自由度 | 模板/脚手架固定 | React/Next 只支持网站能力，非网站能力仍是固定模板 |
+| 生成自由度 | 模板/脚手架固定 | React/Next 只支持网站能力；其他非网站能力以模板为主，小游戏有长尾生成路径 |
 | 修复闭环 | 自检失败即终止 | 没有 Inspector → Builder 自动修复 |
 | 分享 | 静态/React 可用 | Next SSR 分享入口未开放 |
 | 55 Git | 部署目录 `/opt/vibeforge` 本身无 `.git`；完整仓库在 `/opt/vibeforge/repo` | 直接改运行目录仍无回滚；应优先在 repo 目录修改 |
@@ -398,11 +401,13 @@ cost_per_project
 | `server/db.py` | SQLite schema、用户/会话/项目/运行时/审计 |
 | `server/events.py` | Task/Project 对象、事件流、用户工作区 |
 | `server/agent.py` | 五段式生成、React/Next 构建、二次修改、蓝绿切换 |
+| `server/llm.py` | 创意 brief、局部 patch、长尾游戏 HTML 生成 |
 | `server/stacks.py` | stack 解析、React/Next 意图识别与 static 回退 |
 | `server/sandbox.py` | OpenSandbox 客户端、构建、产物打包与校验 |
 | `server/runtime.py` | Next standalone 运行时、健康检查、空闲停止 |
 | `server/tools.py` | 文件快照、产物安装、静态部署 |
 | `server/templates/` | 八类能力模板 + Vite/React + Next TypeScript 脚手架 |
+| `server/templates/games/` | 游戏题材识别与内置/自定义游戏渲染 |
 | `frontend/` | 平台工作台：React + TypeScript + Vite |
 | `web/dist/` | 平台 UI 构建产物，由 FastAPI 托管 |
 
