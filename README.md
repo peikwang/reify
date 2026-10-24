@@ -129,7 +129,7 @@ https://117.148.166.55:12888/
 
 ## 可选：接入任意 OpenAI 兼容模型
 
-不配置模型时，Agent 使用确定性的“本地导演 + 模板渲染”，保证每次都能生成可运行产物。配置后，模型只负责产出短创意 brief（标题、语气、强调色、要点），HTML 仍由可验证的模板渲染，避免模型输出坏页面。
+不配置模型时，Agent 使用确定性的“本地导演 + 模板渲染”，保证每次都能生成可运行产物。配置后，模型负责产出短创意 brief（标题、语气、强调色、要点），长尾小游戏还会生成完整单文件游戏；其余 HTML 仍由可验证的模板渲染，避免模型输出坏页面。长尾游戏默认关闭模型思考模式（`enable_thinking=false`），避免推理占满输出预算；如模型不支持该参数，可设置 `VIBEFORGE_LLM_GAME_DISABLE_THINKING=0`，并适当调大 `VIBEFORGE_LLM_GAME_MAX_TOKENS`。
 
 ```bash
 export VIBEFORGE_LLM_BASE_URL=http://127.0.0.1:8000/v1

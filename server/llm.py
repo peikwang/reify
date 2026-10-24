@@ -12,6 +12,7 @@ from .config import (
     LLM_API_KEY,
     LLM_BASE_URL,
     LLM_ENABLED,
+    LLM_GAME_DISABLE_THINKING,
     LLM_GAME_MAX_TOKENS,
     LLM_GAME_TIMEOUT,
     LLM_MAX_TOKENS,
@@ -320,6 +321,8 @@ async def generate_game_page(
         "temperature": 0.65,
         "max_tokens": LLM_GAME_MAX_TOKENS,
     }
+    if LLM_GAME_DISABLE_THINKING:
+        payload["enable_thinking"] = False
     headers = {"Content-Type": "application/json"}
     if LLM_API_KEY:
         headers["Authorization"] = f"Bearer {LLM_API_KEY}"

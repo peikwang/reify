@@ -9,7 +9,7 @@ from .spec import build_spec
 logger = logging.getLogger("vibeforge.games")
 
 _EXTERNAL_RESOURCE = re.compile(
-    r"""(?:src|href)\s*=\s*["']\s*(?:https?:)?//""",
+    r"""(?:(?:src|href)\s*=\s*["']\s*(?:https?:)?//|url\(\s*["']?https?://|@import\s+["']?https?://)""",
     re.IGNORECASE,
 )
 _NETWORK_CALL = re.compile(
@@ -54,7 +54,7 @@ def validate_game_html(html: str) -> list[str]:
         problems.append("缺少游戏循环")
     if len(html.encode("utf-8")) < _MIN_BYTES:
         problems.append(f"文档过短（至少 {_MIN_BYTES} 字节）")
-    if "{{" in html or "}}" in html:
+    if re.search(r"\{\{[A-Za-z_][A-Za-z0-9_]*\}\}", html):
         problems.append("包含未渲染的模板占位符")
     if _EXTERNAL_RESOURCE.search(html):
         problems.append("引用了外部资源")
