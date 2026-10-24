@@ -168,6 +168,20 @@ REIFY_E2E_BASE=https://your-host:12888 .venv/bin/python tests/e2e_longtail_live.
 
 完整列表见 [.env.example](.env.example)。
 
+### 环境文件（不入库）
+
+敏感配置通过环境文件注入。`.gitignore` 已忽略 `.env`、`.env.*`、`.auth.env`、`.sandbox.env`、`.llm.env`、`.runtime.env`，只保留 `.env.example`，因此远端仓库中不存在这些文件。
+
+| 文件 | 主要变量 | 说明 |
+|---|---|---|
+| `.env` | 本地需要的任意 `REIFY_*` | 从 `.env.example` 复制；程序不会自动加载，可用 `set -a; source .env; set +a` 后启动 |
+| `.auth.env` | `REIFY_ADMIN_USER` / `REIFY_ADMIN_PASSWORD`（旧部署兼容 `REIFY_PASSWORD`）、`REIFY_COOKIE_SECURE`、`REIFY_REGISTRATION` | 首次部署由脚本生成，管理员初始密码保存在此 |
+| `.sandbox.env` | `REIFY_SANDBOX`、`REIFY_SANDBOX_DOMAIN`、`REIFY_SANDBOX_API_KEY`、`REIFY_SANDBOX_BUILD_MEMORY`、`REIFY_SANDBOX_EGRESS`、`REIFY_PROJECTS`、`REIFY_SSR_PREVIEW`、`REIFY_SSR_PORT`、`REIFY_NPM_*` | 部署脚本生成/更新；修改后需重建容器或沙箱 |
+| `.llm.env` | `REIFY_LLM_ENABLED`、`REIFY_LLM_BASE_URL`、`REIFY_LLM_MODEL`、`REIFY_LLM_API_KEY`，可选 `REIFY_LLM_TIMEOUT` / `REIFY_LLM_MAX_TOKENS` 与媒体接口变量 | 手动创建并设为 600；不要提交或贴到对话 |
+| `.runtime.env` | 上述 `.auth.env` + `.llm.env` + `.sandbox.env` 的合并结果 | 部署脚本生成，权限 600，通过 `docker --env-file` 注入，容器实际读取 |
+
+部署目录为 `/data/reify-deploy`。脚本每次运行都会重新生成 `.runtime.env`；修改 `.auth.env`、`.sandbox.env` 或 `.llm.env` 后，重新执行 `./deploy_remote.sh root@your-host 12888` 使其生效。
+
 ## 资源与端口
 
 ### 端口
