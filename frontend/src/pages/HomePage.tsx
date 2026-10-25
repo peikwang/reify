@@ -13,7 +13,7 @@ export function HomePage() {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const { capabilities, error: capabilitiesError } = useCapabilities();
-  const { items, loading, error: projectsError } = useProjects();
+  const { items, loading, error: projectsError, reload } = useProjects();
   const [prompt, setPrompt] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState<Capability | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -169,6 +169,7 @@ export function HomePage() {
           items={recent}
           capabilities={capabilities}
           empty={recentEmpty}
+          onMutated={reload}
         />
       </section>
 

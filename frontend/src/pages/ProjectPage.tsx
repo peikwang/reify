@@ -7,7 +7,7 @@ import {
   useState,
   type CSSProperties,
 } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { ApiError, api } from "../api/client";
 import type {
@@ -98,6 +98,7 @@ function TimelineRow({ item }: { item: TimelineItem }) {
 export function ProjectPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { showToast } = useToast();
   const { capabilities, ssrPreview, ssrPort } = useCapabilities();
   const [task, setTask] = useState<Task | null>(null);
@@ -106,6 +107,7 @@ export function ProjectPage() {
   const [error, setError] = useState<string | null>(null);
   const [initialSeq, setInitialSeq] = useState(0);
   const [mode, setMode] = useState<ViewMode>(() => {
+    if (searchParams.get("tab") === "edit") return "edit";
     try {
       return localStorage.getItem("vf-react-mode") === "coding" ? "coding" : "daily";
     } catch {
@@ -123,6 +125,10 @@ export function ProjectPage() {
   const timelineRef = useRef<HTMLDivElement>(null);
   const replayTimerRef = useRef<number | null>(null);
   const eventsRef = useRef<TaskEvent[]>([]);
+
+  useEffect(() => {
+    if (searchParams.get("tab") === "edit") setMode("edit");
+  }, [searchParams]);
 
   const files = useMemo(
     () =>

@@ -9,21 +9,20 @@ import {
   relativeTime,
   revisionLabel,
 } from "./projectView";
+import { ProjectCardMenu } from "./ProjectCardMenu";
 
 interface ProjectCardProps {
   task: Task;
   index: number;
   capabilities: Capability[];
-  onDelete?: (task: Task) => void;
-  deleting?: boolean;
+  onMutated?: () => void | Promise<void>;
 }
 
 export function ProjectCard({
   task,
   index,
   capabilities,
-  onDelete,
-  deleting = false,
+  onMutated,
 }: ProjectCardProps) {
   const info = capabilityInfo(task.capability, capabilities);
   const status = projectStatus(task);
@@ -35,6 +34,7 @@ export function ProjectCard({
       className="project-card"
       style={{ "--i": index } as CSSProperties}
     >
+      <ProjectCardMenu task={task} onMutated={onMutated} />
       <Link
         className="project-card-main"
         to={"/projects/" + encodeURIComponent(task.id)}
@@ -66,17 +66,6 @@ export function ProjectCard({
         <span>{revisionLabel(task)}</span>
         <span className="project-card-foot-right">
           <span>{info.short}</span>
-          {onDelete ? (
-            <button
-              className="project-delete"
-              type="button"
-              disabled={deleting}
-              aria-label={"删除项目 " + title}
-              onClick={() => onDelete(task)}
-            >
-              {deleting ? "删除中…" : "删除"}
-            </button>
-          ) : null}
           {publicUrl ? (
             <a
               className="project-public-link"

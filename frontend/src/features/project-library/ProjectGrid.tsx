@@ -6,8 +6,7 @@ interface ProjectGridProps {
   capabilities: Capability[];
   empty: string;
   className?: string;
-  onDelete?: (task: Task) => void;
-  deletingId?: string | null;
+  onMutated?: () => void | Promise<void>;
 }
 
 export function ProjectGrid({
@@ -15,8 +14,7 @@ export function ProjectGrid({
   capabilities,
   empty,
   className = "",
-  onDelete,
-  deletingId = null,
+  onMutated,
 }: ProjectGridProps) {
   if (!items.length) {
     return <div className="empty-state">{empty}</div>;
@@ -29,8 +27,7 @@ export function ProjectGrid({
           task={task}
           index={index}
           capabilities={capabilities}
-          onDelete={onDelete}
-          deleting={deletingId === task.id}
+          onMutated={onMutated}
         />
       ))}
     </div>
