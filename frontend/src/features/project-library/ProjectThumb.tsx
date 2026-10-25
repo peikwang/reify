@@ -4,9 +4,10 @@ interface ProjectThumbProps {
   url: string;
   revision: number;
   title: string;
+  eager?: boolean;
 }
 
-export function ProjectThumb({ url, revision, title }: ProjectThumbProps) {
+export function ProjectThumb({ url, revision, title, eager = false }: ProjectThumbProps) {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -20,7 +21,7 @@ export function ProjectThumb({ url, revision, title }: ProjectThumbProps) {
       <iframe
         src={src}
         title={title + " 缩略图"}
-        loading="lazy"
+        loading={eager ? undefined : "lazy"}
         tabIndex={-1}
         sandbox="allow-scripts"
         scrolling="no"

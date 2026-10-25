@@ -44,7 +44,12 @@ export function ProjectCard({
       >
         <div className={"project-cover cover-" + info.key + (thumbUrl ? " has-thumb" : "")}>
           {thumbUrl ? (
-            <ProjectThumb url={thumbUrl} revision={task.revision} title={title} />
+            <ProjectThumb
+              url={thumbUrl}
+              revision={task.revision}
+              title={title}
+              eager={index < 6}
+            />
           ) : null}
           <span className="cover-label">{info.short}</span>
           <span className="cover-index">{String(index + 1).padStart(2, "0")}</span>
