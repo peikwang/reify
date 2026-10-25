@@ -1293,3 +1293,74 @@ body {
   0%, 100% { transform: translateY(0); opacity: 0.75; }
   50% { transform: translateY(-4px); opacity: 1; }
 }
+
+/* ---------- project card quick menu ---------- */
+.project-card { position: relative; overflow: visible; }
+.project-cover { border-radius: 16px 16px 0 0; }
+.cover-index { right: 52px; }
+.project-card:has(.card-menu-list) { z-index: 6; }
+.card-menu { position: absolute; top: 10px; right: 10px; z-index: 4; }
+.card-menu-trigger {
+  width: 32px;
+  height: 32px;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 6px 18px rgba(20, 35, 25, 0.14);
+  backdrop-filter: blur(12px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  transition: background 0.16s, transform 0.16s;
+}
+.card-menu-trigger:hover { background: rgba(255, 255, 255, 0.92); transform: translateY(-1px); }
+.card-menu-trigger span { width: 3px; height: 3px; border-radius: 50%; background: var(--ink); }
+.card-menu-list {
+  position: absolute;
+  right: 0;
+  top: 38px;
+  width: 168px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 20px 50px rgba(31, 49, 38, 0.18);
+  backdrop-filter: blur(18px) saturate(1.1);
+  animation: popIn 0.16s ease both;
+}
+.card-menu-item {
+  width: 100%;
+  padding: 9px 11px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 13px;
+  text-align: left;
+  transition: background 0.15s;
+}
+.card-menu-item:hover { background: rgba(30, 92, 64, 0.08); }
+.card-menu-item.danger { color: var(--red); }
+.card-menu-item.danger:hover { background: rgba(180, 70, 63, 0.08); }
+.card-menu-item:disabled { color: var(--muted-2); cursor: not-allowed; }
+.card-menu-item:disabled:hover { background: transparent; }
+.danger-dialog {
+  border-color: rgba(180, 70, 63, 0.25);
+  background: linear-gradient(180deg, #fffdfa, #fdf4f2);
+}
+.danger-dialog .naming-kicker { color: var(--red); }
+.danger-confirm {
+  padding: 10px 18px;
+  border: 1px solid var(--red);
+  border-radius: 8px;
+  background: var(--red);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 650;
+}
+.danger-confirm:disabled { opacity: 0.55; cursor: wait; }
