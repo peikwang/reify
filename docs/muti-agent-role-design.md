@@ -447,7 +447,7 @@ cost_per_project
 - 线上 `/data/reify-deploy` 运行 Reify（React + TypeScript + 7 模板 + 通用生成），容器为 `reify` / `reify-caddy` / `reify-sandbox`，环境变量为 `REIFY_*`，数据库为 `data/reify.db`；
 - 完整仓库（含 `.git`）同步在 `/data/reify-deploy/repo`，容器内路径是 `/app/repo`；`/data/reify-deploy` 本身仍不包含 `.git`；
 - `/opt/git/vibeforge.git` 是历史裸仓库名；`main` 已合并 `reify`，包含最新部署；
-- 仓库里有 `frontend/`（React + TypeScript 源码）、`docs/frontend-react-ts-design.md`、`docs/isolation-design.md`、`docs/reify-design-2026-10-24.md`；线上 `/data/reify-deploy/web/dist` 是前端构建产物；
+- 仓库里有 `frontend/`（React + TypeScript 源码）、`docs/frontend-react-ts-design.md`、`docs/isolation-design.md`、`docs/muti-agent-role-design.md`；线上 `/data/reify-deploy/web/dist` 是前端构建产物；
 - 线上 `README.md` 是 Reify 版本；`docs/` 同步后与仓库一致；
 - 直接在 55 上改代码是可行的：优先在 `/data/reify-deploy/repo` 里用 Git 修改；线上部署树 `/data/reify-deploy` 按下面的方式更新。静态文件通常立即生效，Python/模板改动需要 `docker restart reify`，依赖变更需要重建镜像，`.runtime.env` 变更需要重建容器；
 - 如果只想快速改运行中的代码，也可以直接改 `/data/reify-deploy`，但建议先在 `/data/reify-deploy/repo` 留一个可回滚的提交。

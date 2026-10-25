@@ -222,6 +222,6 @@ REIFY_E2E_BASE=https://your-host:12888 .venv/bin/python tests/e2e_longtail_live.
 ## 文档
 
 - [架构设计文档](docs/架构设计文档.md)
-- [产品设计](docs/reify-design-2026-10-24.md)
+- [产品设计](docs/muti-agent-role-design.md)
 - [隔离设计](docs/isolation-design.md)
 - [前端设计](docs/frontend-react-ts-design.md)
