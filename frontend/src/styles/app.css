@@ -482,7 +482,7 @@ h1 {
   .projects-view { padding-top: 48px; }
   .workspace-view { height: auto; min-height: calc(100vh - 68px); padding: 12px; }
   .workspace-grid { grid-template-columns: 1fr; }
-  .flow-panel { max-height: 560px; }
+  .flow-panel { max-height: 760px; }
   .stage-panel { height: 76vh; min-height: 540px; }
   .code-layout { grid-template-columns: 160px minmax(0, 1fr); }
   .mini-preview { display: none; }
