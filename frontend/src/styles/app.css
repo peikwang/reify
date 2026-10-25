@@ -1552,3 +1552,24 @@ body {
 .home-view .template-card-body { padding: 9px 5px 3px; }
 .home-view .template-card-head b { color: #2a3229; }
 .home-view .template-card-head span { color: #7b8a72; }
+
+/* decorative project stack beside the centered composer */
+.home-view .hero-grid { position: relative; }
+.home-view .hero-copy { position: relative; z-index: 1; }
+.home-view .hero-showcase {
+  position: absolute;
+  right: -180px;
+  top: 24px;
+  width: 360px;
+  height: 380px;
+  min-height: 0;
+  z-index: 0;
+  opacity: 0.92;
+  pointer-events: none;
+  animation: none;
+}
+.home-view .showcase-stage { transform: scale(0.70); transform-origin: top right; }
+.home-view .showcase-caption { display: none; }
+@media (max-width: 1320px) {
+  .home-view .showcase-stage { transform: scale(0.62); }
+}
