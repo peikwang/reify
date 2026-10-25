@@ -1386,7 +1386,7 @@ body {
 .home-view .composer-foot { padding-top: 12px; }
 .home-view .run-btn { padding: 14px 22px; font-size: 16px; }
 .home-view .template-library { max-width: 1100px; margin: 52px auto 0; }
-.home-view .template-grid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+.home-view .template-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
 .home-view .template-card-body { padding: 10px 12px 12px; gap: 5px; }
 .home-view .template-card-desc,
 .home-view .template-card-badge { display: none; }
