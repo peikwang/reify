@@ -18,6 +18,7 @@ interface ComposerProps {
   selectedTemplate: Capability | null;
   onCreated: (task: Task) => void;
   textareaRef?: RefObject<HTMLTextAreaElement | null>;
+  resetKey?: number;
 }
 
 export function Composer({
@@ -26,6 +27,7 @@ export function Composer({
   selectedTemplate,
   onCreated,
   textareaRef,
+  resetKey = 0,
 }: ComposerProps) {
   const { showToast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
@@ -52,6 +54,13 @@ export function Composer({
     });
     return () => window.cancelAnimationFrame(frame);
   }, [namingOpen]);
+
+  useEffect(() => {
+    if (!resetKey) return;
+    setNamingOpen(false);
+    setTitle("");
+    setError("");
+  }, [resetKey]);
 
   function openNaming() {
     const text = prompt.trim();
