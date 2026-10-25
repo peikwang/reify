@@ -240,3 +240,9 @@ The script syncs the source to `/data/reify-deploy`, builds the `reify-app` imag
 - [Product design](docs/muti-agent-role-design.md)
 - [Isolation design](docs/isolation-design.md)
 - [Frontend design](docs/frontend-react-ts-design.md)
+
+## Next steps
+
+- **MicroVM runtimes**: move build and project runtimes from Docker isolation to Firecracker / ACS Agent Sandbox for stronger kernel isolation, pause/resume, and usage-based reclaim.
+- **Multi-agent mode**: add a controlled Planner / Builder / Inspector / Operator workflow for complex projects, sharing the event stream and file snapshots for auditable generation, repair, and acceptance.
+- **High availability and Kubernetes deployment**: externalize platform state to PostgreSQL and object storage, then use Kubernetes to run multiple FastAPI replicas, the Runtime Gateway, project runtime workloads, and Ingress for cross-node scheduling, failover, and horizontal scaling.
