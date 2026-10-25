@@ -1,11 +1,62 @@
+# Python
 .venv/
 __pycache__/
-*.pyc
-projects/
-data/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node / build output
+node_modules/
+frontend/node_modules/
+web/dist/
+dist/
+*.log
+npm-debug.log*
+
+# Runtime data (user data, password hashes, sessions)
+/data/
+/backups/
+/projects/
+runtime-data/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Secrets / credentials — never commit
 .env
+.env.*
+!.env.example
+*.env
 .auth.env
 .sandbox.env
 .llm.env
 .runtime.env
+sandbox/config.toml
+sandbox/*.db
+sandbox/*.db-*
+*.pem
+*.key
+*.p12
+*.pfx
+*.ppk
+id_rsa*
+id_ed25519*
+id_ecdsa*
+id_dsa*
+*.secret
+*.secrets
+*secret*.json
+*credential*.json
+service-account*.json
+.netrc
+.pypirc
+.htpasswd
+
+# OS / editor
 .DS_Store
+Thumbs.db
+.idea/
+.vscode/
