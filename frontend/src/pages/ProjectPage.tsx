@@ -25,6 +25,7 @@ import {
 import { CodingPane } from "../features/workspace/CodingPane";
 import { DailyOutput } from "../features/workspace/DailyOutput";
 import { ForgeCompanion } from "../features/workspace/ForgeCompanion";
+import { ProjectEditPanel } from "../features/workspace/ProjectEditPanel";
 import {
   applyProjectEvent,
   initialProjectView,
@@ -40,7 +41,7 @@ import { useTaskStream, type StreamConnection } from "../hooks/useTaskStream";
 import { useToast } from "../layout/ToastProvider";
 
 type ViewAction = { type: "reset" } | { type: "event"; event: TaskEvent };
-type ViewMode = "daily" | "coding";
+type ViewMode = "daily" | "coding" | "edit";
 
 function viewReducer(
   state: ProjectViewState,
@@ -390,6 +391,7 @@ export function ProjectPage() {
 
   function changeMode(next: ViewMode) {
     setMode(next);
+    if (next === "edit") return;
     try {
       localStorage.setItem("vf-react-mode", next);
     } catch {
@@ -475,6 +477,15 @@ export function ProjectPage() {
               onClick={() => changeMode("coding")}
             >
               编程
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === "edit"}
+              className={mode === "edit" ? "mode-btn active" : "mode-btn"}
+              onClick={() => changeMode("edit")}
+            >
+              编辑
             </button>
           </div>
           <div className={"conn " + connectionView.className}>
@@ -570,24 +581,28 @@ export function ProjectPage() {
             <div className="stage-head-left">
               <span className="stage-dot" />
               <span>
-                {mode === "coding"
-                  ? "CODE CHANGES"
-                  : task.stack === "next"
-                    ? "APP OUTPUT"
-                    : "DAILY OUTPUT"}
+                {mode === "edit"
+                  ? "PROJECT SETTINGS"
+                  : mode === "coding"
+                    ? "CODE CHANGES"
+                    : task.stack === "next"
+                      ? "APP OUTPUT"
+                      : "DAILY OUTPUT"}
               </span>
             </div>
             <div className="stage-head-right">
               <span>
-                {mode === "coding"
-                  ? "GIT SNAPSHOT"
-                  : previewUrl
-                    ? task.stack === "next"
-                      ? "APP PREVIEW"
-                      : "LIVE PREVIEW"
-                    : "WAITING"}
+                {mode === "edit"
+                  ? "LOCAL PROJECT"
+                  : mode === "coding"
+                    ? "GIT SNAPSHOT"
+                    : previewUrl
+                      ? task.stack === "next"
+                        ? "APP PREVIEW"
+                        : "LIVE PREVIEW"
+                      : "WAITING"}
               </span>
-              {previewUrl ? (
+              {previewUrl && mode !== "edit" ? (
                 <button className="mini-btn" type="button" onClick={openPreview}>
                   ↗ 新窗口
                 </button>
@@ -595,7 +610,15 @@ export function ProjectPage() {
             </div>
           </div>
           <div className="stage-body">
-            {mode === "coding" ? (
+            {mode === "edit" ? (
+              <ProjectEditPanel
+                task={task}
+                running={running}
+                deleting={deleting}
+                onTaskChange={setTask}
+                onDelete={() => void deleteProject()}
+              />
+            ) : mode === "coding" ? (
               <CodingPane
                 task={task}
                 files={files}

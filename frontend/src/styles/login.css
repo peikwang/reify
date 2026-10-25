@@ -65,7 +65,7 @@
 }
 
 .login-tagline {
-  font: 10px/1 var(--mono);
+  font: 11px/1 var(--mono);
   letter-spacing: 0.2em;
   color: var(--lg-soft);
   animation: loginRise 0.5s 0.95s both;
@@ -74,16 +74,16 @@
 .login-boot {
   min-height: 16px;
   margin-top: 12px;
-  font: 11px/1 var(--mono);
+  font: 12px/1 var(--mono);
   letter-spacing: 0.08em;
   color: var(--lg-accent);
 }
 
 .login-lede {
   margin: 14px 0 0;
-  max-width: 40ch;
+  max-width: 42ch;
   color: var(--lg-soft);
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.8;
   animation: loginRise 0.5s 1.02s both;
 }
@@ -106,7 +106,7 @@
   background: transparent;
   color: var(--lg-soft);
   padding: 9px;
-  font: 700 11px/1 var(--mono);
+  font: 700 12px/1 var(--mono);
   letter-spacing: 0.04em;
 }
 
@@ -130,7 +130,7 @@
 .login-form label {
   display: block;
   margin: 15px 0 7px;
-  font: 8px/1 var(--mono);
+  font: 10px/1 var(--mono);
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--lg-soft);
@@ -156,7 +156,7 @@
   background: var(--lg-bg2);
   color: var(--lg-text);
   padding: 13px 46px 13px 13px;
-  font-size: 15px;
+  font-size: 16px;
   outline: none;
   transition: border-color 0.18s, box-shadow 0.18s;
 }
@@ -195,6 +195,10 @@
   display: block;
 }
 
+.login-page.register .login-form > * {
+  animation: none !important;
+}
+
 .login-submit {
   width: 100%;
   margin-top: 18px;
@@ -203,7 +207,7 @@
   border-radius: 10px;
   background: var(--lg-accent);
   color: var(--lg-bg);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   display: flex;
   align-items: center;
@@ -228,7 +232,7 @@
   min-height: 18px;
   margin-top: 10px;
   color: #e08a63;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.5;
 }
 
@@ -240,7 +244,7 @@
   padding-top: 13px;
   border-top: 1px solid var(--lg-line);
   color: var(--lg-soft);
-  font: 8px/1.5 var(--mono);
+  font: 9.5px/1.5 var(--mono);
   letter-spacing: 0.08em;
   animation: loginRise 0.5s 1.62s both;
 }
