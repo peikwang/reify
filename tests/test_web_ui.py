@@ -445,7 +445,7 @@ def test_delete_stops_next_runtime(client: TestClient, monkeypatch):
     db.save_runtime({"project_id": task.id, "status": "running", "revision": 0})
     stopped = []
 
-    async def fake_stop(item):
+    async def fake_stop(item, reason="manual"):
         stopped.append(item.id)
         return {"status": "stopped"}
 
@@ -467,7 +467,7 @@ def test_delete_fails_closed_when_runtime_stop_fails(client: TestClient, monkeyp
     task.save_meta()
     db.save_runtime({"project_id": task.id, "status": "running", "revision": 0})
 
-    async def failing_stop(_task):
+    async def failing_stop(_task, reason="manual"):
         raise RuntimeError("sandbox down")
 
     monkeypatch.setattr(main_module.runtime_manager, "stop", failing_stop)
@@ -494,7 +494,15 @@ def test_delete_rejects_a_symlinked_project_directory(client: TestClient):
     task.save_meta()
     import shutil
     shutil.rmtree(task.dir)
-    task.dir.symlink_to(victim.dir, target_is_directory=True)
+    try:
+        task.dir.symlink_to(victim.dir, target_is_directory=True)
+    except OSError as exc:
+        db.delete_project(task.id)
+        db.delete_project(victim.id)
+        store.remove(task.id)
+        store.remove(victim.id)
+        shutil.rmtree(victim.dir, ignore_errors=True)
+        pytest.skip(f"symlinks unavailable: {exc}")
 
     response = client.delete(f"/api/projects/{task.id}")
     assert response.status_code == 500
@@ -523,3 +531,171 @@ def test_delete_keeps_other_projects(client: TestClient):
     assert keep.dir.exists()
     assert db.get_project(keep.id) is not None
     assert client.get(f"/api/projects/{keep.id}").status_code == 200
+
+
+def test_runtime_record_persists_kind_and_stop_fields():
+    user = db.get_user_by_key("webuiuser")
+    assert user
+    task = store.create("运行时字段", "website", "Runtime fields", owner_id=user.id, stack="static")
+    db.save_runtime(
+        {
+            "project_id": task.id,
+            "kind": "static",
+            "revision": 3,
+            "status": "stopped",
+            "image": "nginx:alpine",
+            "expires_at": "2026-01-01T00:00:00+00:00",
+            "stopped_at": "2026-01-01T00:01:00+00:00",
+            "stop_reason": "idle",
+        }
+    )
+    record = db.get_runtime(task.id)
+    assert record
+    assert record["kind"] == "static"
+    assert record["revision"] == 3
+    assert record["stop_reason"] == "idle"
+    assert record["stopped_at"] == "2026-01-01T00:01:00+00:00"
+    assert record["expires_at"] == "2026-01-01T00:00:00+00:00"
+    db.delete_project(task.id)
+    store.remove(task.id)
+    import shutil
+    shutil.rmtree(task.dir, ignore_errors=True)
+
+
+def test_static_preview_without_runtime_returns_503_when_enabled(client: TestClient, monkeypatch):
+    from server.sandbox import SandboxError
+
+    monkeypatch.setattr(main_module, "STATIC_RUNTIME_BACKEND", "opensandbox")
+    user = db.get_user_by_key("webuiuser")
+    assert user
+    task = store.create("静态预览", "website", "Static preview", owner_id=user.id, stack="static")
+    (task.workspace / "index.html").write_text("local-file", encoding="utf-8")
+    task.status = "done"
+    task.save_meta()
+
+    async def failing_ensure(_task, _kind=None):
+        raise SandboxError("sandbox down")
+
+    monkeypatch.setattr(main_module.runtime_manager, "ensure", failing_ensure)
+    response = client.get(f"/p/{task.id}/")
+    assert response.status_code == 503
+    assert "local-file" not in response.text
+
+    db.delete_project(task.id)
+    store.remove(task.id)
+    import shutil
+    shutil.rmtree(task.dir, ignore_errors=True)
+
+
+def test_static_preview_proxies_runtime_when_running(client: TestClient, monkeypatch):
+    class FakeResponse:
+        status_code = 200
+        content = b"runtime-page"
+        headers = {"content-type": "text/html"}
+
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        async def request(self, method, url, headers=None):
+            return FakeResponse()
+
+    monkeypatch.setattr(main_module, "STATIC_RUNTIME_BACKEND", "opensandbox")
+    monkeypatch.setattr(main_module.httpx, "AsyncClient", FakeAsyncClient)
+    user = db.get_user_by_key("webuiuser")
+    assert user
+    task = store.create("静态代理", "website", "Static proxy", owner_id=user.id, stack="static")
+    (task.workspace / "index.html").write_text("local-file", encoding="utf-8")
+    task.status = "done"
+    task.save_meta()
+    db.save_runtime(
+        {
+            "project_id": task.id,
+            "kind": "static",
+            "revision": 0,
+            "status": "running",
+            "image": "nginx:alpine",
+            "endpoint": "http://runtime.local:3000",
+        }
+    )
+
+    async def noop_ensure(_task, _kind=None):
+        return {"status": "running"}
+
+    monkeypatch.setattr(main_module.runtime_manager, "ensure", noop_ensure)
+    response = client.get(f"/p/{task.id}/")
+    assert response.status_code == 200
+    assert response.text == "runtime-page"
+
+    db.delete_project(task.id)
+    store.remove(task.id)
+    import shutil
+    shutil.rmtree(task.dir, ignore_errors=True)
+
+
+def test_static_runtime_start_respects_per_user_cap(client: TestClient, monkeypatch):
+    monkeypatch.setattr(main_module, "STATIC_RUNTIME_BACKEND", "opensandbox")
+    monkeypatch.setattr(main_module, "MAX_STATIC_RUNTIME_PER_USER", 1)
+    user = db.get_user_by_key("webuiuser")
+    assert user
+    running = store.create("静态运行", "website", "Static running", owner_id=user.id, stack="static")
+    db.save_runtime(
+        {
+            "project_id": running.id,
+            "kind": "static",
+            "revision": 0,
+            "status": "running",
+            "image": "nginx:alpine",
+        }
+    )
+    target = store.create("静态目标", "website", "Static target", owner_id=user.id, stack="static")
+    (target.workspace / "index.html").write_text("<html></html>", encoding="utf-8")
+    target.status = "done"
+    target.save_meta()
+
+    response = client.post(f"/api/projects/{target.id}/runtime/start")
+    assert response.status_code == 429
+    assert "运行中的应用数量已达上限" in response.json()["detail"]
+
+    for task in (running, target):
+        db.delete_project(task.id)
+        store.remove(task.id)
+        import shutil
+        shutil.rmtree(task.dir, ignore_errors=True)
+
+
+def test_delete_stops_static_runtime(client: TestClient, monkeypatch):
+    user = db.get_user_by_key("webuiuser")
+    assert user
+    task = store.create("静态待删除", "website", "Static delete", owner_id=user.id, stack="static")
+    (task.workspace / "index.html").write_text("<html></html>", encoding="utf-8")
+    task.status = "done"
+    task.save_meta()
+    db.save_runtime(
+        {
+            "project_id": task.id,
+            "kind": "static",
+            "revision": 0,
+            "status": "running",
+            "image": "nginx:alpine",
+            "endpoint": "http://runtime.local:3000",
+        }
+    )
+    stopped = []
+
+    async def fake_stop(item, reason="manual"):
+        stopped.append((item.id, reason))
+        return {"status": "stopped"}
+
+    monkeypatch.setattr(main_module.runtime_manager, "stop", fake_stop)
+    response = client.delete(f"/api/projects/{task.id}")
+    assert response.status_code == 200
+    assert stopped == [(task.id, "delete")]
+    assert db.get_runtime(task.id) is None
+    assert not task.dir.exists()
