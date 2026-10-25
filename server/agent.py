@@ -273,7 +273,8 @@ async def run_task(task: Task) -> None:
             await _pause(0.8)
             if is_media:
                 task.source = "media"
-                task.title = str(brief.get("title", task.title or label))
+                if not task.title_locked:
+                    task.title = str(brief.get("title", task.title or label))
                 task.save_meta()
                 await task.emit(
                     "thinking",
@@ -286,7 +287,8 @@ async def run_task(task: Task) -> None:
                 brief = await design_brief(capability, task.prompt, brief)
                 brief = safe_brief(capability, brief)
                 task.source = "llm" if brief.get("source") == "llm" else "director"
-                task.title = str(brief.get("title", task.title or label))
+                if not task.title_locked:
+                    task.title = str(brief.get("title", task.title or label))
                 task.save_meta()
                 await task.emit(
                     "thinking",
