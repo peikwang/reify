@@ -1496,3 +1496,59 @@ body {
 .file-row { font-size: 12px; }
 .code-note { font-size: 11px; }
 .home-footer { font-size: 11px; }
+
+/* ---------- warm paper harmony with the clay illustrations ---------- */
+body {
+  background:
+    radial-gradient(980px 560px at 84% -12%, rgba(138, 154, 123, 0.24), transparent 62%),
+    radial-gradient(760px 520px at -8% 22%, rgba(224, 190, 140, 0.20), transparent 62%),
+    radial-gradient(700px 500px at 76% 84%, rgba(232, 163, 61, 0.10), transparent 60%),
+    linear-gradient(165deg, #fbf6ea 0%, #f4eddd 48%, #eef0e2 100%);
+}
+.ambient .blob.b1 { background: rgba(138, 154, 123, 0.42); }
+.ambient .blob.b2 { background: rgba(224, 190, 140, 0.28); }
+.ambient .blob.b3 { background: rgba(232, 163, 61, 0.20); }
+.topbar { background: rgba(251, 246, 237, 0.80); }
+.flow-panel,
+.stage-panel,
+.composer,
+.browser-frame,
+.outcome-card,
+.edit-card,
+.naming-dialog,
+.project-toolbar {
+  background: rgba(255, 252, 246, 0.80);
+}
+.project-card { background: rgba(255, 252, 246, 0.86); }
+
+/* template cards as paper prints */
+.home-view .template-card {
+  padding: 8px;
+  border-color: rgba(30, 92, 64, 0.16);
+  border-radius: 16px;
+  background: #f5efe2;
+  box-shadow: 0 12px 28px rgba(78, 67, 45, 0.10);
+  backdrop-filter: none;
+}
+.home-view .template-card:hover {
+  border-color: rgba(30, 92, 64, 0.34);
+  box-shadow: 0 18px 36px rgba(78, 67, 45, 0.16);
+}
+.home-view .template-card-art {
+  position: relative;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.home-view .template-card-art::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1px rgba(30, 92, 64, 0.10);
+  background: linear-gradient(180deg, rgba(255, 250, 240, 0.04), transparent 68%, rgba(245, 239, 226, 0.30));
+  pointer-events: none;
+}
+.home-view .template-art-img { filter: saturate(0.94) contrast(1.02); }
+.home-view .template-card-body { padding: 9px 5px 3px; }
+.home-view .template-card-head b { color: #2a3229; }
+.home-view .template-card-head span { color: #7b8a72; }
