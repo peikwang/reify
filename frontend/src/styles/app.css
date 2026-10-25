@@ -1558,8 +1558,8 @@ body {
 .home-view .hero-copy { position: relative; z-index: 1; }
 .home-view .hero-showcase {
   position: absolute;
-  right: -180px;
-  top: 24px;
+  right: -140px;
+  top: 10px;
   width: 360px;
   height: 380px;
   min-height: 0;
@@ -1568,8 +1568,9 @@ body {
   pointer-events: none;
   animation: none;
 }
-.home-view .showcase-stage { transform: scale(0.70); transform-origin: top right; }
+.home-view .showcase-stage { transform: scale(0.62); transform-origin: top right; }
 .home-view .showcase-caption { display: none; }
 @media (max-width: 1320px) {
-  .home-view .showcase-stage { transform: scale(0.62); }
+  .home-view .hero-showcase { right: -120px; }
+  .home-view .showcase-stage { transform: scale(0.56); }
 }
