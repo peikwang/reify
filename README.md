@@ -1,178 +1,227 @@
-# VibeForge
+# Reify
 
-> 从 Vibe Coding 到 Vibe Working：一句话生成网站、简历、小游戏、旅游攻略、多尺寸适配、图片、视频和编程演示，并把成品直接部署到自己的 Agent Server。
+> 一句话生成网站、简历、小游戏、旅游攻略、图片、视频和编程演示，并直接部署为可访问的页面。
 
-VibeForge 是一个单机优先的个人设计 Agent。它把自然语言拆成计划，逐步写文件，展示代码 Diff 与 Agent 思考流，跑结构/交互/语法自检，最后发布到 `/tasks/{id}/`。
+**简体中文** | [English](README.en.md)
 
-## 能力
+Reify 是一个单机优先的生成式设计 Agent：FastAPI 后端负责规划、生成、校验、构建和部署，React 单页应用展示规划、代码 Diff、事件流与项目工作区。常见需求走内置模板，长尾需求交给 OpenAI 兼容模型生成并自检，失败时回退模板。
 
-| Studio | 产物 | 自动验收 |
-| --- | --- | --- |
-| 小游戏 | 可玩的 Canvas 街机（键盘 + 触控 + 最高分） | 结构、viewport、脚本、canvas |
-| 网站 | 有品牌感的响应式落地页 | 结构、viewport、内容区块、脚本 |
-| 简历 | 单页双栏、在线可读、A4 可打印 | 结构、打印样式、viewport |
-| 旅游攻略 | 按天切换的路线、预算与贴士 | 结构、每日路线交互、viewport |
-| 适配制作 | 16:9 / 1:1 / 9:16 多画板切换 | 结构、多尺寸标记、viewport |
-| 图片 | 一次生成 4 张本地保存的图片 + 画廊 | 结构、图片资源、viewport |
-| 视频 | 异步渲染视频 + 播放器页 | 结构、视频资源、viewport |
-| 编程 | Python 代码 + 交互式可视化 | 结构、代码演示、`py_compile` |
+- 模板能力：游戏、网站、简历、攻略、图片、视频、编程演示
+- 自动选择技术栈：静态 HTML / Vite React / Next.js，前端不暴露构建细节
+- 多用户账号、项目隔离、SSE 实时进度、Refine、分享、导出
+- 数据保存在本机 SQLite 与文件系统，生成内容运行在受限沙箱
 
-## 双模式
+## 快速开始
 
-- **日常模式**：左侧 Agent 流程以时间线动画逐条出现，右侧直接看成果预览、验收清单和部署状态。
-- **编程模式**：左侧保留过程流，右侧展示文件树、逐行 Diff、终端日志和实时预览。每个 Agent 步骤都会留下一次文件快照，可一键重播。
-- 两种模式共用同一条 SSE 事件流，不重跑 Agent。
+前置条件：
 
-## 访问保护
-
-服务默认启用密码登录，使用 HMAC 签名的 HttpOnly Cookie，保护页面、SSE、任务 API 和生成物路由。
-
-首次远端部署会自动生成凭据，保存在服务器：
+- Python 3.12+（验证到 3.14）
+- Node.js 20+（推荐 24）与 npm
+- 可选：Docker + OpenSandbox，仅 React/Next 源码构建需要
+- 可选：OpenAI 兼容模型接口，不配置时使用确定性模板生成
 
 ```bash
-ssh root@117.148.166.55 'grep VIBEFORGE_PASSWORD /opt/vibeforge/.auth.env'
-```
+# 1. 构建平台前端，产物输出到 web/dist
+cd frontend
+npm ci
+npm run build
+cd ..
 
-登录状态保留 7 天；手机和电脑需要分别登录。修改密码：
-
-```bash
-ssh root@117.148.166.55 'nano /opt/vibeforge/.auth.env'
-cd vibeforge && ./deploy_remote.sh root@117.148.166.55 12888
-```
-
-`docker restart` 不会重新读取 env-file，修改密码必须重建容器；上面的部署脚本会保留新密码并重建容器。
-
-登录接口有按 IP 的简单限流（默认 1 分钟 8 次）。服务通过 Caddy 提供 HTTPS：应用只监听内部 12888，Caddy 在 12888 终止 TLS，并使用 Let's Encrypt 的公网 IP 证书（约 6 天有效期，自动续期）。80 端口只用于 ACME HTTP-01 验证和跳转，不直接暴露应用。
-
-## 本地启动
-
-```bash
-cd vibeforge
+# 2. 创建 Python 环境
 python3 -m venv .venv
-.venv/bin/pip install fastapi uvicorn httpx
-VIBEFORGE_PASSWORD=your-password VIBEFORGE_SECRET=your-random-secret \
-  .venv/bin/python -m uvicorn server.main:app --host 127.0.0.1 --port 7801
+.venv/bin/pip install -r requirements.txt
+
+# 3. 启动
+REIFY_ADMIN_PASSWORD=your-password \
+.venv/bin/python -m uvicorn server.main:app --host 127.0.0.1 --port 7801
 ```
 
-打开 <http://127.0.0.1:7801>。未设置密码时启动日志会生成一个临时密码。
+打开 <http://127.0.0.1:7801>。管理员用户名默认 `admin`；未设置密码时，启动日志会输出随机密码。
 
-## 手机访问
+`./run.sh` 会自动创建 venv、安装依赖并在 `0.0.0.0:12888` 启动，但不会构建前端；首次运行仍需执行上面的第 1 步。
 
-手机与服务器网络可达时，直接打开：
+### 前端开发模式
+
+```bash
+cd frontend
+npm run dev
+# 默认 http://127.0.0.1:5173
+# 后端不在 7801 时：
+REIFY_BACKEND=http://127.0.0.1:12888 npm run dev
+```
+
+### 启用源码构建沙箱（可选）
+
+React/Next 源码需要 Docker 与 OpenSandbox Server：
+
+```bash
+uvx opensandbox-server init-config ~/.sandbox.toml --example docker
+uvx opensandbox-server --config ~/.sandbox.toml
+
+REIFY_SANDBOX=opensandbox \
+REIFY_SANDBOX_DOMAIN=127.0.0.1:8080 \
+REIFY_SANDBOX_API_KEY=your-sandbox-key \
+REIFY_SANDBOX_BUILD_MEMORY=4Gi \
+REIFY_SSR_PREVIEW=1 \
+.venv/bin/python -m uvicorn server.main:app --host 127.0.0.1 --port 7801
+```
+
+未启用沙箱时，React/Next 请求会回退到静态模板，其他能力不受影响。
+
+## 构建镜像
+
+```bash
+docker build -t reify-app:latest -f Dockerfile.app .
+```
+
+镜像为两阶段构建：Node 阶段构建 `frontend/`，产物 `web/dist` 复制进 `python:3.12-slim` 运行镜像。
+
+## 测试
+
+```bash
+# 测试依赖
+.venv/bin/pip install -r requirements-dev.txt
+
+# 后端单测
+.venv/bin/python -m pytest -q
+
+# 前端单测、类型检查、构建
+cd frontend && npm test && npm run typecheck && npm run build && cd ..
+
+# 生成工程的 TypeScript 真实构建（npm ci + tsc + vite/next build）
+.venv/bin/python tests/e2e_typescript_scaffolds.py
+
+# 本地全链路 UI（真实 uvicorn + Chrome + mock LLM，无需沙箱）
+.venv/bin/python tests/e2e_browser.py
+```
+
+浏览器 E2E 使用系统 Google Chrome。源码沙箱相关用例需要可用的 OpenSandbox：
+
+```bash
+.venv/bin/python tests/e2e_react_sandbox.py
+.venv/bin/python tests/e2e_next_ssr.py
+.venv/bin/python tests/e2e_refine.py
+```
+
+已部署实例的回归用例通过 `REIFY_E2E_BASE` 指定地址；`*_live.py` 会调用真实模型并消耗 token：
+
+```bash
+REIFY_E2E_BASE=https://your-host:12888 .venv/bin/python tests/e2e_deployed.py
+REIFY_E2E_BASE=https://your-host:12888 .venv/bin/python tests/e2e_next_live.py
+REIFY_E2E_BASE=https://your-host:12888 .venv/bin/python tests/e2e_game_live.py
+REIFY_E2E_BASE=https://your-host:12888 .venv/bin/python tests/e2e_longtail_live.py
+```
+
+## 目录结构
 
 ```text
-https://117.148.166.55:12888/
+.
+├── frontend/              Vite + React 19 + TypeScript 控制台
+│   └── src/               api / auth / pages / features / hooks / styles
+├── server/                FastAPI 后端
+│   ├── main.py            API、SSE、SPA 服务与鉴权
+│   ├── agent.py           生成编排：规划 → 写文件 → 自检 → 部署
+│   ├── llm.py             模型调用：brief、Refine、长尾生成
+│   ├── media.py           图片/视频生成
+│   ├── sandbox.py         OpenSandbox 构建与产物校验
+│   ├── runtime.py         Next standalone 运行时
+│   └── templates/         静态模板、React/Next 脚手架、游戏引擎
+├── web/dist/              前端构建产物，由 FastAPI 直接服务
+├── tests/                 pytest 单测与 E2E 脚本
+├── data/                  运行时数据：SQLite、用户工作区（不提交）
+├── docs/                  设计文档
+├── Dockerfile.app         多阶段构建：前端 + Python 运行镜像
+├── Caddyfile              HTTPS 与 SSR 反代配置
+├── deploy_remote.sh       远程部署脚本
+├── run.sh                 本地启动脚本
+├── requirements.txt       生产依赖
+├── requirements-dev.txt   测试依赖
+└── .env.example           环境变量样例
 ```
 
-输入访问密码即可。页面已适配 390px 手机宽度。部分运营商/公司网络会拦截 12888 这类非标准端口；换 Wi-Fi 或蜂窝网络再试。证书为受信任的公网 IP 证书，不需要手动信任。
+## 关键环境变量
 
-## 可选：接入任意 OpenAI 兼容模型
+| 变量 | 默认 | 说明 |
+|---|---|---|
+| `REIFY_HOST` / `REIFY_PORT` | `0.0.0.0` / `12888` | 监听地址与端口 |
+| `REIFY_DATA` | `./data` | SQLite 与用户工作区根目录 |
+| `REIFY_DB` | `data/reify.db` | SQLite 路径 |
+| `REIFY_ADMIN_USER` / `REIFY_ADMIN_PASSWORD` | `admin` / 随机 | 首个管理员；密码为空时启动随机生成 |
+| `REIFY_REGISTRATION` | `open` | `open` 或 `closed` |
+| `REIFY_COOKIE_SECURE` | `0` | HTTPS 部署必须设为 `1` |
+| `REIFY_LLM_ENABLED` | `1` | 是否启用模型；配置了 BASE_URL 才生效 |
+| `REIFY_LLM_BASE_URL` / `REIFY_LLM_API_KEY` / `REIFY_LLM_MODEL` | 空 | OpenAI 兼容接口 |
+| `REIFY_LLM_LONGTAIL_MAX_TOKENS` | `24000` | 长尾生成输出上限 |
+| `REIFY_MEDIA_API_BASE` / `REIFY_MEDIA_API_KEY` | 继承 LLM | 图片/视频接口 |
+| `REIFY_SANDBOX` | `off` | `opensandbox` 启用源码构建 |
+| `REIFY_SANDBOX_DOMAIN` | `127.0.0.1:8080` | Sandbox Server 地址 |
+| `REIFY_SANDBOX_API_KEY` | 空 | Sandbox API Key |
+| `REIFY_SANDBOX_BUILD_MEMORY` | `2Gi` | 构建沙箱内存，Next 建议 `4Gi` |
+| `REIFY_SANDBOX_CONCURRENCY` | `2` | 并发构建数 |
+| `REIFY_NPM_REGISTRY` | `https://registry.npmmirror.com` | 构建时 npm 源 |
+| `REIFY_SSR_PREVIEW` | `0` | 是否开放 `/apps/*` 预览 |
+| `REIFY_SSR_PORT` | `12889` | SSR 独立 origin 端口 |
+| `REIFY_RUNTIME_IDLE` / `REIFY_RUNTIME_TTL` | `600` / `3600` | 运行时空闲停止 / 最长存活（秒） |
+| `REIFY_MAX_PROJECTS_PER_USER` | `50` | 每用户项目上限 |
+| `REIFY_MAX_ACTIVE_PER_USER` | `2` | 每用户并发任务上限 |
+| `REIFY_MAX_STORAGE_PER_USER` | `1073741824` | 每用户存储上限（1 GB） |
 
-不配置模型时，Agent 使用确定性的“本地导演 + 模板渲染”，保证每次都能生成可运行产物。配置后，模型只负责产出短创意 brief（标题、语气、强调色、要点），HTML 仍由可验证的模板渲染，避免模型输出坏页面。
+完整列表见 [.env.example](.env.example)。
+
+### 环境文件（不入库）
+
+敏感配置通过环境文件注入。`.gitignore` 已忽略 `.env`、`.env.*`、`.auth.env`、`.sandbox.env`、`.llm.env`、`.runtime.env`，只保留 `.env.example`，因此远端仓库中不存在这些文件。
+
+| 文件 | 主要变量 | 说明 |
+|---|---|---|
+| `.env` | 本地需要的任意 `REIFY_*` | 从 `.env.example` 复制；程序不会自动加载，可用 `set -a; source .env; set +a` 后启动 |
+| `.auth.env` | `REIFY_ADMIN_USER` / `REIFY_ADMIN_PASSWORD`（旧部署兼容 `REIFY_PASSWORD`）、`REIFY_COOKIE_SECURE`、`REIFY_REGISTRATION` | 首次部署由脚本生成，管理员初始密码保存在此 |
+| `.sandbox.env` | `REIFY_SANDBOX`、`REIFY_SANDBOX_DOMAIN`、`REIFY_SANDBOX_API_KEY`、`REIFY_SANDBOX_BUILD_MEMORY`、`REIFY_SANDBOX_EGRESS`、`REIFY_PROJECTS`、`REIFY_SSR_PREVIEW`、`REIFY_SSR_PORT`、`REIFY_NPM_*` | 部署脚本生成/更新；修改后需重建容器或沙箱 |
+| `.llm.env` | `REIFY_LLM_ENABLED`、`REIFY_LLM_BASE_URL`、`REIFY_LLM_MODEL`、`REIFY_LLM_API_KEY`，可选 `REIFY_LLM_TIMEOUT` / `REIFY_LLM_MAX_TOKENS` 与媒体接口变量 | 手动创建并设为 600；不要提交或贴到对话 |
+| `.runtime.env` | 上述 `.auth.env` + `.llm.env` + `.sandbox.env` 的合并结果 | 部署脚本生成，权限 600，通过 `docker --env-file` 注入，容器实际读取 |
+
+部署目录为 `/data/reify-deploy`。脚本每次运行都会重新生成 `.runtime.env`；修改 `.auth.env`、`.sandbox.env` 或 `.llm.env` 后，重新执行 `./deploy_remote.sh root@your-host 12888` 使其生效。
+
+## 资源与端口
+
+### 端口
+
+| 端口 | 用途 | 暴露 |
+|---|---|---|
+| 80/tcp | ACME HTTP-01 与跳转 | 公网 |
+| 12888/tcp | 平台 UI/API/SSE、`/p/`、`/s/` | 公网 |
+| 12889/tcp | Next SSR `/apps/*` 独立 origin | 公网（启用 Next 时） |
+| 8080/tcp | OpenSandbox Server | 容器内网 |
+
+### 单机预算
+
+| 场景 | vCPU | 内存 | 磁盘 |
+|---|---:|---:|---:|
+| 仅静态模板/通用生成 | 2 | 2 GB | 10 GB |
+| 完整能力（React/Next 构建 + 1-2 个 SSR 运行时） | 4-8 | 16 GB | 60 GB |
+| 最低可跑 Next | 4 | 8 GB | 30 GB |
+
+服务级限制：
+
+- 平台容器：2 vCPU / 4 GiB / 512 PIDs，`cap-drop ALL`
+- 源码构建沙箱：1 vCPU / 2-4 GiB，默认并发 2
+- Next 运行时：1 vCPU / 1 GiB，TTL 1 小时，空闲 10 分钟停止
+- 常驻内存约 250 MiB（平台 + Caddy + Sandbox Server）；镜像合计约 370 MB
+- 默认每用户 1 GB 存储配额
+
+## 部署
+
+目标机器需要 Docker Engine，并放行 `80`、`12888`、`12889`：
 
 ```bash
-export VIBEFORGE_LLM_BASE_URL=http://127.0.0.1:8000/v1
-export VIBEFORGE_LLM_API_KEY=sk-...
-export VIBEFORGE_LLM_MODEL=qwen-plus
+./deploy_remote.sh root@your-host 12888
 ```
 
-也支持 vLLM / SGLang / Ollama 的 OpenAI 兼容接口。
+脚本会同步源码到 `/data/reify-deploy`，构建 `reify-app` 镜像，并以该目录作为 `/app` 挂载启动平台、Caddy 和 OpenSandbox 容器。敏感配置放在 `.auth.env`、`.sandbox.env`、`.llm.env`（不要提交），脚本会合并为 600 权限的 `.runtime.env` 注入容器。
 
-图片默认使用 `qwen-image-3.0-pro`，一次生成 4 张；视频默认使用当前工作区已开放的 `wan3.0-video`。`wan2.7-video` 在当前工作区返回 Model not exist，如果后续开通可设置：
+## 文档
 
-```bash
-VIBEFORGE_VIDEO_MODEL=wan2.7-video
-```
-
-图片/视频素材会下载到 `projects/{id}/assets/v{revision}/`，项目页展示画廊或播放器；二次修改会生成新的 `v{revision}` 目录，旧素材保留。
-
-### 安全注入模型凭据（不要发到对话里）
-
-把凭据写成本地文件，再用 scp 传到服务器，Agent 不读取文件内容，也不会把它写进仓库：
-
-```bash
-umask 077
-cat > ~/.vibeforge_llm.env <<'EOF'
-VIBEFORGE_LLM_BASE_URL=https://your-provider/v1
-VIBEFORGE_LLM_MODEL=your-model
-VIBEFORGE_LLM_API_KEY=sk-your-key
-VIBEFORGE_LLM_ENABLED=1
-EOF
-
-scp ~/.vibeforge_llm.env root@117.148.166.55:/opt/vibeforge/.llm.env
-ssh root@117.148.166.55 'chmod 600 /opt/vibeforge/.llm.env'
-cd vibeforge && ./deploy_remote.sh root@117.148.166.55 12888
-```
-
-部署脚本会把 `.auth.env` 与 `.llm.env` 合并成 600 权限的 `.runtime.env` 再注入容器；不会写入镜像、源码或 Git。
-
-如果只想用一次，测完后删除凭据并重建容器：
-
-```bash
-ssh root@117.148.166.55 'shred -u /opt/vibeforge/.llm.env /opt/vibeforge/.runtime.env'
-rm -f ~/.vibeforge_llm.env
-cd vibeforge && ./deploy_remote.sh root@117.148.166.55 12888
-```
-
-重建后 `/api/health` 会回到 `llm:false`，模板导演继续兜底。
-
-## 目录
-
-```text
-server/
-  main.py              FastAPI、SSE、静态产物路由
-  agent.py             ToolAct 编排（规划 → 写文件 → 自检 → 部署）
-  events.py            任务、事件流、持久化
-  tools.py             文件快照、Python 自检、部署工具
-  llm.py               可选创意导演（失败自动回退）
-  templates/           八类能力的可运行页面模板（含图片/视频画廊）
-web/                   双模式工作台（原生 HTML/CSS/JS）
-projects/{task_id}/    Agent 产物（index.html、README.md、结构化数据）
-data/tasks/{task_id}/  元信息与 events.jsonl
-```
-
-## API
-
-- `POST /api/tasks` `{prompt, capability?}` → 创建任务
-- `POST /api/tasks/{id}/refine` `{instruction}` → 基于当前成果对话修改（图片/视频会重新生成素材）
-- `GET /api/tasks/{id}` → 元信息 + 事件历史
-- `GET /api/tasks/{id}/events` → SSE 事件流
-- `POST /api/tasks/{id}/deploy` → 重新部署
-- `GET /api/tasks/{id}/bundle` → 下载项目 zip
-- `GET /tasks/{id}/` → 已部署产物
-
-生成完成后，工作台左侧会出现「继续修改」输入框。Agent 会读取当前 `index.html`，让模型返回精确的局部 patch，应用后重新自检并部署；修改失败时原页面保持不变。每次成功修改会增加 `revision`，原有事件流继续追加。
-
-## 远程部署（HTTPS / Caddy）
-
-应用容器 `vllm/vllm-openai:latest` 只在实际 Docker 网络中监听 12888，不直接发布端口。Caddy `2.10.2-alpine` 负责：
-
-- 在 `12888` 终止 HTTPS
-- 在 `80` 仅提供 ACME HTTP-01 验证（不承载应用页面）
-- 使用 Let's Encrypt `shortlived` 配置申请公网 IP 证书（约 6 天，自动续期）
-- 将 SSE 请求反向代理到应用，`flush_interval -1`
-
-```bash
-cd vibeforge
-./deploy_remote.sh root@117.148.166.55 12888
-```
-
-验证：
-
-```bash
-curl -I https://117.148.166.55:12888/
-curl https://117.148.166.55:12888/api/health
-```
-
-证书和 ACME 账户保存在 Docker volume `vibeforge-caddy-data` 中，重建应用容器不会丢失。
-
-注意：公网 IP 证书的续期需要 80 端口可达；如果只能暴露 12888，则需要改用你自己的域名 + DNS-01 验证，或接受自签名证书。
-
-## 安全边界
-
-- 默认密码登录 + 签名 Cookie；未认证访问页面会跳转登录，API/预览返回 401。
-- 所有 `/tasks/` 生成物响应带 `Content-Security-Policy: sandbox`，直接打开新窗口也不会获得主站同源权限。
-- 产物只写入 `projects/{task_id}/`，所有文件工具做工作区路径校验。
-- 预览 iframe 使用 sandbox，不开放 same-origin；生成页面不能读取主站 Cookie。
-- 当前版本面向单用户/可信环境；已启用 HTTPS，建议再配合 Cloudflare Access 或 VPN 做外层访问控制。
-- 若要开放给不可信多用户，执行环境应升级到 gVisor / microVM，不要只依赖 Docker。
+- [架构设计文档](docs/架构设计文档.md)
+- [产品设计](docs/muti-agent-role-design.md)
+- [隔离设计](docs/isolation-design.md)
+- [前端设计](docs/frontend-react-ts-design.md)

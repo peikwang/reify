@@ -76,7 +76,7 @@ BODY = """
         <div class="side-block"><h2>Languages</h2><p>中文 · 母语<br>English · 工作流利</p></div>
       </aside>
     </div>
-    <div class="note"><span>Designed &amp; generated with VibeForge</span><span>ATS-FRIENDLY · PRINT READY · LAST UPDATED {{YEAR}}</span></div>
+    <div class="note"><span>Designed &amp; generated with Reify</span><span>ATS-FRIENDLY · PRINT READY · LAST UPDATED {{YEAR}}</span></div>
   </div>
 </main>
 """
