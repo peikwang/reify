@@ -222,6 +222,6 @@ The script syncs the source to `/data/reify-deploy`, builds the `reify-app` imag
 ## Documentation
 
 - [Architecture design (Chinese)](docs/架构设计文档.md)
-- [Product design](docs/reify-design-2026-10-24.md)
+- [Product design](docs/muti-agent-role-design.md)
 - [Isolation design](docs/isolation-design.md)
 - [Frontend design](docs/frontend-react-ts-design.md)
