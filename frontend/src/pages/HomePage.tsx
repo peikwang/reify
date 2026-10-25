@@ -37,7 +37,7 @@ export function HomePage() {
 
   function handleCreated(task: Task) {
     showToast("项目已创建，Agent 开始生成");
-    navigate("/projects", { state: { createdId: task.id } });
+    navigate("/projects/" + task.id);
   }
 
   const recentCount = loading

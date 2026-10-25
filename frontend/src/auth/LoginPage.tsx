@@ -131,8 +131,8 @@ export function LoginPage() {
         </p>
         <p className="login-lede">
           {mode === "register"
-            ? "注册后账号、会话和项目都只保存在这台机器上。用户名 3~32 位，密码至少 8 位。"
-            : "这台 Agent Server 已启用访问保护。登录后继续生成、查看代码变化，并把成果部署到这台机器。"}
+            ? "注册后账号与项目只保存在这台机器上。用户名 3~32 位，密码至少 8 位。"
+            : "一句话，实现你的想法。"}
         </p>
         <div className="login-tabs" role="tablist" aria-label="账号方式">
           <button

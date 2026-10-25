@@ -74,6 +74,7 @@ class CreateTaskRequest(BaseModel):
     prompt: str = Field(min_length=1, max_length=2000)
     capability: str | None = None
     stack: str | None = None
+    title: str | None = Field(default=None, max_length=80)
 
 class RegisterRequest(BaseModel):
     username: str = Field(min_length=3, max_length=32)
@@ -89,6 +90,10 @@ class LoginRequest(BaseModel):
 
 class RefineRequest(BaseModel):
     instruction: str = Field(min_length=1, max_length=2000)
+
+
+class UpdateProjectRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=80)
 
 
 class PasswordRequest(BaseModel):
@@ -536,10 +541,11 @@ async def create_project(payload: CreateTaskRequest, request: Request) -> dict[s
     if not auth.limiter.hit(f"create:{user.id}", 10, 60):
         raise HTTPException(status_code=429, detail="创建过于频繁，请稍后再试")
     default_title = str(defaults(capability, prompt).get("title", ""))
+    title = (payload.title or "").strip()[:80] or default_title
     task = store.create(
         prompt=prompt,
         capability=capability,
-        title=default_title,
+        title=title,
         owner_id=user.id,
         stack=stack,
     )
@@ -555,6 +561,23 @@ async def create_project(payload: CreateTaskRequest, request: Request) -> dict[s
         stack,
     )
     return {"task": task.meta(), "events": []}
+
+
+@app.patch("/api/projects/{project_id}")
+async def update_project(
+    project_id: str, payload: UpdateProjectRequest, request: Request
+) -> dict[str, Any]:
+    task = _project_for(request, project_id)
+    user = _require_user(request)
+    title = payload.title.strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="title is empty")
+    async with task.refine_lock:
+        _ensure_project_alive(task)
+        task.title = title
+        task.save_meta()
+    _audit(request, "project.update", user=user, project_id=task.id)
+    return {"ok": True, "task": task.meta()}
 
 
 @app.get("/api/projects/{project_id}")
