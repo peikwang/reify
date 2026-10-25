@@ -3,7 +3,7 @@
 > 品牌：Reify（原 VibeForge）。
 > 当前线上：55 使用 `/data/reify-deploy`、`reify` / `reify-caddy` / `reify-sandbox`、`reify-net`、`REIFY_*`、`data/reify.db`；旧 VibeForge 容器/网络已清理。
 > 代码：`reify` 分支已完成品牌、7 模板与通用生成；本次合并到 `main`，并把完整仓库同步到 `/data/reify-deploy/repo`。
-> 本文描述当前 Reify 架构、产品方向和后续演进；历史 `vibeforge` 路径只用于回溯。
+> 系统架构的权威说明见 [架构设计文档](架构设计文档.md)；本文保留产品视角与演进背景，历史 `vibeforge` 路径只用于回溯。
 
 ---
 
@@ -102,9 +102,9 @@ Next 是高级旁路：需要 4Gi 构建沙箱、独立 12889 origin、运行时
 
 ### 2.1 总览
 
-![Reify 前后端分离架构](diagrams/reify-architecture.svg)
+![Reify 当前运行架构](diagrams/reify-architecture.svg)
 
-> 图 1：Reify 前后端分离架构。可编辑源：[reify-architecture.html](diagrams/reify-architecture.html)；矢量图：[reify-architecture.svg](diagrams/reify-architecture.svg)。
+> 图 1：Reify 当前运行架构。可编辑源：[reify-architecture.html](diagrams/reify-architecture.html)；矢量图：[reify-architecture.svg](diagrams/reify-architecture.svg)。每项目独立轻量沙箱的目标图见 [reify-sandbox-deployment.svg](diagrams/reify-sandbox-deployment.svg)。
 
 ### 2.2 前后端是怎么分离的
 
@@ -230,6 +230,8 @@ data/
 | 适用 | 纯前端站点 | 需要服务端接口/SSR 的全栈应用 |
 
 > 平台 UI 的 React 与生成项目的 React 是两套代码：前者是 `frontend/` 固定工作台，后者是 `workspace/` 里按模板生成的项目。不要把两者混为一谈。
+
+> 演进方向：每个项目（包括静态/React）都将独立部署在一个最轻量沙箱中，由 Runtime Gateway 按项目 origin 路由。设计、边界与迁移路径见 [架构设计文档 §5](架构设计文档.md)；目标拓扑见 [reify-sandbox-deployment.svg](diagrams/reify-sandbox-deployment.svg)。
 
 ### 2.6 隔离模型
 

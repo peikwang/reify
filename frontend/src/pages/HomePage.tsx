@@ -13,7 +13,7 @@ export function HomePage() {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const { capabilities, error: capabilitiesError } = useCapabilities();
-  const { items, loading, error: projectsError } = useProjects();
+  const { items, loading, error: projectsError, reload } = useProjects();
   const [prompt, setPrompt] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState<Capability | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -37,7 +37,7 @@ export function HomePage() {
 
   function handleCreated(task: Task) {
     showToast("项目已创建，Agent 开始生成");
-    navigate("/projects", { state: { createdId: task.id } });
+    navigate("/projects/" + task.id);
   }
 
   const recentCount = loading
@@ -68,19 +68,6 @@ export function HomePage() {
             <p className="hero-sub">
               从模板库找一个起点，或者直接描述你的想法。Agent 会规划、写代码、自检，并把成果部署成属于你的项目页面。
             </p>
-
-            <Composer
-              prompt={prompt}
-              onPromptChange={setPrompt}
-              selectedTemplate={selectedTemplate}
-              onCreated={handleCreated}
-              textareaRef={textareaRef}
-            />
-            {capabilitiesError ? (
-              <div className="composer-error" role="alert">
-                能力加载失败：{capabilitiesError}
-              </div>
-            ) : null}
           </div>
 
           <aside className="hero-showcase" aria-hidden="true">
@@ -147,6 +134,21 @@ export function HomePage() {
             </div>
           </aside>
         </div>
+
+        <div className="hero-composer">
+          <Composer
+            prompt={prompt}
+            onPromptChange={setPrompt}
+            selectedTemplate={selectedTemplate}
+            onCreated={handleCreated}
+            textareaRef={textareaRef}
+          />
+          {capabilitiesError ? (
+            <div className="composer-error" role="alert">
+              能力加载失败：{capabilitiesError}
+            </div>
+          ) : null}
+        </div>
       </div>
 
       <TemplateGallery
@@ -169,6 +171,7 @@ export function HomePage() {
           items={recent}
           capabilities={capabilities}
           empty={recentEmpty}
+          onMutated={reload}
         />
       </section>
 

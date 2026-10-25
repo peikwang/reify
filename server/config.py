@@ -54,6 +54,7 @@ MAX_PROJECTS_PER_USER = int(os.getenv("REIFY_MAX_PROJECTS_PER_USER", "50"))
 MAX_ACTIVE_TASKS_PER_USER = int(os.getenv("REIFY_MAX_ACTIVE_PER_USER", "2"))
 MAX_ACTIVE_REACT_PER_USER = int(os.getenv("REIFY_MAX_ACTIVE_REACT_PER_USER", "1"))
 MAX_RUNTIME_PER_USER = int(os.getenv("REIFY_MAX_RUNTIME_PER_USER", "2"))
+MAX_STATIC_RUNTIME_PER_USER = int(os.getenv("REIFY_MAX_STATIC_RUNTIME_PER_USER", "5"))
 MAX_STORAGE_PER_USER = int(os.getenv("REIFY_MAX_STORAGE_PER_USER", str(1024 * 1024 * 1024)))
 
 # Execution sandbox (OpenSandbox server with Docker runtime).
@@ -90,6 +91,11 @@ RUNTIME_READY_TIMEOUT = int(os.getenv("REIFY_RUNTIME_READY_TIMEOUT", "90"))
 RUNTIME_PORT = int(os.getenv("REIFY_RUNTIME_PORT", "3000"))
 SSR_PREVIEW_ENABLED = os.getenv("REIFY_SSR_PREVIEW", "0") not in {"0", "false", "False", "off"}
 SSR_PORT = int(os.getenv("REIFY_SSR_PORT", "12889"))
+
+# Per-project static runtime (static sites, games, built React dist).
+STATIC_RUNTIME_BACKEND = os.getenv("REIFY_STATIC_RUNTIME", "off").strip().lower()
+STATIC_RUNTIME_IMAGE = os.getenv("REIFY_STATIC_RUNTIME_IMAGE", "nginx:alpine").strip()
+STATIC_RUNTIME_MEMORY = os.getenv("REIFY_STATIC_RUNTIME_MEMORY", "256Mi").strip()
 SANDBOX_HOST_DATA_ROOT = os.getenv("REIFY_SANDBOX_HOST_DATA_ROOT", "").strip()
 
 AUTH_COOKIE_NAME = "reify_session"

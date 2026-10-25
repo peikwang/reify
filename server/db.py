@@ -66,6 +66,7 @@ CREATE INDEX IF NOT EXISTS idx_projects_owner ON projects(owner_id, created_at D
 
 CREATE TABLE IF NOT EXISTS runtimes (
   project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL,
   revision INTEGER NOT NULL,
   backend TEXT NOT NULL,
   sandbox_id TEXT,
@@ -76,6 +77,9 @@ CREATE TABLE IF NOT EXISTS runtimes (
   port INTEGER,
   started_at TEXT,
   last_active_at TEXT,
+  expires_at TEXT,
+  stopped_at TEXT,
+  stop_reason TEXT,
   error TEXT
 );
 
@@ -91,6 +95,15 @@ CREATE TABLE IF NOT EXISTS audit_log (
   detail TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_audit_ts ON audit_log(ts DESC);
+"""
+
+RUNTIME_INDEXES = """
+CREATE INDEX IF NOT EXISTS idx_runtimes_status_activity
+  ON runtimes(status, last_active_at);
+CREATE INDEX IF NOT EXISTS idx_runtimes_expiry
+  ON runtimes(status, expires_at);
+CREATE INDEX IF NOT EXISTS idx_runtimes_kind_status
+  ON runtimes(kind, status);
 """
 
 
@@ -162,6 +175,7 @@ class Database:
         with self._lock:
             self._conn.executescript(SCHEMA)
             self._ensure_columns()
+            self._conn.executescript(RUNTIME_INDEXES)
             self._conn.commit()
         try:
             os.chmod(path, 0o600)
@@ -177,6 +191,10 @@ class Database:
             "process_id": "TEXT",
             "port": "INTEGER",
             "started_at": "TEXT",
+            "kind": "TEXT NOT NULL DEFAULT 'next'",
+            "expires_at": "TEXT",
+            "stopped_at": "TEXT",
+            "stop_reason": "TEXT",
         }
         for name, sql_type in additions.items():
             if name not in columns:
@@ -454,10 +472,12 @@ class Database:
         with self._lock:
             self._conn.execute(
                 """INSERT INTO runtimes
-                   (project_id, revision, backend, sandbox_id, endpoint, status, image,
-                    process_id, port, started_at, last_active_at, error)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   (project_id, kind, revision, backend, sandbox_id, endpoint, status, image,
+                    process_id, port, started_at, last_active_at, expires_at, stopped_at,
+                    stop_reason, error)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                    ON CONFLICT(project_id) DO UPDATE SET
+                     kind = excluded.kind,
                      revision = excluded.revision,
                      backend = excluded.backend,
                      sandbox_id = excluded.sandbox_id,
@@ -468,9 +488,13 @@ class Database:
                      port = excluded.port,
                      started_at = excluded.started_at,
                      last_active_at = excluded.last_active_at,
+                     expires_at = excluded.expires_at,
+                     stopped_at = excluded.stopped_at,
+                     stop_reason = excluded.stop_reason,
                      error = excluded.error""",
                 (
                     data["project_id"],
+                    data.get("kind") or "next",
                     int(data.get("revision", 0)),
                     data.get("backend", "opensandbox"),
                     data.get("sandbox_id"),
@@ -481,6 +505,9 @@ class Database:
                     data.get("port"),
                     data.get("started_at"),
                     data.get("last_active_at"),
+                    data.get("expires_at"),
+                    data.get("stopped_at"),
+                    data.get("stop_reason"),
                     data.get("error"),
                 ),
             )
