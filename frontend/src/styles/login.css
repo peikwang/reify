@@ -47,6 +47,7 @@
 .login-wordmark {
   display: flex;
   margin: 0 0 10px;
+  color: var(--lg-text);
   font-family: var(--font);
   font-weight: 700;
   font-size: clamp(40px, 7vw, 58px);
