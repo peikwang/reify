@@ -2,6 +2,11 @@ import type { ReactElement, ReactNode } from "react";
 
 const PAPER = "#f2efe6";
 const GREEN = "#1e5c40";
+const SOFT = "#4c8164";
+const LINE = "#d8d3c6";
+const SPARK = "#e8a33d";
+const INK = "#17251c";
+const FUR = "#fdfbf4";
 
 function ArtFrame({ children, background = PAPER }: { children: ReactNode; background?: string }) {
   return (
@@ -17,61 +22,61 @@ function ArtFrame({ children, background = PAPER }: { children: ReactNode; backg
   );
 }
 
+function PetMini({ x, y, s = 1 }: { x: number; y: number; s?: number }) {
+  return (
+    <g className="pet-mini" transform={`translate(${x} ${y}) scale(${s})`}>
+      <path d="M-9 -8 q-3 -8 2 -10 q4 2 4 8" fill={FUR} stroke={INK} strokeWidth="1.6" />
+      <path d="M9 -8 q3 -8 -2 -10 q-4 2 -4 8" fill={FUR} stroke={INK} strokeWidth="1.6" />
+      <circle cx="0" cy="0" r="12" fill={FUR} stroke={INK} strokeWidth="1.6" />
+      <circle cx="-4" cy="-1" r="2" fill={INK} />
+      <circle cx="4" cy="-1" r="2" fill={INK} />
+      <path d="M-3 4 q3 3 6 0" fill="none" stroke={INK} strokeWidth="1.4" strokeLinecap="round" />
+    </g>
+  );
+}
+
 function WebsiteArt() {
   return (
     <ArtFrame>
-      <rect x="26" y="30" width="268" height="180" rx="16" fill="#fffdf8" stroke="#d8d3c6" />
-      <rect x="26" y="30" width="268" height="28" rx="16" fill="#f7f5ef" />
-      <rect x="26" y="46" width="268" height="12" fill="#f7f5ef" />
-      <circle cx="42" cy="44" r="3" fill="#c9c4b6" />
-      <circle cx="53" cy="44" r="3" fill="#c9c4b6" />
-      <circle cx="64" cy="44" r="3" fill="#c9c4b6" />
-      <rect x="44" y="72" width="120" height="114" rx="10" fill={GREEN} />
-      <circle cx="144" cy="92" r="30" fill="#4c8164" opacity="0.85" />
-      <rect x="60" y="82" width="48" height="4" rx="2" fill="#cfe2d6" opacity="0.7" />
-      <rect x="60" y="96" width="80" height="11" rx="4" fill="#f7f5ef" />
-      <rect x="60" y="113" width="60" height="11" rx="4" fill="#f7f5ef" />
-      <rect x="60" y="136" width="48" height="3" rx="1.5" fill="#b6c9bb" />
-      <rect x="60" y="144" width="58" height="3" rx="1.5" fill="#b6c9bb" />
-      <rect x="60" y="160" width="42" height="12" rx="6" fill="#f7f5ef" />
-      <rect x="180" y="72" width="94" height="6" rx="3" fill="#e6e1d5" />
-      <rect x="180" y="86" width="72" height="6" rx="3" fill="#e6e1d5" />
-      <rect x="180" y="108" width="94" height="34" rx="7" fill="#f1eee5" />
-      <rect x="180" y="150" width="42" height="4" rx="2" fill="#c9c4b6" />
-      <rect x="180" y="160" width="58" height="4" rx="2" fill="#ded9cc" />
+      <g transform="translate(0 20)">
+        <path d="M60 60 h200 l14 26 h-228 z" fill={GREEN} stroke={INK} strokeWidth="2" />
+        <g stroke={FUR} strokeWidth="3">
+          {Array.from({ length: 7 }, (_, i) => (
+            <line key={i} x1={74 + i * 28} y1="62" x2={68 + i * 28} y2="84" />
+          ))}
+        </g>
+        <rect x="74" y="86" width="172" height="86" rx="6" fill="#fffdf8" stroke={LINE} strokeWidth="2" />
+        <rect x="88" y="100" width="70" height="8" rx="4" fill={SOFT} />
+        <rect x="88" y="116" width="110" height="6" rx="3" fill={LINE} />
+        <rect x="88" y="132" width="46" height="16" rx="8" fill={GREEN} />
+        <rect x="176" y="100" width="52" height="48" rx="6" fill="#eef2ea" stroke={LINE} />
+        <PetMini x={268} y={150} />
+      </g>
     </ArtFrame>
   );
 }
 
 function GameArt() {
-  const grid = Array.from({ length: 8 }, (_, index) => index * 32 + 24);
   return (
     <ArtFrame background="#0d1a13">
-      <g stroke="#2b5a40" strokeWidth="1" opacity="0.55">
-        {grid.map((value) => (
-          <line key={`v${value}`} x1={value} y1="0" x2={value} y2="240" />
-        ))}
-        {grid.map((value) => (
-          <line key={`h${value}`} x1="0" y1={value} x2="320" y2={value} />
-        ))}
+      <g transform="translate(0 20)">
+        <g stroke="#2b5a40" opacity="0.5">
+          {[40, 120, 200, 280].map((x) => (
+            <line key={`v${x}`} x1={x} y1="0" x2={x} y2="200" />
+          ))}
+          {[50, 120].map((y) => (
+            <line key={`h${y}`} x1="0" y1={y} x2="320" y2={y} />
+          ))}
+        </g>
+        <rect x="96" y="46" width="128" height="108" rx="12" fill="#12241a" stroke="#3f7453" strokeWidth="2" />
+        <rect x="110" y="60" width="100" height="62" rx="6" fill="#0a140e" stroke="#9fd95e" strokeWidth="1.4" />
+        <rect x="120" y="98" width="10" height="10" fill="#9fd95e" />
+        <rect x="176" y="70" width="8" height="8" fill={SPARK} />
+        <circle cx="126" cy="138" r="7" fill="#3f7453" />
+        <circle cx="194" cy="138" r="5" fill={SPARK} />
+        <circle cx="180" cy="138" r="5" fill="#9fd95e" />
+        <PetMini x={60} y={150} s={1.1} />
       </g>
-      <circle cx="238" cy="62" r="36" fill="#3f7453" opacity="0.6" />
-      <circle cx="238" cy="62" r="18" fill="#9fd95e" opacity="0.35" />
-      <path
-        d="M56 154 L88 154 L88 122 L120 122 L120 90 L152 90 L152 122 L184 122"
-        fill="none"
-        stroke="#c7ff5e"
-        strokeWidth="10"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <circle cx="184" cy="122" r="7" fill="#d9ff8a" />
-      <circle cx="56" cy="154" r="7" fill="#d9ff8a" />
-      <circle cx="238" cy="62" r="5" fill="#c7ff5e" />
-      <rect x="24" y="24" width="44" height="4" rx="2" fill="#5a8f6c" />
-      <rect x="24" y="34" width="28" height="3" rx="1.5" fill="#345c46" />
-      <rect x="252" y="24" width="44" height="4" rx="2" fill="#5a8f6c" />
-      <rect x="252" y="34" width="20" height="3" rx="1.5" fill="#345c46" />
     </ArtFrame>
   );
 }
@@ -79,116 +84,102 @@ function GameArt() {
 function ImageArt() {
   return (
     <ArtFrame>
-      <rect x="34" y="54" width="148" height="122" rx="10" fill="#d9ceb8" transform="rotate(-5 108 115)" />
-      <rect x="88" y="36" width="160" height="132" rx="10" fill="#fffdf8" stroke="#d8d3c6" transform="rotate(3 168 102)" />
-      <rect x="96" y="44" width="144" height="116" rx="8" fill="#cfe0d2" transform="rotate(3 168 102)" />
-      <circle cx="206" cy="78" r="19" fill="#e8b98a" />
-      <path d="M96 142 L134 98 L164 128 L186 106 L240 148 L240 160 L96 160Z" fill="#3f6d57" />
-      <path d="M96 150 L124 126 L150 148 L176 124 L240 154 L240 160 L96 160Z" fill="#285040" />
-      <rect x="32" y="190" width="56" height="4" rx="2" fill="#c9c4b6" />
-      <rect x="32" y="200" width="38" height="3" rx="1.5" fill="#ded9cc" />
+      <g transform="translate(0 20)">
+        <line x1="40" y1="36" x2="280" y2="36" stroke={LINE} strokeWidth="2" />
+        <rect x="52" y="42" width="70" height="54" rx="4" fill="#fffdf8" stroke={INK} strokeWidth="2" />
+        <path d="M58 88 l18 -22 l14 14 l12 -16 l14 24 z" fill={SOFT} />
+        <circle cx="70" cy="56" r="5" fill={SPARK} />
+        <rect x="136" y="58" width="70" height="54" rx="4" fill="#fffdf8" stroke={INK} strokeWidth="2" />
+        <circle cx="171" cy="85" r="16" fill={GREEN} />
+        <path d="M142 106 q29 -18 58 0" fill="none" stroke={SOFT} strokeWidth="3" />
+        <rect x="220" y="42" width="54" height="70" rx="4" fill="#fffdf8" stroke={INK} strokeWidth="2" />
+        <path d="M228 100 q19 -34 38 0" fill={SOFT} opacity="0.7" />
+        <circle cx="247" cy="62" r="6" fill={SPARK} />
+        <PetMini x={96} y={164} s={0.95} />
+      </g>
     </ArtFrame>
   );
 }
 
 function VideoArt() {
   return (
-    <ArtFrame background="#1c1714">
-      <rect x="24" y="46" width="272" height="144" rx="14" fill="#2b211c" stroke="#4a372d" />
-      <rect x="42" y="64" width="76" height="108" rx="8" fill="#5e3a30" />
-      <rect x="122" y="64" width="76" height="108" rx="8" fill="#3f2a23" />
-      <rect x="202" y="64" width="76" height="108" rx="8" fill="#5e3a30" />
-      <circle cx="160" cy="118" r="29" fill="#f0a37f" />
-      <path d="M153 104 L174 118 L153 132Z" fill="#1c1714" />
-      <rect x="42" y="52" width="10" height="6" rx="2" fill="#7c5646" />
-      <rect x="62" y="52" width="10" height="6" rx="2" fill="#7c5646" />
-      <rect x="82" y="52" width="10" height="6" rx="2" fill="#7c5646" />
-      <rect x="102" y="52" width="10" height="6" rx="2" fill="#7c5646" />
-      <rect x="42" y="180" width="10" height="6" rx="2" fill="#7c5646" />
-      <rect x="62" y="180" width="10" height="6" rx="2" fill="#7c5646" />
-      <rect x="82" y="180" width="10" height="6" rx="2" fill="#7c5646" />
-      <rect x="102" y="180" width="10" height="6" rx="2" fill="#7c5646" />
-      <path d="M24 208 H296" stroke="#4a372d" strokeWidth="3" strokeLinecap="round" />
-      <path d="M24 208 H148" stroke="#f0a37f" strokeWidth="3" strokeLinecap="round" />
-      <circle cx="148" cy="208" r="5" fill="#f0a37f" />
-      <rect x="24" y="26" width="44" height="4" rx="2" fill="#8b6553" />
-      <rect x="252" y="26" width="44" height="4" rx="2" fill="#8b6553" />
+    <ArtFrame background="#101812">
+      <g transform="translate(0 20)">
+        <rect x="60" y="46" width="200" height="86" rx="8" fill="#0a140e" stroke="#3f7453" strokeWidth="2" />
+        <path d="M146 74 l34 15 l-34 15 z" fill="#9fd95e" />
+        <g transform="rotate(-8 60 46)">
+          <rect x="58" y="30" width="204" height="18" rx="4" fill="#17251c" stroke="#3f7453" />
+          <g fill="#9fd95e">
+            {Array.from({ length: 6 }, (_, i) => (
+              <rect key={i} x={70 + i * 32} y="33" width="14" height="12" transform="skewX(-18)" />
+            ))}
+          </g>
+        </g>
+        <rect x="60" y="146" width="200" height="10" rx="5" fill="#17251c" />
+        <rect x="60" y="146" width="120" height="10" rx="5" fill={SPARK} />
+        <circle cx="180" cy="151" r="7" fill={FUR} stroke={INK} />
+        <PetMini x={288} y={168} s={0.9} />
+      </g>
     </ArtFrame>
   );
 }
 
 function ResumeArt() {
+  const tilt = "rotate(-3 130 105)";
   return (
     <ArtFrame background="#eee7da">
-      <rect x="82" y="26" width="156" height="188" rx="10" fill="#fffdf8" stroke="#ddd7c9" transform="rotate(-3 160 120)" />
-      <circle cx="122" cy="70" r="18" fill="#d8cdb7" />
-      <rect x="150" y="56" width="62" height="6" rx="3" fill="#2d382f" />
-      <rect x="150" y="68" width="44" height="4" rx="2" fill="#b8b1a2" />
-      <line x1="100" y1="100" x2="220" y2="100" stroke="#ddd7c9" strokeWidth="1.5" />
-      <rect x="100" y="114" width="34" height="4" rx="2" fill={GREEN} />
-      <rect x="100" y="126" width="86" height="4" rx="2" fill="#d5cfc0" />
-      <rect x="100" y="136" width="72" height="4" rx="2" fill="#d5cfc0" />
-      <rect x="100" y="154" width="34" height="4" rx="2" fill={GREEN} />
-      <rect x="100" y="166" width="92" height="4" rx="2" fill="#d5cfc0" />
-      <rect x="100" y="176" width="66" height="4" rx="2" fill="#d5cfc0" />
-      <rect x="100" y="186" width="48" height="4" rx="2" fill="#d5cfc0" />
-      <circle cx="208" cy="178" r="14" fill="#d8e5d9" />
-      <path d="M202 178 L207 183 L216 172" fill="none" stroke={GREEN} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <g transform="translate(0 20)">
+        <rect x="70" y="30" width="120" height="150" rx="6" fill="#fffdf8" stroke={LINE} strokeWidth="2" transform={tilt} />
+        <circle cx="104" cy="58" r="12" fill={SOFT} transform={tilt} />
+        <rect x="124" y="50" width="52" height="7" rx="3" fill={INK} opacity="0.75" transform={tilt} />
+        <rect x="86" y="84" width="88" height="5" rx="2.5" fill={LINE} transform={tilt} />
+        <rect x="86" y="96" width="76" height="5" rx="2.5" fill={LINE} transform={tilt} />
+        <rect x="86" y="108" width="84" height="5" rx="2.5" fill={LINE} transform={tilt} />
+        <rect x="196" y="60" width="64" height="86" rx="6" fill="#eef2ea" stroke={LINE} />
+        <rect x="206" y="72" width="44" height="6" rx="3" fill={SOFT} />
+        <rect x="206" y="86" width="36" height="5" rx="2.5" fill={LINE} />
+        <rect x="206" y="98" width="40" height="5" rx="2.5" fill={LINE} />
+        <circle cx="228" cy="128" r="10" fill="none" stroke={SPARK} strokeWidth="2.4" />
+        <PetMini x={250} y={168} s={0.95} />
+      </g>
     </ArtFrame>
   );
 }
 
 function TravelArt() {
   return (
-    <ArtFrame background="#dce8e2">
-      <rect x="0" y="120" width="320" height="120" fill="#c5dcd4" />
-      <circle cx="244" cy="58" r="25" fill="#f2cf9c" />
-      <path d="M0 78 Q60 42 120 74 T240 66 T320 82" fill="none" stroke="#8fb6a7" strokeWidth="1.5" opacity="0.7" />
-      <path d="M0 102 Q76 66 142 96 T260 84 T320 100" fill="none" stroke="#8fb6a7" strokeWidth="1.5" opacity="0.55" />
-      <path d="M0 128 Q72 98 150 122 T320 112" fill="none" stroke="#8fb6a7" strokeWidth="1.5" opacity="0.4" />
-      <path
-        d="M58 188 C94 162 116 142 148 148 C180 154 188 122 218 112"
-        fill="none"
-        stroke="#2f6d75"
-        strokeWidth="3"
-        strokeDasharray="7 7"
-        strokeLinecap="round"
-      />
-      <circle cx="58" cy="188" r="7" fill="#f7f5ef" stroke="#2f6d75" strokeWidth="3" />
-      <path d="M218 92 C206 92 198 102 198 113 C198 128 218 144 218 144 C218 144 238 128 238 113 C238 102 230 92 218 92Z" fill={GREEN} />
-      <circle cx="218" cy="112" r="6" fill="#f7f5ef" />
-      <path d="M0 196 L52 160 L98 196Z" fill="#2c6d75" opacity="0.75" />
-      <path d="M70 202 L132 154 L196 202Z" fill="#3f7d78" opacity="0.65" />
-      <rect x="24" y="26" width="52" height="4" rx="2" fill="#f7f5ef" opacity="0.8" />
-      <rect x="24" y="36" width="32" height="3" rx="1.5" fill="#eef5f0" opacity="0.7" />
+    <ArtFrame background="#eef2ea">
+      <g transform="translate(0 20)">
+        <path d="M40 40 l70 -12 l70 12 l70 -12 v132 l-70 12 l-70 -12 l-70 12 z" fill="#fffdf8" stroke={LINE} strokeWidth="2" />
+        <path d="M110 28 v132 M180 40 v132" stroke={LINE} strokeWidth="1.4" />
+        <path d="M70 140 q40 -50 80 -30 q40 20 90 -40" fill="none" stroke={GREEN} strokeWidth="3" strokeDasharray="7 6" strokeLinecap="round" />
+        <circle cx="70" cy="140" r="6" fill={GREEN} />
+        <circle cx="240" cy="70" r="6" fill={SPARK} />
+        <path d="M240 70 l0 -18 l16 5 l-16 5" fill={SPARK} />
+        <PetMini x={150} y={120} />
+      </g>
     </ArtFrame>
   );
 }
 
 function CodeArt() {
   return (
-    <ArtFrame background="#e7edf0">
-      <rect x="30" y="36" width="260" height="168" rx="14" fill="#fbfdfd" stroke="#cfdadd" />
-      <rect x="30" y="36" width="260" height="28" rx="14" fill="#22535a" />
-      <rect x="30" y="50" width="260" height="14" fill="#22535a" />
-      <circle cx="46" cy="50" r="3" fill="#9bc3c7" />
-      <circle cx="57" cy="50" r="3" fill="#9bc3c7" />
-      <circle cx="68" cy="50" r="3" fill="#9bc3c7" />
-      <rect x="58" y="82" width="28" height="4" rx="2" fill="#8aa4a8" />
-      <rect x="94" y="82" width="82" height="4" rx="2" fill="#2f6d75" />
-      <rect x="58" y="94" width="48" height="4" rx="2" fill="#b5c7c9" />
-      <rect x="112" y="94" width="96" height="4" rx="2" fill="#7da6a9" />
-      <rect x="58" y="106" width="64" height="4" rx="2" fill="#b5c7c9" />
-      <rect x="58" y="118" width="36" height="4" rx="2" fill="#8aa4a8" />
-      <rect x="100" y="118" width="72" height="4" rx="2" fill="#2f6d75" />
-      <rect x="58" y="142" width="22" height="4" rx="2" fill="#8aa4a8" />
-      <rect x="86" y="142" width="112" height="4" rx="2" fill="#b5c7c9" />
-      <rect x="58" y="154" width="94" height="4" rx="2" fill="#b5c7c9" />
-      <rect x="58" y="176" width="7" height="13" fill={GREEN} />
-      <path d="M232 84 Q222 84 222 94 V104 Q222 114 212 114 Q222 114 222 124 V134 Q222 144 232 144" fill="none" stroke="#22535a" strokeWidth="4" strokeLinecap="round" />
-      <path d="M88 84 Q98 84 98 94 V104 Q98 114 108 114 Q98 114 98 124 V134 Q98 144 88 144" fill="none" stroke="#22535a" strokeWidth="4" strokeLinecap="round" />
-      <rect x="24" y="24" width="98" height="4" rx="2" fill="#9fb8bc" />
-      <rect x="206" y="24" width="90" height="3" rx="1.5" fill="#c1d2d4" />
+    <ArtFrame>
+      <g transform="translate(0 20)">
+        <rect x="56" y="34" width="208" height="132" rx="10" fill="#101812" stroke={INK} strokeWidth="2" />
+        <rect x="56" y="34" width="208" height="24" rx="10" fill="#17251c" />
+        <circle cx="72" cy="46" r="4" fill="#c2603a" />
+        <circle cx="86" cy="46" r="4" fill={SPARK} />
+        <circle cx="100" cy="46" r="4" fill={SOFT} />
+        <g fontFamily="var(--mono)" fontSize="11">
+          <text x="72" y="80" fill="#9fd95e">def</text>
+          <text x="100" y="80" fill="#e8efe6">quicksort(xs):</text>
+          <text x="84" y="98" fill="#9fb8a5">pivot = xs[0]</text>
+          <text x="84" y="116" fill="#9fb8a5">return lo + mid + hi</text>
+          <text x="72" y="140" fill={SPARK}>▍</text>
+        </g>
+        <PetMini x={288} y={168} s={0.9} />
+      </g>
     </ArtFrame>
   );
 }

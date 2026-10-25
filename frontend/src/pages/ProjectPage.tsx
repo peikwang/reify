@@ -18,8 +18,13 @@ import type {
   TaskEvent,
 } from "../api/types";
 import { capabilityInfo } from "../features/project-library/projectView";
+import {
+  companionReducer,
+  type CompanionStage,
+} from "../features/workspace/companion";
 import { CodingPane } from "../features/workspace/CodingPane";
 import { DailyOutput } from "../features/workspace/DailyOutput";
+import { ForgeCompanion } from "../features/workspace/ForgeCompanion";
 import {
   applyProjectEvent,
   initialProjectView,
@@ -110,6 +115,10 @@ export function ProjectPage() {
   const [replaying, setReplaying] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [view, dispatch] = useReducer(viewReducer, initialProjectView);
+  const [stage, stageDispatch] = useReducer(
+    companionReducer,
+    "plan" as CompanionStage,
+  );
   const timelineRef = useRef<HTMLDivElement>(null);
   const replayTimerRef = useRef<number | null>(null);
   const eventsRef = useRef<TaskEvent[]>([]);
@@ -148,6 +157,7 @@ export function ProjectPage() {
     setSelectedFile(null);
     setReplaying(false);
     dispatch({ type: "reset" });
+    stageDispatch({ type: "reset" });
 
     api<ProjectDetailResponse>("/api/projects/" + encodeURIComponent(id ?? ""))
       .then((data) => {
@@ -161,6 +171,7 @@ export function ProjectPage() {
         setInitialSeq(lastSeq);
         for (const event of data.events) {
           dispatch({ type: "event", event });
+          stageDispatch({ type: "event", eventType: event.type });
         }
         setLoaded(true);
       })
@@ -234,6 +245,7 @@ export function ProjectPage() {
         eventsRef.current.push(event);
       }
       dispatch({ type: "event", event });
+      stageDispatch({ type: "event", eventType: event.type });
       if (event.type.startsWith("runtime_") && task?.stack === "next") {
         void refreshRuntime();
       }
@@ -395,6 +407,7 @@ export function ProjectPage() {
     }
     setReplaying(true);
     dispatch({ type: "reset" });
+    stageDispatch({ type: "reset" });
     let index = 0;
     const step = () => {
       if (index >= events.length) {
@@ -403,6 +416,7 @@ export function ProjectPage() {
         return;
       }
       dispatch({ type: "event", event: events[index] });
+      stageDispatch({ type: "event", eventType: events[index].type });
       index += 1;
       replayTimerRef.current = window.setTimeout(step, 18);
     };
@@ -548,6 +562,7 @@ export function ProjectPage() {
               onStarted={handleRefineStarted}
             />
           ) : null}
+          <ForgeCompanion stage={stage} />
         </aside>
 
         <section className="stage-panel">
