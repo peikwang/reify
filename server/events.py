@@ -32,6 +32,7 @@ class Task:
     error: str | None = None
     source: str = "director"
     title: str = ""
+    title_locked: bool = False
     revision: int = 0
     stack: str = "static"
     asset_key: str = ""

@@ -549,6 +549,8 @@ async def create_project(payload: CreateTaskRequest, request: Request) -> dict[s
         owner_id=user.id,
         stack=stack,
     )
+    if (payload.title or "").strip():
+        task.title_locked = True
     background = asyncio.create_task(run_task(task))
     _background.add(background)
     background.add_done_callback(_background.discard)
@@ -575,6 +577,7 @@ async def update_project(
     async with task.refine_lock:
         _ensure_project_alive(task)
         task.title = title
+        task.title_locked = True
         task.save_meta()
     _audit(request, "project.update", user=user, project_id=task.id)
     return {"ok": True, "task": task.meta()}
