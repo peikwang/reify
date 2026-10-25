@@ -36,17 +36,19 @@ from .config import (
     MAX_ACTIVE_TASKS_PER_USER,
     MAX_PROJECTS_PER_USER,
     MAX_RUNTIME_PER_USER,
+    MAX_STATIC_RUNTIME_PER_USER,
     MAX_STORAGE_PER_USER,
     PORT,
     REACT_DIST_DIR,
     SSR_PORT,
     SSR_PREVIEW_ENABLED,
+    STATIC_RUNTIME_BACKEND,
 )
 from .db import User, db
 from .events import Task, store
 from .llm import enabled as llm_enabled
 from .migrate import migrate_legacy
-from .runtime import runtime_manager
+from .runtime import runtime_kind, runtime_manager
 from .sandbox import SandboxError, sandbox_runner
 from .stacks import SOURCE_STACKS, STACKS, resolve_stack
 from .templates.library import CAPABILITIES, classify, defaults
@@ -212,13 +214,22 @@ def _enforce_user_quota(user: User, *, exclude_project_id: str | None = None) ->
         raise HTTPException(status_code=429, detail="当前运行中的任务过多，请稍后再试")
 
 
-def _running_runtime_count(user_id: str) -> int:
+def _static_runtime_enabled() -> bool:
+    return STATIC_RUNTIME_BACKEND == "opensandbox"
+
+
+def _static_runtime_applies(task: Task) -> bool:
+    return _static_runtime_enabled() and task.stack in {"static", "react"}
+
+
+def _running_runtime_count(user_id: str, kind: str | None = None) -> int:
     project_ids = {item["id"] for item in store.list(user_id)}
     return sum(
         1
         for record in db.list_runtimes()
         if record["project_id"] in project_ids
         and record.get("status") in {"starting", "running"}
+        and (kind is None or (record.get("kind") or "next") == kind)
     )
 
 
@@ -433,8 +444,10 @@ async def project_preview_redirect(project_id: str) -> RedirectResponse:
 
 
 @app.get("/p/{project_id}/")
-async def project_preview_index(project_id: str, request: Request) -> FileResponse:
+async def project_preview_index(project_id: str, request: Request) -> Response:
     task = _project_for(request, project_id)
+    if _static_runtime_applies(task):
+        return await _proxy_static(task, request, "")
     target = _safe_file(task.artifact_dir, "index.html")
     if not target:
         raise HTTPException(status_code=404, detail="project file not found")
@@ -444,7 +457,7 @@ async def project_preview_index(project_id: str, request: Request) -> FileRespon
 @app.get("/p/{project_id}/{filename:path}")
 async def project_preview_file(
     project_id: str, filename: str, request: Request, k: str = ""
-) -> FileResponse:
+) -> Response:
     task = store.get_any(project_id)
     if not task:
         raise HTTPException(status_code=404, detail="project file not found")
@@ -457,6 +470,8 @@ async def project_preview_file(
             raise HTTPException(status_code=404, detail="project file not found")
         if not hmac.compare_digest(k.encode("utf-8"), task.asset_key.encode("utf-8")):
             raise HTTPException(status_code=404, detail="project file not found")
+    if _static_runtime_applies(task):
+        return await _proxy_static(task, request, filename)
     target = _safe_file(task.artifact_dir, filename)
     if not target:
         raise HTTPException(status_code=404, detail="project file not found")
@@ -704,10 +719,10 @@ async def delete_project(project_id: str, request: Request) -> dict[str, Any]:
     async with task.refine_lock:
         if task.status in ACTIVE_STATUSES:
             raise HTTPException(status_code=409, detail="任务运行中，完成后再删除")
-        if task.stack == "next":
+        record = db.get_runtime(task.id)
+        if record and record.get("status") in {"starting", "running"}:
             try:
-                if runtime_manager.status(task).get("status") in {"running", "starting"}:
-                    await runtime_manager.stop(task)
+                await runtime_manager.stop(task, reason="delete")
             except Exception as exc:  # noqa: BLE001 - never hide a leaked sandbox
                 logger.warning("runtime stop failed while deleting %s", task.id, exc_info=True)
                 raise HTTPException(
@@ -756,27 +771,35 @@ async def bundle_project(project_id: str, request: Request):
     return StreamingResponse(buffer, media_type="application/zip", headers=headers)
 
 
+def _runtime_supported(task: Task) -> bool:
+    if task.stack == "next":
+        return True
+    return _static_runtime_enabled() and task.stack in {"static", "react"}
+
+
 @app.get("/api/projects/{project_id}/runtime")
 async def get_runtime(project_id: str, request: Request) -> dict[str, Any]:
     task = _project_for(request, project_id)
-    if task.stack != "next":
-        raise HTTPException(status_code=400, detail="该项目不是 SSR 运行时项目")
-    return {"runtime": runtime_manager.status(task)}
+    if not _runtime_supported(task):
+        raise HTTPException(status_code=400, detail="该项目不支持运行时")
+    return {"runtime": runtime_manager.status(task, runtime_kind(task))}
 
 
 @app.post("/api/projects/{project_id}/runtime/start")
 async def start_runtime(project_id: str, request: Request) -> dict[str, Any]:
     task = _project_for(request, project_id)
-    if task.stack != "next":
-        raise HTTPException(status_code=400, detail="该项目不是 SSR 运行时项目")
+    if not _runtime_supported(task):
+        raise HTTPException(status_code=400, detail="该项目不支持运行时")
+    kind = runtime_kind(task)
     user = _require_user(request)
     async with task.refine_lock:
         _ensure_project_alive(task)
-        current = runtime_manager.status(task).get("status")
-        if current not in {"starting", "running"} and _running_runtime_count(user.id) >= MAX_RUNTIME_PER_USER:
+        current = runtime_manager.status(task, kind).get("status")
+        limit = MAX_RUNTIME_PER_USER if kind == "next" else MAX_STATIC_RUNTIME_PER_USER
+        if current not in {"starting", "running"} and _running_runtime_count(user.id, kind) >= limit:
             raise HTTPException(status_code=429, detail="运行中的应用数量已达上限，请先停止其他应用")
         try:
-            state = await runtime_manager.start(task)
+            state = await runtime_manager.start(task, kind)
         except SandboxError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
     _audit(request, "runtime.start", user=user, project_id=task.id)
@@ -786,8 +809,8 @@ async def start_runtime(project_id: str, request: Request) -> dict[str, Any]:
 @app.post("/api/projects/{project_id}/runtime/stop")
 async def stop_runtime(project_id: str, request: Request) -> dict[str, Any]:
     task = _project_for(request, project_id)
-    if task.stack != "next":
-        raise HTTPException(status_code=400, detail="该项目不是 SSR 运行时项目")
+    if not _runtime_supported(task):
+        raise HTTPException(status_code=400, detail="该项目不支持运行时")
     async with task.refine_lock:
         _ensure_project_alive(task)
         state = await runtime_manager.stop(task)
@@ -819,6 +842,52 @@ async def _proxy_ssr(task: Task, request: Request, suffix: str) -> Response:
     runtime_manager.touch(task)
     response_headers = {}
     for name in ("content-type", "cache-control", "etag", "last-modified", "location"):
+        value = response.headers.get(name)
+        if value:
+            response_headers[name] = value
+    return Response(
+        content=response.content,
+        status_code=response.status_code,
+        headers=response_headers,
+    )
+
+
+async def _proxy_static(task: Task, request: Request, suffix: str) -> Response:
+    """Proxy a static project through its per-project runtime. Never fall back to local files."""
+    if suffix and not _safe_file(task.artifact_dir, suffix):
+        raise HTTPException(status_code=404, detail="project file not found")
+    try:
+        await runtime_manager.ensure(task, "static")
+    except SandboxError as exc:
+        raise HTTPException(status_code=503, detail=f"站点运行时不可用：{exc}") from exc
+    record = db.get_runtime(task.id)
+    if not record or record.get("status") != "running" or not record.get("endpoint"):
+        raise HTTPException(status_code=503, detail="站点运行时未运行")
+    path = "/" + suffix.lstrip("/") if suffix else "/"
+    if request.url.query:
+        path += "?" + request.url.query
+    url = record["endpoint"].rstrip("/") + path
+    headers = {}
+    for name in ("accept", "range", "if-none-match", "if-modified-since"):
+        value = request.headers.get(name)
+        if value:
+            headers[name] = value
+    try:
+        async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
+            response = await client.request(request.method, url, headers=headers)
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"站点运行时代理失败：{exc}") from exc
+    runtime_manager.touch(task)
+    response_headers = {}
+    for name in (
+        "content-type",
+        "cache-control",
+        "etag",
+        "last-modified",
+        "location",
+        "accept-ranges",
+        "content-range",
+    ):
         value = response.headers.get(name)
         if value:
             response_headers[name] = value
@@ -901,8 +970,10 @@ async def share_redirect(token: str) -> RedirectResponse:
 
 
 @app.get("/s/{token}/")
-async def share_index(token: str) -> FileResponse:
+async def share_index(token: str, request: Request) -> Response:
     task = _shared_project(token)
+    if _static_runtime_applies(task):
+        return await _proxy_static(task, request, "")
     target = _safe_file(task.artifact_dir, "index.html")
     if not target:
         raise HTTPException(status_code=404, detail="share not found")
@@ -910,10 +981,12 @@ async def share_index(token: str) -> FileResponse:
 
 
 @app.get("/s/{token}/{filename:path}")
-async def share_file(token: str, filename: str) -> FileResponse:
+async def share_file(token: str, filename: str, request: Request) -> Response:
     task = _shared_project(token)
     if filename != "index.html" and not filename.startswith("assets/"):
         raise HTTPException(status_code=404, detail="share not found")
+    if _static_runtime_applies(task):
+        return await _proxy_static(task, request, filename)
     target = _safe_file(task.artifact_dir, filename)
     if not target:
         raise HTTPException(status_code=404, detail="share not found")
