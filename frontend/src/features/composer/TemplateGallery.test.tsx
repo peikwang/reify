@@ -36,7 +36,7 @@ describe("TemplateGallery", () => {
     const clip = screen.getByRole("button", { name: /视频制作/ });
     expect(site).toHaveAttribute("aria-pressed", "true");
     expect(clip).toHaveAttribute("aria-pressed", "false");
-    expect(container.querySelectorAll("svg")).toHaveLength(2);
+    expect(container.querySelectorAll("img")).toHaveLength(2);
   });
 
   it("selects a template for the shared composer", () => {

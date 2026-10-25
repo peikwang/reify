@@ -1,8 +1,9 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { Capability, Task } from "../../api/types";
+import { ToastProvider } from "../../layout/ToastProvider";
 import { ProjectCard } from "./ProjectCard";
 
 const capabilities: Capability[] = [
@@ -38,19 +39,35 @@ function task(overrides: Partial<Task>): Task {
   };
 }
 
-function renderCard(item: Task, onDelete?: (task: Task) => void, deleting = false) {
+function renderCard(
+  item: Task,
+  onMutated?: () => void | Promise<void>,
+) {
   render(
     <MemoryRouter>
-      <ProjectCard
-        task={item}
-        index={0}
-        capabilities={capabilities}
-        onDelete={onDelete}
-        deleting={deleting}
-      />
+      <ToastProvider>
+        <ProjectCard
+          task={item}
+          index={0}
+          capabilities={capabilities}
+          onMutated={onMutated}
+        />
+      </ToastProvider>
     </MemoryRouter>,
   );
 }
+
+function openMenu(item = task({ status: "done" })) {
+  fireEvent.click(
+    screen.getByRole("button", {
+      name: "更多操作 " + (item.title || item.prompt),
+    }),
+  );
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe("ProjectCard", () => {
   it("links completed projects to their unlisted public page", () => {
@@ -67,19 +84,67 @@ describe("ProjectCard", () => {
     expect(screen.queryByRole("link", { name: /公开页/ })).not.toBeInTheDocument();
   });
 
-  it("offers an owner-only delete action with an explicit label", () => {
-    const onDelete = vi.fn();
-    const item = task({ status: "done" });
-    renderCard(item, onDelete);
+  it("opens a quick menu with rename, edit and delete actions", () => {
+    renderCard(task({ status: "done" }));
+    openMenu();
 
-    fireEvent.click(screen.getByRole("button", { name: "删除项目 Lumen Studio" }));
-    expect(onDelete).toHaveBeenCalledWith(item);
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "重命名" })).toBeInTheDocument();
+    const edit = screen.getByRole("menuitem", { name: "编辑详情" });
+    expect(edit).toHaveAttribute("href", "/projects/p1?tab=edit");
+    expect(screen.getByRole("menuitem", { name: "删除项目" })).toBeInTheDocument();
   });
 
-  it("disables the delete action while the deletion is in flight", () => {
-    renderCard(task({ status: "done" }), vi.fn(), true);
-    expect(screen.getByRole("button", { name: "删除项目 Lumen Studio" })).toBeDisabled();
-    expect(screen.getByText("删除中…")).toBeInTheDocument();
+  it("renames the project from the quick menu", async () => {
+    const onMutated = vi.fn();
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ ok: true, task: task({ title: "新名字" }) }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    renderCard(task({ status: "done" }), onMutated);
+
+    openMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "重命名" }));
+    fireEvent.change(screen.getByLabelText("项目名称"), {
+      target: { value: "新名字" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /保存名称/ }));
+
+    await waitFor(() => expect(onMutated).toHaveBeenCalledTimes(1));
+    const [path, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(path).toBe("/api/projects/p1");
+    expect(init.method).toBe("PATCH");
+    expect(JSON.parse(String(init.body))).toEqual({ title: "新名字" });
+  });
+
+  it("deletes the project after confirmation", async () => {
+    const onMutated = vi.fn();
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    renderCard(task({ status: "done" }), onMutated);
+
+    openMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: "删除项目" }));
+    fireEvent.click(screen.getByRole("button", { name: "确认删除" }));
+
+    await waitFor(() => expect(onMutated).toHaveBeenCalledTimes(1));
+    const [path, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(path).toBe("/api/projects/p1");
+    expect(init.method).toBe("DELETE");
+  });
+
+  it("disables delete while the project is still running", () => {
+    renderCard(task({ status: "running" }));
+    openMenu(task({ status: "running" }));
+    expect(screen.getByRole("menuitem", { name: "删除项目" })).toBeDisabled();
   });
 
   it("keeps capability labels without exposing implementation stacks", () => {

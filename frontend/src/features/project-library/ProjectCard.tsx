@@ -9,37 +9,48 @@ import {
   relativeTime,
   revisionLabel,
 } from "./projectView";
+import { ProjectCardMenu } from "./ProjectCardMenu";
+import { ProjectThumb } from "./ProjectThumb";
 
 interface ProjectCardProps {
   task: Task;
   index: number;
   capabilities: Capability[];
-  onDelete?: (task: Task) => void;
-  deleting?: boolean;
+  onMutated?: () => void | Promise<void>;
 }
 
 export function ProjectCard({
   task,
   index,
   capabilities,
-  onDelete,
-  deleting = false,
+  onMutated,
 }: ProjectCardProps) {
   const info = capabilityInfo(task.capability, capabilities);
   const status = projectStatus(task);
   const title = task.title || task.prompt || "未命名项目";
   const publicUrl = task.status === "done" ? task.share_url : null;
+  const thumbUrl =
+    task.status === "done" && task.stack === "static" && task.url ? task.url : null;
 
   return (
     <article
       className="project-card"
       style={{ "--i": index } as CSSProperties}
     >
+      <ProjectCardMenu task={task} onMutated={onMutated} />
       <Link
         className="project-card-main"
         to={"/projects/" + encodeURIComponent(task.id)}
       >
-        <div className={"project-cover cover-" + info.key}>
+        <div className={"project-cover cover-" + info.key + (thumbUrl ? " has-thumb" : "")}>
+          {thumbUrl ? (
+            <ProjectThumb
+              url={thumbUrl}
+              revision={task.revision}
+              title={title}
+              eager={index < 6}
+            />
+          ) : null}
           <span className="cover-label">{info.short}</span>
           <span className="cover-index">{String(index + 1).padStart(2, "0")}</span>
           <span className="cover-glyph">{COVER_GLYPHS[task.capability] ?? "·"}</span>
@@ -66,17 +77,6 @@ export function ProjectCard({
         <span>{revisionLabel(task)}</span>
         <span className="project-card-foot-right">
           <span>{info.short}</span>
-          {onDelete ? (
-            <button
-              className="project-delete"
-              type="button"
-              disabled={deleting}
-              aria-label={"删除项目 " + title}
-              onClick={() => onDelete(task)}
-            >
-              {deleting ? "删除中…" : "删除"}
-            </button>
-          ) : null}
           {publicUrl ? (
             <a
               className="project-public-link"

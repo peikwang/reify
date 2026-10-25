@@ -68,10 +68,14 @@ export interface TaskBuild {
 }
 
 export interface RuntimeState {
+  kind?: "static" | "next";
   status: string;
   revision?: number | null;
   started_at?: string | null;
   last_active_at?: string | null;
+  expires_at?: string | null;
+  stopped_at?: string | null;
+  stop_reason?: string | null;
   preview?: boolean;
   url?: string | null;
   error?: string | null;

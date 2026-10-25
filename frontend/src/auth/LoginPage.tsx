@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type CSSProperties, type FormEvent } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 
 import { ApiError } from "../api/client";
@@ -7,6 +7,8 @@ import { safeNextPath } from "./nextPath";
 import "../styles/login.css";
 
 type Mode = "login" | "register";
+
+const BOOT_SEQUENCE = ["handshake…", "session…", "ready"];
 
 function authErrorMessage(error: unknown, mode: Mode): string {
   if (error instanceof ApiError) {
@@ -34,12 +36,28 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [boot, setBoot] = useState("");
+  const [opening, setOpening] = useState(false);
+
+  useEffect(() => {
+    let index = 0;
+    const timer = window.setInterval(() => {
+      if (index < BOOT_SEQUENCE.length) {
+        setBoot(BOOT_SEQUENCE[index]);
+        index += 1;
+        if (index >= BOOT_SEQUENCE.length) window.clearInterval(timer);
+      }
+    }, 420);
+    return () => window.clearInterval(timer);
+  }, []);
 
   if (status === "loading") {
     return (
-      <div className="auth-loading">
-        <div className="loader" />
-        <span>CHECKING SESSION</span>
+      <div className="login-page">
+        <div className="auth-loading">
+          <div className="loader" />
+          <span>CHECKING SESSION</span>
+        </div>
       </div>
     );
   }
@@ -53,6 +71,17 @@ export function LoginPage() {
     setError("");
   }
 
+  function enterWorkspace() {
+    const reduce =
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    if (reduce) {
+      navigate(next, { replace: true });
+      return;
+    }
+    setOpening(true);
+    window.setTimeout(() => navigate(next, { replace: true }), 520);
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
@@ -63,7 +92,7 @@ export function LoginPage() {
       } else {
         await login(username, password);
       }
-      navigate(next, { replace: true });
+      enterWorkspace();
     } catch (submitError) {
       setError(authErrorMessage(submitError, mode));
       setBusy(false);
@@ -78,149 +107,133 @@ export function LoginPage() {
       ? "创建本地账号"
       : "进入 Reify";
 
-  return (
-    <div className={mode === "register" ? "login-page register" : "login-page"}>
-      <main className="login-shell">
-        <section className="login-intro">
-          <div>
-            <div className="login-brand">
-              <b>R</b> Reify
-            </div>
-            <div className="login-eyebrow">IDEA → REALITY / PRIVATE SERVER</div>
-            <h1>
-              你的想法，
-              <br />
-              <span>只给你看。</span>
-            </h1>
-            <p className="login-lede">
-              这个 Agent Server 已启用访问保护。登录后继续生成、查看代码变化，并把成果部署到这台机器。
-            </p>
-          </div>
-          <div className="login-intro-foot">
-            <span>
-              <i />
-              SQLITE SESSIONS
-            </span>
-            <span>
-              <i />
-              LOCAL PROJECTS
-            </span>
-            <span>
-              <i />
-              12888
-            </span>
-          </div>
-        </section>
+  const pageClass =
+    "login-page" +
+    (mode === "register" ? " register" : "") +
+    (opening ? " opening" : "");
 
-        <section className="login-card">
-          <div className="login-kicker">LOCAL ACCOUNTS</div>
-          <h2>进入工作台。</h2>
-          <p className="login-sub">
-            {mode === "register"
-              ? "注册后账号、会话和项目都只保存在这台机器上。用户名 3~32 位，密码至少 8 位。"
-              : "登录后继续生成、查看代码变化。账号与项目都保存在这台机器上。"}
-          </p>
-          <div className="login-tabs" role="tablist">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={mode === "login"}
-              className={mode === "login" ? "login-tab active" : "login-tab"}
-              onClick={() => switchMode("login")}
-            >
-              登录
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={mode === "register"}
-              className={mode === "register" ? "login-tab active" : "login-tab"}
-              onClick={() => switchMode("register")}
-            >
-              注册
-            </button>
+  return (
+    <div className={pageClass}>
+      <main className="login-shell">
+        <svg className="login-powerline" viewBox="0 0 400 2" aria-hidden="true">
+          <path d="M0 1 H400" />
+        </svg>
+        <h1 className="login-wordmark" aria-label="Reify">
+          {"REIFY".split("").map((letter, index) => (
+            <span key={index} style={{ "--i": index } as CSSProperties}>
+              {letter}
+            </span>
+          ))}
+        </h1>
+        <p className="login-tagline">ONE SENTENCE. MADE REAL.</p>
+        <p className="login-boot" aria-live="polite">
+          {boot}
+        </p>
+        <p className="login-lede">
+          {mode === "register"
+            ? "注册后账号与项目只保存在这台机器上。用户名 3~32 位，密码至少 8 位。"
+            : "一句话，实现你的想法。"}
+        </p>
+        <div className="login-tabs" role="tablist" aria-label="账号方式">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === "login"}
+            className={mode === "login" ? "login-tab active" : "login-tab"}
+            onClick={() => switchMode("login")}
+          >
+            登录
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === "register"}
+            className={mode === "register" ? "login-tab active" : "login-tab"}
+            onClick={() => switchMode("register")}
+          >
+            注册
+          </button>
+        </div>
+        <form className="login-form" autoComplete="on" onSubmit={handleSubmit}>
+          <label htmlFor="username">USERNAME</label>
+          <div className="login-field">
+            <input
+              id="username"
+              name="username"
+              type="text"
+              autoComplete="username"
+              placeholder="用户名或邮箱"
+              required
+              autoFocus
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+            />
           </div>
-          <form className="login-form" autoComplete="on" onSubmit={handleSubmit}>
-            <label htmlFor="username">USERNAME</label>
+          <div className="login-register-only">
+            <label htmlFor="displayName">
+              DISPLAY NAME <span>OPTIONAL</span>
+            </label>
             <div className="login-field">
               <input
-                id="username"
-                name="username"
+                id="displayName"
+                name="displayName"
                 type="text"
-                autoComplete="username"
-                placeholder="用户名或邮箱"
-                required
-                autoFocus
-                value={username}
-                onChange={(event) => setUsername(event.target.value)}
+                autoComplete="nickname"
+                placeholder="显示名称（可选）"
+                maxLength={40}
+                value={displayName}
+                onChange={(event) => setDisplayName(event.target.value)}
               />
             </div>
-            <div className="login-register-only">
-              <label htmlFor="displayName">
-                DISPLAY NAME <span>OPTIONAL</span>
-              </label>
-              <div className="login-field">
-                <input
-                  id="displayName"
-                  name="displayName"
-                  type="text"
-                  autoComplete="nickname"
-                  placeholder="显示名称（可选）"
-                  maxLength={40}
-                  value={displayName}
-                  onChange={(event) => setDisplayName(event.target.value)}
-                />
-              </div>
-              <label htmlFor="email">
-                EMAIL <span>OPTIONAL</span>
-              </label>
-              <div className="login-field">
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  placeholder="邮箱（可选）"
-                  maxLength={254}
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                />
-              </div>
-            </div>
-            <label htmlFor="password">PASSWORD</label>
+            <label htmlFor="email">
+              EMAIL <span>OPTIONAL</span>
+            </label>
             <div className="login-field">
               <input
-                id="password"
-                name="password"
-                type={showPassword ? "text" : "password"}
-                autoComplete={mode === "register" ? "new-password" : "current-password"}
-                placeholder="输入密码"
-                required
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                id="email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                placeholder="邮箱（可选）"
+                maxLength={254}
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
               />
-              <button
-                type="button"
-                className="login-reveal"
-                aria-label={showPassword ? "隐藏密码" : "显示密码"}
-                onClick={() => setShowPassword((visible) => !visible)}
-              >
-                {showPassword ? "隐藏" : "显示"}
-              </button>
             </div>
-            <button className="login-submit" type="submit" disabled={busy}>
-              <span>{submitLabel}</span>
-              <span>↗</span>
-            </button>
-            <div className="login-error" role="alert">
-              {error}
-            </div>
-          </form>
-          <div className="login-meta">
-            <span>LOCAL · SQLITE</span>
-            <span>REIFY / 2026</span>
           </div>
-        </section>
+          <label htmlFor="password">PASSWORD</label>
+          <div className="login-field">
+            <input
+              id="password"
+              name="password"
+              type={showPassword ? "text" : "password"}
+              autoComplete={mode === "register" ? "new-password" : "current-password"}
+              placeholder="输入密码"
+              required
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+            />
+            <button
+              type="button"
+              className="login-reveal"
+              aria-label={showPassword ? "隐藏密码" : "显示密码"}
+              onClick={() => setShowPassword((visible) => !visible)}
+            >
+              {showPassword ? "隐藏" : "显示"}
+            </button>
+          </div>
+          <button className="login-submit" type="submit" disabled={busy}>
+            <span>{submitLabel}</span>
+            <span>↗</span>
+          </button>
+          <div className="login-error" role="alert">
+            {error}
+          </div>
+        </form>
+        <div className="login-meta">
+          <span>LOCAL · SQLITE SESSIONS</span>
+          <span>PRIVATE SERVER · 12888</span>
+        </div>
       </main>
     </div>
   );
