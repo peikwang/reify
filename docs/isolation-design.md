@@ -460,7 +460,7 @@ lib/db.js             # 可选：node:sqlite 封装
 - React/Next 源码二次修改：LLM 返回唯一 patch，写入源码后重新构建；Next 先起新运行时、健康检查通过后再停旧运行时，实现蓝绿切换。
 - 已用 mock OpenAI 兼容服务跑通 React/Next 修改 E2E；真实模型仍需远端凭据验证。
 
-**远端实测（2026-10-24，117.148.166.55）**：
+**远端实测（2026-10-24，独立部署环境）**：
 
 - 平台已升级到多用户版本，旧项目自动迁移到管理员；HTTPS 12888 与 SSR 12889 同时可用。
 - 真实 LLM 生成 React 与 Next 均通过；Next standalone 构建需要 4 GiB 沙箱内存，1~2 GiB 会被内核 OOM kill。
