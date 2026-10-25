@@ -240,3 +240,9 @@ REIFY_E2E_BASE=https://your-host:12888 .venv/bin/python tests/e2e_longtail_live.
 - [产品设计](docs/muti-agent-role-design.md)
 - [隔离设计](docs/isolation-design.md)
 - [前端设计](docs/frontend-react-ts-design.md)
+
+## 下一步要做的事情
+
+- **MicroVM 运行时**：把构建沙箱和项目运行时从 Docker 容器隔离升级到 Firecracker / ACS Agent Sandbox，获得更严格的内核隔离、pause/resume 和按量回收能力。
+- **多 Agent 框架模式**：面向复杂项目引入受控的 Planner / Builder / Inspector / Operator 分工，共享事件流与文件快照，在可审计的工作流中协作完成生成、修复和验收。
+- **高可用与集群化部署**：将平台状态外置到 PostgreSQL 与对象存储，并使用 Kubernetes 管理 FastAPI 多副本、Runtime Gateway、项目运行时工作负载和 Ingress，实现跨节点调度、故障转移与水平扩展。
