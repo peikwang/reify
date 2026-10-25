@@ -4,12 +4,27 @@
 
 **简体中文** | [English](README.en.md)
 
-Reify 是一个单机优先的生成式设计 Agent：FastAPI 后端负责规划、生成、校验、构建和部署，React 单页应用展示规划、代码 Diff、事件流与项目工作区。常见需求走内置模板，长尾需求交给 OpenAI 兼容模型生成并自检，失败时回退模板。
+Reify 是一个生成式设计 Agent：用户用一句话描述需求，Agent 负责规划、生成、校验、构建和发布，并通过 SSE 实时展示过程。常见需求走内置模板，长尾需求交给 OpenAI 兼容模型生成并自检，失败时回退模板。
 
-- 模板能力：游戏、网站、简历、攻略、图片、视频、编程演示
-- 自动选择技术栈：静态 HTML / Vite React / Next.js，前端不暴露构建细节
-- 多用户账号、项目隔离、SSE 实时进度、Refine、分享、导出
-- 数据保存在本机 SQLite 与文件系统，生成内容运行在受限沙箱
+- 内容能力：网站、简历、小游戏、旅游攻略、图片、视频和编程演示
+- 自动选择技术栈：静态 HTML / Vite React / Next.js，用户无需理解构建细节
+- 多用户账号、项目隔离、实时进度、Refine、分享和导出
+- 模板与模型并用，生成内容在独立沙箱中构建和运行
+
+## 架构
+
+![Reify 架构图](docs/diagrams/reify-architecture.svg)
+
+Reify 按职责分为六层：
+
+| 层 | 主要组成 | 作用 |
+|---|---|---|
+| 交互层 | React + Vite 工作台 | 输入需求、浏览模板、查看规划/代码 Diff/事件流、管理项目 |
+| 接入与控制层 | Caddy、FastAPI、认证与配额 | TLS/反向代理、账号会话、项目 API、SSE、分享与审计 |
+| 编排与生成层 | 内置模板、模板路由、OpenAI 兼容模型 | 拆解需求、选择模板或通用生成、执行结构与离网自检 |
+| 构建层 | OpenSandbox 构建沙箱 | 对 React/Next 源码执行依赖安装与构建，校验后回传产物 |
+| 运行时与发布层 | 项目运行时、Next SSR 运行时 | 静态/React 项目提供 `/p/`、`/s/`，Next 项目提供 `/apps/` |
+| 数据层 | SQLite、项目工作区、运行时记录 | 用户、会话、项目元信息、事件、产物与运行状态 |
 
 ## 快速开始
 
@@ -91,7 +106,7 @@ cd frontend && npm test && npm run typecheck && npm run build && cd ..
 # 生成工程的 TypeScript 真实构建（npm ci + tsc + vite/next build）
 .venv/bin/python tests/e2e_typescript_scaffolds.py
 
-# 本地全链路 UI（真实 uvicorn + Chrome + mock LLM，无需沙箱）
+# 全链路 UI（真实 uvicorn + Chrome + mock LLM，无需沙箱）
 .venv/bin/python tests/e2e_browser.py
 ```
 
@@ -193,7 +208,7 @@ REIFY_E2E_BASE=https://your-host:12888 .venv/bin/python tests/e2e_longtail_live.
 | 12889/tcp | Next SSR `/apps/*` 独立 origin | 公网（启用 Next 时） |
 | 8080/tcp | OpenSandbox Server | 容器内网 |
 
-### 单机预算
+### 资源预算
 
 | 场景 | vCPU | 内存 | 磁盘 |
 |---|---:|---:|---:|
@@ -211,7 +226,7 @@ REIFY_E2E_BASE=https://your-host:12888 .venv/bin/python tests/e2e_longtail_live.
 
 ## 部署
 
-目标机器需要 Docker Engine，并放行 `80`、`12888`、`12889`：
+部署环境需要 Docker Engine，并放行 `80`、`12888`、`12889`：
 
 ```bash
 ./deploy_remote.sh root@your-host 12888
