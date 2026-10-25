@@ -68,19 +68,6 @@ export function HomePage() {
             <p className="hero-sub">
               从模板库找一个起点，或者直接描述你的想法。Agent 会规划、写代码、自检，并把成果部署成属于你的项目页面。
             </p>
-
-            <Composer
-              prompt={prompt}
-              onPromptChange={setPrompt}
-              selectedTemplate={selectedTemplate}
-              onCreated={handleCreated}
-              textareaRef={textareaRef}
-            />
-            {capabilitiesError ? (
-              <div className="composer-error" role="alert">
-                能力加载失败：{capabilitiesError}
-              </div>
-            ) : null}
           </div>
 
           <aside className="hero-showcase" aria-hidden="true">
@@ -146,6 +133,21 @@ export function HomePage() {
               <span className="live-dot" /> 每个项目，都是一个独立页面
             </div>
           </aside>
+        </div>
+
+        <div className="hero-composer">
+          <Composer
+            prompt={prompt}
+            onPromptChange={setPrompt}
+            selectedTemplate={selectedTemplate}
+            onCreated={handleCreated}
+            textareaRef={textareaRef}
+          />
+          {capabilitiesError ? (
+            <div className="composer-error" role="alert">
+              能力加载失败：{capabilitiesError}
+            </div>
+          ) : null}
         </div>
       </div>
 

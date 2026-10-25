@@ -1366,11 +1366,19 @@ body {
 .danger-confirm:disabled { opacity: 0.55; cursor: wait; }
 
 /* ---------- centered composer + compact home sections ---------- */
-.home-view .hero { padding-top: clamp(44px, 6.5vh, 88px); }
-.home-view .hero-grid { display: block; max-width: 1040px; margin: 0 auto; }
-.home-view .hero-copy { max-width: 940px; margin: 0 auto; text-align: center; }
-.home-view .eyebrow { justify-content: center; }
-.home-view .hero-sub { margin: 22px auto 30px; max-width: 62ch; }
+.home-view .hero { padding-top: clamp(36px, 5vh, 68px); }
+.home-view .hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 400px;
+  gap: 32px;
+  align-items: center;
+  max-width: 1180px;
+  margin: 0 auto;
+}
+.home-view .hero-copy { max-width: none; margin: 0; text-align: left; }
+.home-view .eyebrow { justify-content: flex-start; }
+.home-view .hero-sub { margin: 20px 0 0; max-width: 56ch; }
+.home-view .hero-composer { max-width: 880px; margin: 36px auto 0; }
 .home-view .generic-composer {
   max-width: 880px;
   margin: 0 auto;
@@ -1552,25 +1560,50 @@ body {
 .home-view .template-card-body { padding: 9px 5px 3px; }
 .home-view .template-card-head b { color: #2a3229; }
 .home-view .template-card-head span { color: #7b8a72; }
-
-/* decorative project stack beside the centered composer */
-.home-view .hero-grid { position: relative; }
-.home-view .hero-copy { position: relative; z-index: 1; }
-.home-view .hero-showcase {
+.home-view .template-art-img {
+  transition: transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1), filter 0.3s ease;
+}
+.home-view .template-card:hover .template-art-img {
+  transform: scale(1.045);
+  filter: saturate(1.02) contrast(1.03);
+}
+.home-view .template-card-art::before {
+  content: "";
   position: absolute;
-  right: -140px;
-  top: 10px;
-  width: 360px;
-  height: 380px;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(110deg, transparent 32%, rgba(255, 255, 255, 0.28) 46%, transparent 60%);
+  transform: translateX(-130%);
+  transition: transform 0.65s ease;
+}
+.home-view .template-card:hover .template-card-art::before {
+  transform: translateX(130%);
+}
+.project-thumb { transition: transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1); }
+.project-card:hover .project-thumb { transform: scale(1.035); }
+
+/* decorative project stack beside the hero copy */
+.home-view .hero-grid { position: relative; }
+.home-view .hero-showcase {
+  position: relative;
+  right: auto;
+  top: auto;
+  width: auto;
+  height: auto;
   min-height: 0;
   z-index: 0;
-  opacity: 0.92;
+  opacity: 1;
   pointer-events: none;
-  animation: none;
+  animation: showcaseIn 0.9s 0.18s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
-.home-view .showcase-stage { transform: scale(0.62); transform-origin: top right; }
+.home-view .showcase-stage { transform: scale(0.88); transform-origin: center; }
 .home-view .showcase-caption { display: none; }
-@media (max-width: 1320px) {
-  .home-view .hero-showcase { right: -120px; }
-  .home-view .showcase-stage { transform: scale(0.56); }
+@media (max-width: 1180px) {
+  .home-view .hero-grid { grid-template-columns: 1fr; gap: 0; }
+  .home-view .hero-copy,
+  .home-view .eyebrow { text-align: center; justify-content: center; }
+  .home-view .hero-sub { margin-left: auto; margin-right: auto; text-align: center; }
+  .home-view .hero-composer { margin-top: 28px; }
+  .home-view .hero-showcase { display: none; }
 }
