@@ -1,16 +1,20 @@
 .login-page {
-  --lg-bg: #0d120e;
-  --lg-bg2: #131a14;
-  --lg-line: #26382c;
-  --lg-text: #e8efe6;
-  --lg-soft: #93a697;
-  --lg-accent: #5fbf8a;
+  --lg-text: #18211b;
+  --lg-soft: #5f6b61;
+  --lg-line: rgba(24, 33, 27, 0.12);
+  --lg-accent: #1e5c40;
+  --lg-panel: rgba(255, 255, 255, 0.56);
+  --lg-field: rgba(255, 255, 255, 0.74);
   min-height: 100vh;
   display: grid;
   place-items: center;
-  padding: 24px;
-  background: var(--lg-bg);
+  padding: 32px 20px;
   color: var(--lg-text);
+  background:
+    radial-gradient(880px 520px at 82% -10%, rgba(111, 143, 191, 0.22), transparent 60%),
+    radial-gradient(720px 520px at 8% 20%, rgba(120, 180, 140, 0.26), transparent 62%),
+    radial-gradient(640px 460px at 72% 82%, rgba(232, 163, 61, 0.12), transparent 60%),
+    linear-gradient(160deg, #fbf8f0 0%, #f1eee4 48%, #edf2ea 100%);
 }
 
 .login-page .auth-loading {
@@ -19,15 +23,20 @@
 
 .login-shell {
   position: relative;
-  width: min(420px, 100%);
-  padding: 52px 0 8px;
+  width: min(460px, 100%);
+  padding: 44px 40px 34px;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 26px;
+  background: var(--lg-panel);
+  box-shadow: 0 30px 80px rgba(31, 49, 38, 0.12);
+  backdrop-filter: blur(24px) saturate(1.1);
 }
 
 .login-powerline {
   position: absolute;
-  left: 0;
+  left: 40px;
+  right: 40px;
   top: 0;
-  width: 100%;
   height: 2px;
 }
 
@@ -50,7 +59,7 @@
   color: var(--lg-text);
   font-family: var(--font);
   font-weight: 700;
-  font-size: clamp(40px, 7vw, 58px);
+  font-size: clamp(38px, 6.4vw, 54px);
   letter-spacing: 0.16em;
   line-height: 1;
 }
@@ -95,25 +104,26 @@
   padding: 4px;
   margin: 24px 0 4px;
   border: 1px solid var(--lg-line);
-  border-radius: 10px;
-  background: var(--lg-bg2);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.46);
   animation: loginRise 0.45s 1.1s both;
 }
 
 .login-tab {
   flex: 1;
   border: 0;
-  border-radius: 7px;
+  border-radius: 9px;
   background: transparent;
   color: var(--lg-soft);
   padding: 9px;
   font: 700 12px/1 var(--mono);
   letter-spacing: 0.04em;
+  transition: background 0.18s, color 0.18s;
 }
 
 .login-tab.active {
   background: var(--lg-accent);
-  color: var(--lg-bg);
+  color: #fff;
 }
 
 .login-form > * {
@@ -154,21 +164,22 @@
   width: 100%;
   border: 1px solid var(--lg-line);
   border-radius: 10px;
-  background: var(--lg-bg2);
+  background: var(--lg-field);
   color: var(--lg-text);
   padding: 13px 46px 13px 13px;
   font-size: 16px;
   outline: none;
-  transition: border-color 0.18s, box-shadow 0.18s;
+  transition: border-color 0.18s, box-shadow 0.18s, background 0.18s;
 }
 
 .login-field input:focus {
   border-color: var(--lg-accent);
-  box-shadow: 0 0 0 4px rgba(95, 191, 138, 0.14);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 0 0 4px rgba(30, 92, 64, 0.10);
 }
 
 .login-field input::placeholder {
-  color: #5c6b60;
+  color: #97a096;
 }
 
 .login-reveal {
@@ -204,10 +215,10 @@
   width: 100%;
   margin-top: 18px;
   padding: 13px;
-  border: 1px solid var(--lg-accent);
+  border: 1px solid rgba(30, 92, 64, 0.9);
   border-radius: 10px;
-  background: var(--lg-accent);
-  color: var(--lg-bg);
+  background: linear-gradient(135deg, #1e5c40, #2f7d4f);
+  color: #fff;
   font-size: 14px;
   font-weight: 700;
   display: flex;
@@ -232,7 +243,7 @@
 .login-error {
   min-height: 18px;
   margin-top: 10px;
-  color: #e08a63;
+  color: #b4463f;
   font-size: 12px;
   line-height: 1.5;
 }
@@ -269,7 +280,13 @@
   }
 
   .login-shell {
-    padding: 40px 4px 8px;
+    padding: 36px 22px 26px;
+    border-radius: 20px;
+  }
+
+  .login-powerline {
+    left: 22px;
+    right: 22px;
   }
 
   .login-wordmark {

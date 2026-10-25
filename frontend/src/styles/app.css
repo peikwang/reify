@@ -1169,3 +1169,127 @@ body {
 .file-row { font-size: 11px; }
 .code-note { font-size: 10px; }
 .diff-head #diffPath { font-size: 12px; }
+
+/* ---------- aurora glass (unified with login) ---------- */
+body {
+  background:
+    radial-gradient(980px 560px at 84% -12%, rgba(111, 143, 191, 0.22), transparent 62%),
+    radial-gradient(760px 520px at -8% 22%, rgba(120, 180, 140, 0.28), transparent 62%),
+    radial-gradient(700px 500px at 76% 84%, rgba(232, 163, 61, 0.10), transparent 60%),
+    linear-gradient(165deg, #fbf8f0 0%, #f2efe5 48%, #edf2ea 100%);
+  background-attachment: fixed;
+}
+.ambient { opacity: 0.78; }
+.ambient .blob { filter: blur(96px); opacity: 0.55; }
+.ambient .blob.b1 { background: rgba(120, 180, 140, 0.42); }
+.ambient .blob.b2 { background: rgba(150, 170, 210, 0.30); }
+.ambient .blob.b3 { background: rgba(232, 163, 61, 0.20); }
+.topbar {
+  background: rgba(251, 249, 243, 0.62);
+  border-bottom-color: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(22px) saturate(1.2);
+}
+.topbar::after {
+  background: linear-gradient(90deg, transparent, rgba(30, 92, 64, 0.35), transparent);
+}
+.top-nav a:hover { background: rgba(255, 255, 255, 0.55); }
+.top-nav a.current { background: rgba(255, 255, 255, 0.78); }
+.flow-panel,
+.stage-panel,
+.composer,
+.template-card,
+.project-card,
+.browser-frame,
+.outcome-card,
+.edit-card,
+.naming-dialog,
+.project-toolbar {
+  background: rgba(255, 255, 255, 0.56);
+  border-color: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(18px) saturate(1.08);
+  box-shadow: 0 18px 50px rgba(31, 49, 38, 0.08);
+}
+.template-card:hover,
+.project-card:hover {
+  border-color: rgba(30, 92, 64, 0.28);
+  box-shadow: 0 24px 60px rgba(31, 49, 38, 0.14);
+}
+.tl-item,
+.prompt-card,
+.mode-switch,
+.status-pill,
+.runtime-state,
+.ghost-btn,
+.mini-btn,
+.filter-chip,
+.stat-pill {
+  background: rgba(255, 255, 255, 0.50);
+  border-color: rgba(24, 33, 27, 0.10);
+}
+.tl-item { backdrop-filter: blur(10px); }
+.mode-switch { background: rgba(255, 255, 255, 0.45); backdrop-filter: blur(14px); }
+.mini-btn:hover,
+.ghost-btn:hover { background: rgba(255, 255, 255, 0.78); }
+.ghost-btn,
+.mini-btn,
+.filter-chip,
+.stat-pill { backdrop-filter: blur(10px); }
+.run-btn { background: linear-gradient(135deg, #1e5c40, #2f7d4f); border-color: rgba(30, 92, 64, 0.9); }
+.run-btn:hover { background: linear-gradient(135deg, #174a33, #256b43); }
+.primary-btn { background: linear-gradient(135deg, #1e5c40, #2f7d4f); border-color: transparent; color: #fff; }
+.naming-dialog { background: rgba(255, 255, 255, 0.72); box-shadow: 0 40px 100px rgba(20, 35, 25, 0.18); }
+.naming-dialog input,
+.edit-form input {
+  background: rgba(255, 255, 255, 0.80);
+  border-color: rgba(24, 33, 27, 0.14);
+  color: var(--ink);
+}
+.edit-info div { background: rgba(255, 255, 255, 0.55); border-color: rgba(24, 33, 27, 0.08); }
+.danger-zone { background: rgba(255, 245, 242, 0.60); border-color: rgba(180, 70, 63, 0.22); }
+.browser-frame { background: rgba(255, 255, 255, 0.50); }
+.stage-panel .browser-frame iframe { background: #fff; }
+.hero-sub,
+.template-card-desc,
+.project-card p,
+.edit-hint { color: var(--muted); }
+.tl-summary { color: #33453a; }
+.template-card-art { border-bottom: 1px solid rgba(24, 33, 27, 0.06); }
+.show-card { box-shadow: 0 24px 60px rgba(31, 49, 38, 0.12); }
+
+/* ---------- companion personality ---------- */
+.face-happy { display: none; }
+.companion[data-stage="write"] [data-prop="anvil"] { opacity: 1; }
+.companion[data-stage="deploy"] [data-prop="heart"],
+.companion[data-stage="done"] [data-prop="heart"] { opacity: 1; animation: petHeart 1.8s ease-in-out infinite; }
+.companion[data-stage="deploy"] .face-default,
+.companion[data-stage="done"] .face-default { display: none; }
+.companion[data-stage="deploy"] .face-happy,
+.companion[data-stage="done"] .face-happy { display: block; }
+.companion[data-stage="write"] .hammer { animation: petHammerStrikes 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+.companion[data-stage="write"] [data-prop="sparks"] path { animation: petSparkStrike 1.6s ease-out infinite; }
+.companion[data-stage="write"] [data-prop="sparks"] path:nth-child(2) { animation-delay: 0.16s; }
+.companion[data-stage="write"] [data-prop="sparks"] path:nth-child(3) { animation-delay: 0.32s; }
+.companion[data-stage="plan"] .ear.l { animation: petEarTwitch 3s ease-in-out infinite; }
+@keyframes petHammerStrikes {
+  0%, 8% { transform: rotate(0deg); }
+  16% { transform: rotate(-30deg); }
+  24% { transform: rotate(8deg); }
+  34% { transform: rotate(-28deg); }
+  42% { transform: rotate(8deg); }
+  52% { transform: rotate(-24deg); }
+  60% { transform: rotate(6deg); }
+  70%, 100% { transform: rotate(0deg); }
+}
+@keyframes petSparkStrike {
+  0%, 10%, 30%, 48%, 66%, 100% { opacity: 0; transform: translateY(0) scale(0.9); }
+  16%, 34%, 52% { opacity: 1; transform: translateY(-2px) scale(1.08); }
+  22%, 40%, 58% { opacity: 0; transform: translateY(-5px) scale(0.95); }
+}
+@keyframes petEarTwitch {
+  0%, 90%, 100% { transform: rotate(0deg); }
+  94% { transform: rotate(-8deg); }
+}
+@keyframes petHeart {
+  0%, 100% { transform: translateY(0); opacity: 0.75; }
+  50% { transform: translateY(-4px); opacity: 1; }
+}
