@@ -10,6 +10,7 @@ import {
   revisionLabel,
 } from "./projectView";
 import { ProjectCardMenu } from "./ProjectCardMenu";
+import { ProjectThumb } from "./ProjectThumb";
 
 interface ProjectCardProps {
   task: Task;
@@ -28,6 +29,8 @@ export function ProjectCard({
   const status = projectStatus(task);
   const title = task.title || task.prompt || "未命名项目";
   const publicUrl = task.status === "done" ? task.share_url : null;
+  const thumbUrl =
+    task.status === "done" && task.stack === "static" && task.url ? task.url : null;
 
   return (
     <article
@@ -39,7 +42,10 @@ export function ProjectCard({
         className="project-card-main"
         to={"/projects/" + encodeURIComponent(task.id)}
       >
-        <div className={"project-cover cover-" + info.key}>
+        <div className={"project-cover cover-" + info.key + (thumbUrl ? " has-thumb" : "")}>
+          {thumbUrl ? (
+            <ProjectThumb url={thumbUrl} revision={task.revision} title={title} />
+          ) : null}
           <span className="cover-label">{info.short}</span>
           <span className="cover-index">{String(index + 1).padStart(2, "0")}</span>
           <span className="cover-glyph">{COVER_GLYPHS[task.capability] ?? "·"}</span>
