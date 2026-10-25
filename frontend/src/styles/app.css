@@ -1364,3 +1364,135 @@ body {
   font-weight: 650;
 }
 .danger-confirm:disabled { opacity: 0.55; cursor: wait; }
+
+/* ---------- centered composer + compact home sections ---------- */
+.home-view .hero { padding-top: clamp(44px, 6.5vh, 88px); }
+.home-view .hero-grid { display: block; max-width: 1040px; margin: 0 auto; }
+.home-view .hero-copy { max-width: 940px; margin: 0 auto; text-align: center; }
+.home-view .eyebrow { justify-content: center; }
+.home-view .hero-sub { margin: 22px auto 30px; max-width: 62ch; }
+.home-view .generic-composer {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 18px 18px 14px;
+  border-radius: 22px;
+}
+.home-view .composer textarea {
+  min-height: 158px;
+  padding: 16px 18px;
+  font-size: 18px;
+  line-height: 1.6;
+}
+.home-view .composer-foot { padding-top: 12px; }
+.home-view .run-btn { padding: 14px 22px; font-size: 16px; }
+.home-view .template-library { max-width: 1100px; margin: 52px auto 0; }
+.home-view .template-grid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+.home-view .template-card-body { padding: 10px 12px 12px; gap: 5px; }
+.home-view .template-card-desc,
+.home-view .template-card-badge { display: none; }
+.home-view .template-card-head b { font-size: 15px; }
+.home-view .recent-section { max-width: 1100px; margin: 0 auto; }
+.home-view .project-grid { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
+.home-view .project-card .project-cover { height: 118px; }
+.home-view .project-card-body { padding: 11px 12px 10px; gap: 5px; }
+.home-view .project-card p { display: none; }
+.projects-view .project-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.projects-view .project-cover { height: 126px; }
+
+/* template illustrations */
+.template-art-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  background: var(--paper, #f2efe6);
+}
+
+/* generated project thumbnails */
+.project-cover.has-thumb { background: #f4f1e8; }
+.project-thumb { position: absolute; inset: 0; overflow: hidden; background: #f4f1e8; }
+.project-thumb iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 400%;
+  height: 400%;
+  border: 0;
+  transform: scale(0.25);
+  transform-origin: top left;
+  pointer-events: none;
+  background: #fff;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+.project-thumb.loaded iframe { opacity: 1; }
+.project-thumb-shade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(16, 24, 18, 0.26), rgba(16, 24, 18, 0) 34%, rgba(16, 24, 18, 0) 72%, rgba(16, 24, 18, 0.16));
+}
+.project-cover.has-thumb::before,
+.project-cover.has-thumb::after { display: none; }
+.project-cover.has-thumb .cover-glyph { display: none; }
+.project-cover.has-thumb .cover-label,
+.project-cover.has-thumb .cover-index {
+  top: 10px;
+  z-index: 2;
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--ink);
+  font-size: 10px;
+  opacity: 1;
+  backdrop-filter: blur(8px);
+}
+.project-cover.has-thumb .cover-label { left: 10px; }
+
+/* ---------- clearer, larger secondary type ---------- */
+:root {
+  --muted: #4d584f;
+  --muted-2: #68746a;
+}
+.topbar { background: rgba(251, 249, 243, 0.78); }
+.flow-panel,
+.stage-panel,
+.composer,
+.browser-frame,
+.outcome-card,
+.edit-card,
+.naming-dialog,
+.project-toolbar {
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(14px) saturate(1.04);
+}
+.template-card,
+.project-card {
+  background: rgba(255, 255, 255, 0.84);
+}
+.brand-copy small { font-size: 10px; }
+.conn { font-size: 11px; }
+.cover-label,
+.cover-index { font-size: 10px; }
+.project-card-top { font-size: 11px; }
+.project-card-foot { font-size: 10px; }
+.template-hint { font-size: 11px; }
+.template-card-head span { font-size: 10px; }
+.section-label > span { font-size: 11px; }
+.task-eyebrow { font-size: 11px; }
+.mini-btn { font-size: 11px; }
+.status-pill,
+.runtime-state { font-size: 11px; }
+.tl-title { font-size: 11px; }
+.tl-time { font-size: 10px; }
+.tl-tool,
+.tl-verify { font-size: 10px; }
+.check-item { font-size: 10.5px; }
+.outcome-kicker { font-size: 10px; }
+.browser-url { font-size: 11px; }
+.browser-tag { font-size: 10px; }
+.sidebar-label { font-size: 10px; }
+.file-row { font-size: 12px; }
+.code-note { font-size: 11px; }
+.home-footer { font-size: 11px; }
