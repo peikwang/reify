@@ -1,5 +1,5 @@
-import { useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import type { Capability, Task } from "../api/types";
 import { Composer } from "../features/composer/Composer";
@@ -11,13 +11,28 @@ import { useToast } from "../layout/ToastProvider";
 
 export function HomePage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { showToast } = useToast();
   const { capabilities, error: capabilitiesError } = useCapabilities();
   const { items, loading, error: projectsError, reload } = useProjects();
   const [prompt, setPrompt] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState<Capability | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const newTaskAt =
+    (location.state as { newTaskAt?: number } | null)?.newTaskAt ?? 0;
   const recent = items.slice(0, 6);
+
+  useEffect(() => {
+    if (!newTaskAt) return;
+    setPrompt("");
+    setSelectedTemplate(null);
+    window.requestAnimationFrame(() => {
+      const input = textareaRef.current;
+      if (!input) return;
+      input.focus({ preventScroll: true });
+      input.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }, [newTaskAt]);
 
   const activeTemplateKey =
     selectedTemplate && prompt.trim() === selectedTemplate.prompt.trim()
@@ -142,6 +157,7 @@ export function HomePage() {
             selectedTemplate={selectedTemplate}
             onCreated={handleCreated}
             textareaRef={textareaRef}
+            resetKey={newTaskAt}
           />
           {capabilitiesError ? (
             <div className="composer-error" role="alert">

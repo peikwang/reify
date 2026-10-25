@@ -77,7 +77,7 @@ export function AppShell() {
             type="button"
             title="新任务"
             aria-label="新任务"
-            onClick={() => navigate("/")}
+            onClick={() => navigate("/", { state: { newTaskAt: Date.now() } })}
           >
             ＋
           </button>
